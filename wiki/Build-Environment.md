@@ -4,7 +4,9 @@
 
 - Docker capable of running the MIB SDK image.
 - Access to `registry.gitlab.com/andrewleech/mibsdk:latest`.
-- The FFmpeg-mini dependency expected by `player/Makefile`.
+- Network access the first time you build `player/`, so
+  `player/build_ffmpeg.sh` can fetch FFmpeg sources; the resulting
+  ffmpeg-mini static libs are cached under `player/build/` afterwards.
 - A clear deployment plan; never substitute host libraries for QNX libraries.
 
 ```sh
@@ -26,6 +28,7 @@ workflow before invoking the remote deployment helper.
 | `libgal_hook.so` | `make hook` | GAL preload hook. |
 | `lib/libdmdt_flush.so` | `make hook` | `_exit()` interposer that makes `dmdt` flush its output, so the player can read `dmdt gs` through a pipe. Goes in the package's `lib/`; see [where the libraries go](Installation-and-Safety-Guide.md#where-the-libraries-go). |
 | `player/stream-player` | `player/Makefile` | FFmpeg/OpenKODE cluster renderer. |
+| `player/build/ffmpeg-mini/` | `player/build_ffmpeg.sh` (auto-run by `player/Makefile`) | Static libavcodec/libavformat/libavutil for QNX ARMv7. |
 | `player/config.txt` | Repository | Player defaults and stream URL. |
 | `scripts/*.sh` | Repository | Install, rollback, diagnostics, deployment helpers. |
 | `gal_dualscreen.conf` | Derived from example | Runtime configuration outside the supervisor budget. |

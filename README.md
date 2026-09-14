@@ -138,8 +138,10 @@ inset/theme settings. Change one geometry or protocol value per test.
 
 ## Build
 
-Prerequisites: Docker, access to the MIB SDK image, and the FFmpeg-mini
-dependency used by `player/Makefile`.
+Prerequisites: Docker and access to the MIB SDK image. `player/Makefile`
+cross-compiles its own FFmpeg-mini (static libavcodec/libavformat/libavutil
+for QNX 6.5.0 ARMv7) via `player/build_ffmpeg.sh` the first time it's
+needed, caching it under `player/build/`.
 
 ```sh
 docker pull registry.gitlab.com/andrewleech/mibsdk:latest
