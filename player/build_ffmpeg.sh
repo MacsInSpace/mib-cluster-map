@@ -2,8 +2,7 @@
 # Cross-compiles the minimal static FFmpeg ("ffmpeg-mini") that
 # player/Makefile links stream-player against: libavcodec (H.264 decode
 # only), libavformat and libavutil, built for QNX 6.5.0 / Tegra 3 ARMv7
-# with the same qcc toolchain variant (gcc_ntoarmv7) used to build
-# opengl_gpu.cc.
+# with the MIB SDK's GCC 4.4.2 cross compiler.
 #
 # stream-player talks to the network itself with raw BSD sockets
 # (see opengl_gpu.cc) and only calls into libavcodec's H.264
@@ -14,7 +13,7 @@
 #
 # Must run *inside* the MIB SDK Docker image (registry.gitlab.com/
 # andrewleech/mibsdk) since it needs the QNX 6.5.0 ARMv7 cross
-# toolchain (qcc) and headers from /etc/qnx/env. Normally you don't
+# toolchain and headers from /etc/qnx/env. Normally you don't
 # call this directly -- `make` in this directory builds ffmpeg-mini
 # automatically the first time it's needed. To force a rebuild, remove
 # the output directory ($FFMPEG_PATH, default player/build/ffmpeg-mini)
@@ -45,11 +44,10 @@ fi
 . /etc/qnx/env
 
 # /etc/qnx/env pre-sets CC/CXX to the armle-nVidiaTegra-nto-qnx6.5.0-gcc
-# toolchain and CFLAGS to "-static -static-libgcc" for it; -static-libgcc
-# isn't a flag qcc understands ("cc: unknown option") and it would leak
-# into ffmpeg's ./configure via the environment regardless of the --cc
-# below, since configure appends $CFLAGS/$LDFLAGS from the environment.
-# We use qcc's own gcc_ntoarmv7 variant instead, so drop all of it.
+# toolchain and CFLAGS to "-static -static-libgcc" for it, and ffmpeg's
+# ./configure appends $CFLAGS/$LDFLAGS from the environment regardless of
+# the --cc below. The toolchain and flags are passed explicitly, so drop
+# all of it.
 unset CC CXX CFLAGS CXXFLAGS LDFLAGS
 
 if [ -f "${PREFIX}/libavcodec/libavcodec.a" ] && \
@@ -92,51 +90,38 @@ fi
 
 cd "${PREFIX}"
 
-# qcc's "-Vgcc_ntoarmv7" variant matches the compile line used for
-# opengl_gpu.cc; the ntoarmv7-* binutils front-ends match the link/strip
-# step in player/Makefile. qcc only registers "gcc_ntoarmv7le" as an
-# actual target (see `qcc -Vgcc_ntoarmv7 ...`'s "unknown target" error
-# listing available ones) -- passing -EL is what lets it resolve the
-# "gcc_ntoarmv7" prefix to that little-endian variant, so -EL must be
-# present on every invocation, not just the final link step.
-CC_QNX="qcc -Vgcc_ntoarmv7"
-AR_QNX="ntoarmv7-ar"
-RANLIB_QNX="ntoarmv7-ranlib"
-STRIP_QNX="ntoarmv7-strip"
-NM_QNX="ntoarmv7-nm"
+# ffmpeg's configure adds -O3 and its other GCC-specific flags only when it
+# recognises the compiler, i.e. when "$cc -v" prints a line starting with
+# "gcc". qcc never does (and without -EL, "qcc -Vgcc_ntoarmv7" is not even a
+# valid target), so a qcc build leaves libavcodec unoptimised. Call the SDK's
+# GCC driver directly instead, with the ARMv7/VFPv3-D16 flags that qcc's
+# gcc_ntoarmv7le variant adds. These are the configure options of the
+# ffmpeg-mini that stream-player was developed against.
+TOOLCHAIN_BIN="${QNX_HOST}/usr/bin"
 
 echo "==> Configuring ffmpeg-mini (H.264 decode only) for QNX 6.5.0 / ARMv7..."
 ./configure \
-    --enable-cross-compile \
-    --target-os=none \
+    --cc="${TOOLCHAIN_BIN}/ntoarmv7-gcc" \
+    --ar="${TOOLCHAIN_BIN}/ntoarmv7-ar" \
+    --ld="${TOOLCHAIN_BIN}/ntoarmv7-gcc" \
     --arch=arm \
-    --cpu=generic \
-    --cc="${CC_QNX}" \
-    --ar="${AR_QNX}" \
-    --ranlib="${RANLIB_QNX}" \
-    --strip="${STRIP_QNX}" \
-    --nm="${NM_QNX}" \
-    --extra-cflags="-DNDEBUG -EL -DVARIANT_le -DVARIANT_v7 -DBUILDENV_qss -Wc,-std=gnu99 -I/usr/qnx650/target/qnx6/usr/include" \
-    --extra-ldflags="-EL -L/usr/qnx650/target/qnx6/armle-v7/lib -L/usr/qnx650/target/qnx6/armle-v7/usr/lib" \
-    --disable-shared \
-    --enable-static \
-    --enable-pic \
-    --disable-programs \
-    --disable-doc \
-    --disable-debug \
-    --disable-runtime-cpudetect \
-    --disable-neon \
+    --target-os=qnx \
     --disable-asm \
-    --disable-inline-asm \
-    --disable-network \
+    --disable-debug \
+    --enable-cross-compile \
+    --extra-cflags='-D_QNX_SOURCE -I/usr/qnx650/target/qnx6/usr/include -march=armv7-a -mfloat-abi=softfp -mfpu=vfpv3-d16' \
+    --extra-ldflags=-L/usr/qnx650/target/qnx6/armle-v7/usr/lib \
+    --extra-libs=-lsocket \
+    --disable-doc \
+    --disable-programs \
     --disable-avdevice \
-    --disable-swscale \
     --disable-swresample \
+    --disable-swscale \
+    --disable-postproc \
     --disable-avfilter \
     --disable-everything \
     --enable-decoder=h264 \
-    --enable-parser=h264 \
-    --enable-pthreads
+    --enable-parser=h264
 
 make -j"${JOBS}"
 
