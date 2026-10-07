@@ -103,22 +103,23 @@ internal copy is refreshed, and reboot.
 | Symptom | State |
 |---|---|
 | Connection loop, phone disconnects every ~17 s | Fixed. See [Navigation status messages](Navigation-Status-Messages.md) |
-| Map shows, then the cluster goes blank after some seconds while the stream keeps running | **Open.** The head unit stops its cluster video encoder. Suspects: low battery voltage during the test, or `VCAndroidAuto.jar` switching the cluster to its own guidance view when a route starts |
+| Map is solid with no route, fails when a route starts | **Being confirmed.** Seen with `VCAndroidAuto.jar` loaded; the installer now removes that jar's start-up line |
 | Turn arrows from `VCAndroidAuto.jar` do not update | Expected for now: the newer navigation messages are ignored, not translated |
 | No steering-wheel zoom of the cluster map | The upstream author's jar for this was never published |
 
-### If the turn-by-turn jar turns out to be the cause
+### The turn-by-turn jar is removed by the installer
 
-Test first: with no route the map stays, and it clears the moment a route
-starts. If that is what happens, remove the jar's line from the Java start-up
-script and reboot:
+On the test car the map was solid with no route and failed the moment a route
+started, while `VCAndroidAuto.jar` was loaded. `enable_hook.sh` therefore checks
+the Java start-up script and:
 
-```sh
-sh /fs/sda0/remove_turn_by_turn_jar.sh            # undo with --restore
-```
+- warns if NavActiveIgnore is missing;
+- removes the one line that loads `VCAndroidAuto.jar`, saving the previous file.
 
-It removes one line from `lsd.sh`, keeps the NavActiveIgnore line, and saves the
-previous file. Friends who never installed that jar can skip this.
+Pass `--keep-turn-by-turn` to skip the removal. `disable_hook.sh` does not put
+the line back; run `sh /fs/sda0/remove_turn_by_turn_jar.sh --restore` for that.
+Whether removing the jar fully cures the route-start failure is still being
+confirmed.
 
 ## 8. If something goes badly wrong
 

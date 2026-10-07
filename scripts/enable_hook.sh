@@ -36,6 +36,7 @@ LOG_PATH_REQUESTED=
 STREAM=1
 SYSTEM_WRITABLE=0
 SYSTEM_TEMP=
+KEEP_TBT=0
 
 # The preload target lives on the internal /mnt/app partition instead of the
 # SD card. The SD card mounts read-only again on every fresh boot unless
@@ -83,6 +84,10 @@ usage()
     echo "  root as gal_dualscreen.conf. Options given here are injected"
     echo "  into the environment and override the file."
     echo
+    echo "  --keep-turn-by-turn  leave adi961's VCAndroidAuto.jar loaded. By"
+    echo "                    default the installer removes its start-up line,"
+    echo "                    because the cluster map fails when a route starts"
+    echo "                    while that jar is active."
     echo "  --no-second-sink  register no second video service"
     echo "  --no-inject-meta  write no display_id/display_type fields"
     echo
@@ -216,6 +221,7 @@ while [ $# -gt 0 ]; do
         --no-inject-meta) INJECT_META=0; shift ;;
         --debug) DEBUG=1; shift ;;
         --no-debug) DEBUG=0; shift ;;
+        --keep-turn-by-turn) KEEP_TBT=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -612,5 +618,41 @@ echo "  hook log: $HOOK_LOG_PATH"
 echo "    falls back to /tmp/gal_dualscreen.log (RAM-backed, does not survive"
 echo "    a reboot) if the SD card is read-only when GAL starts -- true on"
 echo "    every boot unless the SD card is remounted -uw before GAL starts."
+
+# ---- Java interface checks ------------------------------------------------
+# Both live in the Java start-up script, not in anything installed above.
+LSD_SH=/mnt/app/eso/hmi/lsd/lsd.sh
+echo
+if [ -r "$LSD_SH" ]; then
+    if grep -q 'NavActiveIgnore.jar' "$LSD_SH"; then
+        echo "Java check: NavActiveIgnore is loaded (required)."
+    else
+        echo "WARNING: NavActiveIgnore is NOT loaded by $LSD_SH." >&2
+        echo "         Without it the cluster drops its map when the phone navigates." >&2
+        echo "         Install it from the toolbox green menu, then reboot." >&2
+    fi
+    if grep -q 'VCAndroidAuto.jar' "$LSD_SH"; then
+        if [ "$KEEP_TBT" -eq 1 ]; then
+            echo "Java check: VCAndroidAuto.jar is loaded and was kept (--keep-turn-by-turn)."
+            echo "            Expect the cluster map to fail when a route starts."
+        elif [ -r "$CARD_ROOT/remove_turn_by_turn_jar.sh" ]; then
+            echo "Java check: VCAndroidAuto.jar is loaded; removing its start-up line."
+            if sh "$CARD_ROOT/remove_turn_by_turn_jar.sh"; then
+                :
+            else
+                echo "WARNING: could not remove the VCAndroidAuto.jar line; lsd.sh is unchanged." >&2
+                echo "         The hook is installed, but the map may fail when a route starts." >&2
+            fi
+        else
+            echo "WARNING: VCAndroidAuto.jar is loaded and remove_turn_by_turn_jar.sh is" >&2
+            echo "         not beside this script. The map may fail when a route starts." >&2
+        fi
+    else
+        echo "Java check: VCAndroidAuto.jar is not loaded (good)."
+    fi
+else
+    echo "WARNING: cannot read $LSD_SH; Java interface checks skipped." >&2
+fi
+
 echo
 echo "Reboot the unit to apply it. Do not start a second GAL manually."

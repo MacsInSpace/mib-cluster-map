@@ -159,4 +159,10 @@ if [ -d "$PRELOAD_WRITE_DIR" ] || [ -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" ] |
 fi
 trap - 0 1 2 15
 
+if [ -r /mnt/app/eso/hmi/lsd/lsd.sh.before_tbt_remove ]; then
+    echo
+    echo "Note: the installer removed the VCAndroidAuto.jar (turn-by-turn) start-up line."
+    echo "      It is NOT put back automatically. To restore it:"
+    echo "        sh $CARD_ROOT/remove_turn_by_turn_jar.sh --restore"
+fi
 echo "Reboot the unit to run GAL without the hook."
