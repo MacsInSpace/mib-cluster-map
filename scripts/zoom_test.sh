@@ -7,18 +7,25 @@
 PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/usr/bin:$PATH
 export PATH
 F=/tmp/gal_inject
+# sleep may not be on the unit's PATH; fall back to a counting loop.
+if command -v sleep >/dev/null 2>&1; then
+    pause() { sleep $1; }
+else
+    pause() { c=0; lim=`expr $1 \* 15000`; while [ $c -lt $lim ]; do c=`expr $c + 1`; done; }
+    echo "(no sleep command found; using a slower counting delay)"
+fi
 send() {   # send <line> : write one request and wait until the hook has taken it
     echo "$1" > $F
     n=0
-    while [ -f $F ] && [ $n -lt 20 ]; do sleep 1; n=`expr $n + 1`; done
+    while [ -f $F ] && [ $n -lt 20 ]; do pause 1; n=`expr $n + 1`; done
     [ -f $F ] && { echo "   (not picked up: is GAL_INPUT_INJECT=1 set and the phone connected?)"; rm -f $F; }
 }
 step() {   # step <number> <description> <line> <repeat>
     echo
     echo "STEP $1: $2"
     i=0
-    while [ $i -lt $4 ]; do send "$3"; sleep 1; i=`expr $i + 1`; done
-    sleep 4
+    while [ $i -lt $4 ]; do send "$3"; pause 1; i=`expr $i + 1`; done
+    pause 4
 }
 echo "Watch the cluster map and the centre screen. Each step waits a few seconds."
 step 1  "cluster channel, rotary +1, three times"            "c rot 65536 1"     3
