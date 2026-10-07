@@ -1,10 +1,10 @@
 # Field guide: installing this on another car
 
 Local notes, not from upstream. They describe the build on the `local-fixes`
-branch, which uses an open toolchain and adds a few fixes. Status: working on one car. With the installer's Java checks applied, the
-cluster map ran for three minutes at about 30 frames per second, through a
-route start, with no drops. Longer drives, reconnects and reverse-camera use
-are not yet tested. Read "Known open issues" before offering it to anyone.
+branch, which uses an open toolchain and adds a few fixes. Status: working on one car. The cluster map ran for eight minutes at about 30
+frames per second, with and without a route, through repeated input tests, with
+no drops. Longer drives, reconnects, reverse-camera use and waking from sleep
+are not yet tested.
 
 ## 1. Will it fit their car
 
@@ -97,7 +97,20 @@ internal copy is refreshed, and reboot.
 | `GAL_SECONDARY_UI_THEME` | 2 (dark) | 0 follows the phone, 1 is light |
 | `GAL_DUALSCREEN_AAP_MINOR` | 7 | never, unless testing: the phone only offers the cluster display at this value |
 | `GAL_FIX_SUPPRESS_UNEXPECTED` | on | never, unless reproducing the connection loop |
-| `GAL_DUALSCREEN_DEBUG` | 1 | set 0 once it is stable, to cut log volume |
+| `GAL_DUALSCREEN_DEBUG`, `GAL_FIX_STREAM_TIMING`, `GAL_PLAYER_STATS`, `GAL_HOOK_LOG_MAX_MB` | 0, 0, 0, 1 | troubleshooting: see "Logging" below |
+
+### Logging
+
+The shipped install is quiet: no per-frame lines, no once-a-second timing or
+player statistics, and a 1 MB cap. A short log of connects, state changes and
+errors is still kept in RAM (`/tmp/gal_dualscreen.log`, `/tmp/stream-player.log`)
+so a failure can be diagnosed with `collect_logs.sh`. It is lost at reboot and
+never written to flash.
+
+For a full trace: set `GAL_FIX_STREAM_TIMING=1`, `GAL_PLAYER_STATS=1` and
+`GAL_HOOK_LOG_MAX_MB=10` in `gal_dualscreen.conf`, then reinstall with
+`sh /fs/sda0/enable_hook.sh --debug` and reboot. To write no hook log at all,
+add `GAL_HOOK_LOG=/dev/null`.
 
 ## 7. Known open issues
 
@@ -106,7 +119,7 @@ internal copy is refreshed, and reboot.
 | Connection loop, phone disconnects every ~17 s | Fixed. See [Navigation status messages](Navigation-Status-Messages.md) |
 | Map is solid with no route, goes blank when a route starts | Fixed. Caused by `VCAndroidAuto.jar`; the installer removes that jar's start-up line. Confirmed on the car |
 | Turn arrows from `VCAndroidAuto.jar` do not update | Expected for now: the newer navigation messages are ignored, not translated |
-| No steering-wheel zoom of the cluster map | The upstream author's jar for this was never published |
+| No steering-wheel zoom of the cluster map | Not possible with any input found. See [Cluster zoom findings](Cluster-Zoom-Findings.md) |
 
 ### The turn-by-turn jar is removed by the installer
 

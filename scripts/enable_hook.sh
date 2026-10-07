@@ -25,7 +25,7 @@ BACKUP_DIR="$CARD_ROOT/backups"
 ORIGINAL="$BACKUP_DIR/smartphone_integrator.json.original"
 LOG_DIR="$CARD_ROOT/logs"
 DPI=140
-DEBUG=1
+DEBUG=0
 SECOND_SINK=1
 INJECT_META=1
 AAP_MINOR=
@@ -73,7 +73,7 @@ trap finish 0 1 2 15
 
 usage()
 {
-    echo "Usage: $0 [--dpi NUMBER] [--debug|--no-debug]"
+    echo "Usage: $0 [--dpi NUMBER] [--debug|--no-debug]   (debug logging is off unless --debug)"
     echo "          [--no-second-sink] [--no-inject-meta] [--aap-minor N]"
     echo "          [--cluster-input] [--margins WxH]"
     echo "          [--output MODE] [--displayable N] [--log PATH]"

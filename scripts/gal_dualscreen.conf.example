@@ -131,6 +131,16 @@ GAL_SECONDARY_SERVICE_ID=0
 # packed values: five codes below 128, or 65536 plus two.
 #GAL_CLUSTER_KEYCODES=19,20,23
 
+# ---- log volume -------------------------------------------------------
+# Normal use: no per-frame debug lines, no once-a-second timing or player
+# statistics, and a 1 MB cap on the hook log. The logs live in RAM
+# (/tmp/gal_dualscreen.log, /tmp/stream-player.log) and are lost at
+# reboot. For troubleshooting, reinstall with "enable_hook.sh --debug"
+# and set the three values below back to 1, 1 and 10.
+#GAL_FIX_STREAM_TIMING=0
+#GAL_PLAYER_STATS=0
+#GAL_HOOK_LOG_MAX_MB=1
+
 # ---- logging ---------------------------------------------------------
 # Unset by default: the hook uses its built-in path and falls back to
 # /tmp/gal_dualscreen.log when the card is read-only, which it is on every

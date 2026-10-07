@@ -84,3 +84,4 @@ This project is an experimental research endeavor intended strictly for personal
 
 * [Field guide: installing this on another car](Field-Guide-Sharing-With-Friends.md)
 * [Navigation status messages and the connection loop](Navigation-Status-Messages.md)
+* [Cluster map zoom: what was tried](Cluster-Zoom-Findings.md)

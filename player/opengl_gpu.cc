@@ -951,6 +951,9 @@ static void load_player_config() {
                 g_idleMaxBytes = atoi(val);
             } else if (strcmp(key, "GAL_PLAYER_HEARTBEAT_HZ") == 0) {
                 g_idleHeartbeatHz = atoi(val);
+            } else if (strcmp(key, "GAL_PLAYER_STATS") == 0) {
+                /* 0 drops the once-a-second STATS line; everything else is still logged. */
+                g_verbose = atoi(val) != 0;
             }
         }
         fclose(f);
