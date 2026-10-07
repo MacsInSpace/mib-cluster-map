@@ -2115,6 +2115,33 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
                           g_channel_seen[(g_secondary_service_id + 1u) & 0xffu]);
         }
     }
+    /*
+     * GAL_FIX_HIDE_NAV_STATUS (default off). 0x8003 NavigationStatus on the
+     * navigation service is what tells the Java interface that the phone is
+     * navigating. On the car the cluster map was solid with no route and the
+     * head unit stopped the cluster video the moment a route started, with the
+     * phone, hook and player all still running. With this on, the message is
+     * not routed, so the Java side never sees "phone navigation active".
+     */
+    {
+        static int hide = -1;
+        if (hide < 0) {
+            const char *v = getenv("GAL_FIX_HIDE_NAV_STATUS");
+            hide = (v != NULL && *v != '\0' && strcmp(v, "0") != 0 &&
+                    strcmp(v, "false") != 0 && strcmp(v, "no") != 0) ? 1 : 0;
+            gal_hook_logf("event=fix.hide_nav_status enabled=%d", hide);
+        }
+        if (hide && g_secondary_registered &&
+            strstr(g_service_class[channel], "NavigationStatus") != NULL &&
+            g_channel_last_id[channel] == 0x8003u) {
+            unsigned nb = 0u;
+            const unsigned char *m = (const unsigned char *)iobuffer_bytes(buffer, &nb);
+            gal_hook_logf("event=aap.nav_status channel=%u bytes=%u status_byte=%d action=hidden fix=hide_nav_status",
+                          (unsigned)channel, nb, (m != NULL && nb >= 4u) ? (int)m[3] : -1);
+            fc_run_mailbox();
+            return;
+        }
+    }
     if (g_secondary_service_id != 0u &&
         channel == (unsigned char)((g_secondary_service_id + 1u) & 0xffu)) {
         /*
