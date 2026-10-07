@@ -107,6 +107,14 @@ GAL_SECONDARY_SERVICE_ID=0
 # tears the stream down. Only turn it off to test that claim.
 #GAL_DUALSCREEN_ACK=0
 
+# ---- unexpected-message reply ---------------------------------------
+# With a cluster display the phone sends navigation messages 0x8006 and
+# 0x8007 that this receiver does not know. Its "unexpected message" reply
+# makes the phone reset the link (a connection loop every ~17 s), so the
+# hook drops the reply. Default on; 0 sends it as stock does.
+# See wiki/Navigation-Status-Messages.md.
+#GAL_FIX_SUPPRESS_UNEXPECTED=0
+
 # ---- logging ---------------------------------------------------------
 # Unset by default: the hook uses its built-in path and falls back to
 # /tmp/gal_dualscreen.log when the card is read-only, which it is on every

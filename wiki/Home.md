@@ -77,3 +77,10 @@ This project focuses on the **native C preload hook and hardware video streaming
 
 ## ⚠️ Important Disclaime
 This project is an experimental research endeavor intended strictly for personal study and educational exploration. Modifying automotive infotainment firmware carries inherent risks of permanent bricking or software instability. Always keep verified eMMC/NAND backups before modifying unit configurations.
+
+---
+
+## Local field notes (not from upstream)
+
+* [Field guide: installing this on another car](Field-Guide-Sharing-With-Friends.md)
+* [Navigation status messages and the connection loop](Navigation-Status-Messages.md)
