@@ -1,9 +1,10 @@
 # Field guide: installing this on another car
 
 Local notes, not from upstream. They describe the build on the `local-fixes`
-branch, which uses an open toolchain and adds a few fixes. Status: the map has
-reached the cluster on one car. It is not yet proven stable. Read "Known open
-issues" before offering it to anyone.
+branch, which uses an open toolchain and adds a few fixes. Status: working on one car. With the installer's Java checks applied, the
+cluster map ran for three minutes at about 30 frames per second, through a
+route start, with no drops. Longer drives, reconnects and reverse-camera use
+are not yet tested. Read "Known open issues" before offering it to anyone.
 
 ## 1. Will it fit their car
 
@@ -103,7 +104,7 @@ internal copy is refreshed, and reboot.
 | Symptom | State |
 |---|---|
 | Connection loop, phone disconnects every ~17 s | Fixed. See [Navigation status messages](Navigation-Status-Messages.md) |
-| Map is solid with no route, fails when a route starts | **Being confirmed.** Seen with `VCAndroidAuto.jar` loaded; the installer now removes that jar's start-up line |
+| Map is solid with no route, goes blank when a route starts | Fixed. Caused by `VCAndroidAuto.jar`; the installer removes that jar's start-up line. Confirmed on the car |
 | Turn arrows from `VCAndroidAuto.jar` do not update | Expected for now: the newer navigation messages are ignored, not translated |
 | No steering-wheel zoom of the cluster map | The upstream author's jar for this was never published |
 
@@ -118,8 +119,9 @@ the Java start-up script and:
 
 Pass `--keep-turn-by-turn` to skip the removal. `disable_hook.sh` does not put
 the line back; run `sh /fs/sda0/remove_turn_by_turn_jar.sh --restore` for that.
-Whether removing the jar fully cures the route-start failure is still being
-confirmed.
+Confirmed on the test car: with the line removed, the map stayed up through a
+route start. If a car still blanks without that jar, try
+`GAL_FIX_HIDE_NAV_STATUS=1` in `gal_dualscreen.conf` (untested).
 
 ## 8. If something goes badly wrong
 
