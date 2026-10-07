@@ -838,8 +838,8 @@ int vc_stream_out_write_ex(const void *data, size_t bytes, int *delivered)
                  * What is left of this frame's whole budget, not a fresh
                  * 250 ms for every round of a slow drain.
                  */
-                tv.tv_sec = 0;
-                tv.tv_usec = (long)(remaining * 1000LL);
+                tv.tv_sec = remaining >= 1000LL ? 1 : 0;
+                tv.tv_usec = remaining >= 1000LL ? 0 : (long)remaining * 1000L;
                 sret = select(g_client_fd + 1, NULL, &wfds, NULL, &tv);
                 if (sret > 0 && FD_ISSET(g_client_fd, &wfds)) continue;
                 g_dropped_bytes += (unsigned long)left;

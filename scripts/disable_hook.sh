@@ -135,10 +135,15 @@ echo "  restored from: $RESTORE_SOURCE"
 # writable window on the internal system partition on a run that has
 # nothing to clean up (a disable without a prior enable, or a second
 # disable in a row).
-if [ -d "$PRELOAD_WRITE_DIR" ] || [ -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" ]; then
+if [ -d "$PRELOAD_WRITE_DIR" ] || [ -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" ] ||
+   [ -f "$APP_MOUNT/navigation/stream-player" ]; then
     if mount -uw "$APP_MOUNT" 2>/dev/null; then
         APP_WRITABLE=1
         rm -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" 2>/dev/null || true
+        # enable_hook.sh put the player here; nothing else on the unit uses it.
+        if rm -f "$APP_MOUNT/navigation/stream-player" 2>/dev/null; then
+            echo "  removed player: $APP_MOUNT/navigation/stream-player"
+        fi
         if [ -d "$PRELOAD_WRITE_DIR" ]; then
             if rm -rf "$PRELOAD_WRITE_DIR" 2>/dev/null; then
                 echo "  removed preload copy: $PRELOAD_WRITE_DIR"

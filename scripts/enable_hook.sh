@@ -351,13 +351,20 @@ if [ -r "$CARD_ROOT/lib/libdmdt_flush.so" ]; then
     echo "Installed dmdt flush interposer to: $PRELOAD_WRITE_DIR/libdmdt_flush.so"
 fi
 
-# Install stream-player and config.txt to /mnt/app/navigation
+# Internal copy of the settings file: the hook reads the SD card first and
+# falls back to this one, so the tuned values still apply without the card.
+if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
+    cp "$CARD_ROOT/gal_dualscreen.conf" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null || true
+    chmod 644 "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null || true
+    echo "Installed settings copy: $PRELOAD_WRITE_DIR/gal_dualscreen.conf"
+else
+    echo "NOTE: no gal_dualscreen.conf beside this script; the hook will run on built-in defaults."
+fi
+
+# Install stream-player to /mnt/app/navigation
 if [ -x "$CARD_ROOT/stream-player" ]; then
     cp "$CARD_ROOT/stream-player" "$APP_MOUNT/navigation/stream-player" 2>/dev/null || true
     chmod 755 "$APP_MOUNT/navigation/stream-player" 2>/dev/null || true
-    if [ -r "$CARD_ROOT/config.txt" ]; then
-        cp "$CARD_ROOT/config.txt" "$APP_MOUNT/navigation/config.txt" 2>/dev/null || true
-    fi
     echo "Installed stream-player to: $APP_MOUNT/navigation/stream-player"
 fi
 
@@ -468,7 +475,22 @@ INJECTION="\"LD_PRELOAD=$PRELOAD_SO_ALIAS\", \"GAL_DUALSCREEN_ENABLE=1\", \"GAL_
 # with no LD_PRELOAD at all while this file still looked correct on disk,
 # and the only symptom was a hook that never loaded. Failing loudly here is
 # worth more than one extra option.
-ENTRY_COUNT=`echo "$INJECTION" | awk -F'=' '{print NF-1}'`
+INJECTED_COUNT=`echo "$INJECTION" | awk -F'", ' '{print NF-1}'`
+EXISTING_COUNT=`awk '
+BEGIN { in_children=0; in_gal=0 }
+{
+    if ($0 ~ /"children"[ 	]*:/) in_children=1
+    if (in_children && !in_gal && $0 ~ /^[ 	]*"gal"[ 	]*:/) in_gal=1
+    if (in_gal && $0 ~ /^[ 	]*"envs"[ 	]*:\[/) {
+        line=$0; sub(/^[^\[]*\[/, "", line); sub(/\].*$/, "", line)
+        n=split(line, parts, /"[ 	]*,[ 	]*"/)
+        if (line ~ /^[ 	]*$/) n=0
+        print n; exit
+    }
+}' "$SOURCE"`
+[ -n "$EXISTING_COUNT" ] || EXISTING_COUNT=0
+ENTRY_COUNT=`expr $INJECTED_COUNT + $EXISTING_COUNT`
+echo "Environment entries: $INJECTED_COUNT injected + $EXISTING_COUNT already in the stock config"
 if [ "$ENTRY_COUNT" -gt 10 ]; then
     echo "Refusing to install: $ENTRY_COUNT environment entries." >&2
     echo "smartphone_integrator silently drops the whole array past ~10," >&2
@@ -579,7 +601,7 @@ echo "  persistent recovery: $PERSISTENT_BACKUP"
 echo "  preload target: $PRELOAD_SO_ALIAS"
 echo "    on the internal /mnt/app partition, not the SD card -- avoids the"
 echo "    SD-card mount-timing race at GAL's boot-time launch."
-echo "  mode: independent NvSS secondary decoder"
+echo "  output mode: $OUTPUT (video forwarded to stream-player)"
 echo "  cluster: 800x480 @ 30 fps, DPI $DPI"
 echo "  debug logs: $DEBUG"
 echo "  second sink: $SECOND_SINK   inject metadata: $INJECT_META"
