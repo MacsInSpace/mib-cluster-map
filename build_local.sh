@@ -12,12 +12,20 @@ IMG=${QNX_IMAGE:-qnx65-armv7-toolchain:8.5}
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 WHAT=${1:-all}
 BUILD_ID=$(git -C "$ROOT" describe --always --dirty 2>/dev/null || echo local)
-docker image inspect "$IMG" >/dev/null 2>&1 || { echo "ERROR: docker image $IMG not found; build it first (qnx-run.sh build 8.5)"; exit 1; }
+# Packaging needs no compiler, so only the build steps require the image. Docker
+# Desktop's inspect call has failed transiently here while the image was present,
+# so fall back to the image list before giving up.
+need_image() {
+  docker image inspect "$IMG" >/dev/null 2>&1 && return 0
+  docker image ls --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -qx "$IMG" && return 0
+  echo "ERROR: docker image $IMG not found; build it first (qnx-run.sh build 8.5)"; exit 1
+}
 run() { docker run --rm --platform=linux/amd64 -v "$ROOT":/work -w /work -e BUILD_ID="$BUILD_ID" "$IMG" bash -c "$1"; }
 ENVSETUP='export PATH=/opt/qnx650/host/linux/x86/usr/bin:$PATH QNX_HOST=/opt/qnx650/host/linux/x86 QNX_TARGET=/opt/qnx650/target/qnx6; P=arm-unknown-nto-qnx6.5.0eabi'
 mkdir -p "$ROOT/build"
 
 build_hook() {
+  need_image
   run "$ENVSETUP"'
     set -e
     # --exclude-libs,ALL keeps libgcc helpers (_Unwind_*, __aeabi_*) out of the dynamic
@@ -37,6 +45,7 @@ build_hook() {
 }
 
 build_player() {
+  need_image
   run "$ENVSETUP"'
     set -e
     FF=/work/build/ffmpeg-mini; V=6.1.5
