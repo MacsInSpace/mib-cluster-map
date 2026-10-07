@@ -66,7 +66,9 @@ the cluster sink is registered, the reply is logged and not sent.
 |---|---|---|
 | `GAL_FIX_SUPPRESS_UNEXPECTED` | on | `0` sends the reply as stock does. Use only to reproduce the loop. |
 
-Set it in `gal_dualscreen.conf`, not in the supervisor environment.
+| `GAL_FIX_HIDE_NAV_STATUS` | off | `1` stops the hook passing `0x8003` NavigationStatus to the receiver, so the Java interface never learns the phone is navigating. For the case where the cluster map blanks when a route starts. Untested on a car at the time of writing. |
+
+Set these in `gal_dualscreen.conf`, not in the supervisor environment.
 
 ## Known consequence: no turn data for the Java side
 
