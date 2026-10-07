@@ -121,6 +121,16 @@ GAL_SECONDARY_SERVICE_ID=0
 # then does not pass message 0x8003 NavigationStatus to the receiver.
 #GAL_FIX_HIDE_NAV_STATUS=1
 
+# ---- input experiments ----------------------------------------------
+# Test harness for finding out which input zooms the cluster map. With 1,
+# the hook reads requests from /tmp/gal_inject (see zoom_test.sh). Leave
+# off in normal use.
+#GAL_INPUT_INJECT=1
+# Android keycodes advertised for the cluster input service. Default
+# 23,65536 (DPAD centre and the rotary controller). At most 5 bytes of
+# packed values: five codes below 128, or 65536 plus two.
+#GAL_CLUSTER_KEYCODES=19,20,23
+
 # ---- logging ---------------------------------------------------------
 # Unset by default: the hook uses its built-in path and falls back to
 # /tmp/gal_dualscreen.log when the card is read-only, which it is on every

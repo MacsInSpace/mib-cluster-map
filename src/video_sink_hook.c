@@ -1015,7 +1015,8 @@ static void append_cluster_input_service(void *response)
      * the routing table, discoverable only as traffic arriving at the
      * wrong endpoint.
      */
-    unsigned char entry[14] = {
+    unsigned entry_len = 14u;
+    unsigned char entry[16] = {
         0x0au, 0x0cu,
             0x08u, 0x41u,
             0x22u, 0x08u,
@@ -1036,6 +1037,47 @@ static void append_cluster_input_service(void *response)
         return;
     }
     entry[3] = (unsigned char)input_service_id;
+    {
+        /*
+         * GAL_CLUSTER_KEYCODES="19,20,23": Android keycodes to advertise for
+         * the cluster instead of the default 23,65536. The whole entry has to
+         * fit the 15-byte inline string, which leaves 5 bytes of packed
+         * varints: five codes below 128, or 65536 (3 bytes) plus two.
+         */
+        const char *v = getenv("GAL_CLUSTER_KEYCODES");
+        if (v != NULL && *v != '\0') {
+            unsigned char packed[8];
+            size_t n = 0u;
+            const char *q = v;
+            int ok = 1;
+            while (*q != '\0' && ok) {
+                char *end = NULL;
+                unsigned long code = strtoul(q, &end, 10);
+                unsigned char tmp[5];
+                size_t k;
+                if (end == q) { ok = 0; break; }
+                k = encode_varint(tmp, (uint32_t)code);
+                if (n + k > 5u) { ok = 0; break; }
+                memcpy(packed + n, tmp, k);
+                n += k;
+                q = (*end == ',') ? end + 1 : end;
+                if (*end != ',' && *end != '\0') ok = 0;
+            }
+            if (ok && n > 0u) {
+                /* 0a LL 08 id 22 L2 0a N <codes> 28 01 */
+                entry_len = 10u + (unsigned)n;
+                entry[1] = (unsigned char)(entry_len - 2u);
+                entry[5] = (unsigned char)(n + 4u);
+                entry[7] = (unsigned char)n;
+                memcpy(entry + 8, packed, n);
+                entry[8u + n] = 0x28u;
+                entry[9u + n] = 0x01u;
+                gal_hook_logf("event=cluster.input keycodes=%s packed_bytes=%u", v, (unsigned)n);
+            } else {
+                gal_hook_logf("event=cluster.input keycodes=%s result=rejected reason=parse_or_over_5_bytes using=23,65536", v);
+            }
+        }
+    }
     capacity = load_u32(response, 0x1cu);
     length = load_u32(response, 0x18u);
     /*
@@ -1048,8 +1090,8 @@ static void append_cluster_input_service(void *response)
      * within one discovery round, not a failure. Distinguished from a real
      * conflict so the log does not cry wolf.
      */
-    if (length == (unsigned)sizeof(entry) && capacity < 0x10u &&
-        memcmp(object + 0x08u, entry, sizeof(entry)) == 0) {
+    if (length == entry_len && capacity < 0x10u &&
+        memcmp(object + 0x08u, entry, entry_len) == 0) {
         gal_hook_debugf("event=cluster.input result=already_present response=%p",
                         response);
         return;
@@ -1060,12 +1102,12 @@ static void append_cluster_input_service(void *response)
                       response, length, capacity);
         return;
     }
-    for (i = 0u; i < sizeof(entry); ++i) object[0x08u + i] = entry[i];
-    object[0x08u + sizeof(entry)] = 0u;
-    store_u32(response, 0x18u, (uint32_t)sizeof(entry));
+    for (i = 0u; i < entry_len; ++i) object[0x08u + i] = entry[i];
+    object[0x08u + entry_len] = 0u;
+    store_u32(response, 0x18u, (uint32_t)entry_len);
     gal_hook_logf("event=cluster.input result=success service=%u video_service=%u keycodes=23,65536 display_id=1 bytes=%u",
                   input_service_id, g_secondary_service_id,
-                  (unsigned)sizeof(entry));
+                  entry_len);
 }
 
 /* VideoSink::addDiscoveryInfo(ServiceDiscoveryResponse*) */
@@ -2024,10 +2066,16 @@ void _ZN10Controller18sendVersionRequestEv(void *receiver)
  * Logs the first message on each channel and then every 500th, so a
  * video channel streaming frames cannot flood the log.
  */
+static void input_inject_poll(void *router);
+static void cluster_input_message(void *router, unsigned char channel, const void *buffer);
+static void hex_preview(const unsigned char *p, unsigned n, char *out, size_t out_len);
+
 void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
     void *router, unsigned char channel, const void *buffer)
 {
     unsigned long count;
+
+    input_inject_poll(router);
 
     (void)resolve_symbol("_ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE",
                          (void **)&g_route_message);
@@ -2047,6 +2095,16 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
                 gal_hook_logf("event=aap.msg channel=%u class=%s msg_id=0x%04x bytes=%u n=%lu",
                               (unsigned)channel, g_service_class[channel], id, nbytes, count);
             }
+        }
+    }
+    if (g_channel_last_id[channel] == 0x8002u &&
+        strstr(g_service_class[channel], "InputSource") != NULL) {
+        unsigned nb = 0u;
+        const unsigned char *m = (const unsigned char *)iobuffer_bytes(buffer, &nb);
+        char hex[2 * 48 + 1];
+        if (m != NULL) {
+            hex_preview(m, nb < 48u ? nb : 48u, hex, sizeof hex);
+            gal_hook_logf("event=main.input.binding channel=%u bytes=%u request=%s", (unsigned)channel, nb, hex);
         }
     }
     if (count == 1ul) {
@@ -2149,6 +2207,7 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
          * C++ endpoint object in router->table[service + 0x40], swallow safely
          * rather than delegating to g_route_message which would dereference NULL.
          */
+        cluster_input_message(router, channel, buffer);
         fc_run_mailbox();
         return;
     }
@@ -2189,6 +2248,170 @@ void _ZN13MessageRouter21sendUnexpectedMessageEh(void *router, unsigned char cha
                       (suppress && g_secondary_registered) ? "suppressed" : "sent");
     if (suppress && g_secondary_registered) return;
     if (g_send_unexpected != NULL) g_send_unexpected(router, channel);
+}
+
+/* ---------------- Input: cluster key binding and the injection harness ---------------- */
+
+typedef void (*queue_outgoing_fn)(void *, unsigned char, void *, unsigned);
+static queue_outgoing_fn g_queue_outgoing;
+#define INJECT_PATH "/tmp/gal_inject"
+
+static void hex_preview(const unsigned char *p, unsigned n, char *out, size_t out_len)
+{
+    unsigned i;
+    size_t used = 0u;
+    out[0] = '\0';
+    for (i = 0u; i < n && used + 3u < out_len; ++i)
+        used += (size_t)snprintf(out + used, out_len - used, "%02x", p[i]);
+}
+
+/* InputReport (0x8001): 1 timestamp, 2 disp_channel_id, 4 KeyEvent, 6 RelativeEvent.
+ * Field numbers read from this unit's libautoreceiver.so k*FieldNumber constants. */
+static size_t build_input_report(unsigned char *out, int disp, int relative,
+                                 uint32_t code, int value)
+{
+    unsigned char inner[24];
+    size_t in = 0u;
+    size_t n = 0u;
+    struct timespec ts;
+    uint64_t now;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    now = (uint64_t)ts.tv_sec * 1000000000ull + (uint64_t)ts.tv_nsec;
+    out[n++] = 0x80u; out[n++] = 0x01u;
+    out[n++] = 0x08u;                                   /* timestamp */
+    while (now >= 0x80u) { out[n++] = (unsigned char)(now | 0x80u); now >>= 7; }
+    out[n++] = (unsigned char)now;
+    if (disp >= 0) { out[n++] = 0x10u; n += encode_varint(out + n, (uint32_t)disp); }
+
+    inner[in++] = 0x08u;                                /* keycode */
+    in += encode_varint(inner + in, code);
+    inner[in++] = 0x10u;                                /* delta | down */
+    if (relative) {
+        if (value >= 0) {
+            in += encode_varint(inner + in, (uint32_t)value);
+        } else {                                        /* int32: sign-extended to 64 bits */
+            uint64_t v = (uint64_t)(int64_t)value;
+            while (v >= 0x80u) { inner[in++] = (unsigned char)(v | 0x80u); v >>= 7; }
+            inner[in++] = (unsigned char)v;
+        }
+    } else {
+        inner[in++] = value ? 1u : 0u;
+        inner[in++] = 0x18u; inner[in++] = 0u;          /* metastate 0 */
+        inner[in++] = 0x20u; inner[in++] = 0u;          /* longpress false */
+    }
+    out[n++] = relative ? 0x32u : 0x22u;                /* RelativeEvent | KeyEvent */
+    out[n++] = (unsigned char)(in + 2u);
+    out[n++] = 0x0au;                                   /* repeated data | keys */
+    out[n++] = (unsigned char)in;
+    memcpy(out + n, inner, in);
+    return n + in;
+}
+
+static unsigned find_main_input_channel(void)
+{
+    unsigned i;
+    for (i = 0u; i < 256u; ++i)
+        if (strstr(g_service_class[i], "InputSource") != NULL) return i;
+    return 0xffu;
+}
+
+/*
+ * Test harness (GAL_INPUT_INJECT=1). Each line of /tmp/gal_inject is
+ *     <c|m|channel-number> <key|down|up|rot> <keycode> [value] [display-id]
+ * c = the cluster input channel, m = gal's own input channel. "key" sends a
+ * press and a release, "rot" a relative event with delta `value`. The file is
+ * read and removed from gal's reader thread, so the report goes out on the
+ * thread every other send uses. For finding out what the phone reacts to.
+ */
+static void input_inject_poll(void *router)
+{
+    static int enabled = -1;
+    static struct timespec last;
+    struct timespec now;
+    FILE *f;
+    char line[96];
+
+    if (enabled < 0) {
+        const char *v = getenv("GAL_INPUT_INJECT");
+        enabled = (v != NULL && *v != '\0' && strcmp(v, "0") != 0) ? 1 : 0;
+        gal_hook_logf("event=input.inject enabled=%d path=%s", enabled, INJECT_PATH);
+    }
+    if (!enabled || router == NULL) return;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    if (now.tv_sec == last.tv_sec && (now.tv_nsec - last.tv_nsec) < 200000000L) return;
+    last = now;
+    f = fopen(INJECT_PATH, "r");
+    if (f == NULL) return;
+    (void)resolve_symbol("_ZN13MessageRouter13queueOutgoingEhPvj", (void **)&g_queue_outgoing);
+    while (fgets(line, (int)sizeof line, f) != NULL) {
+        char target[8], kind[8];
+        unsigned long code = 0ul;
+        int value = 1, disp = -1, fields;
+        unsigned channel;
+        unsigned char msg[64];
+        size_t len;
+
+        fields = sscanf(line, "%7s %7s %lu %d %d", target, kind, &code, &value, &disp);
+        if (fields < 3) continue;
+        if (target[0] == 'c') channel = (g_secondary_service_id + 1u) & 0xffu;
+        else if (target[0] == 'm') channel = find_main_input_channel();
+        else channel = (unsigned)strtoul(target, NULL, 10) & 0xffu;
+        if (g_queue_outgoing == NULL || channel == 0xffu) {
+            gal_hook_logf("event=input.inject result=failed reason=%s line=%s",
+                          g_queue_outgoing == NULL ? "no_queue_symbol" : "no_channel", line);
+            continue;
+        }
+        if (strcmp(kind, "rot") == 0) {
+            len = build_input_report(msg, disp, 1, (uint32_t)code, value);
+            g_queue_outgoing(router, (unsigned char)channel, msg, (unsigned)len);
+        } else if (strcmp(kind, "key") == 0) {
+            len = build_input_report(msg, disp, 0, (uint32_t)code, 1);
+            g_queue_outgoing(router, (unsigned char)channel, msg, (unsigned)len);
+            len = build_input_report(msg, disp, 0, (uint32_t)code, 0);
+            g_queue_outgoing(router, (unsigned char)channel, msg, (unsigned)len);
+        } else {
+            len = build_input_report(msg, disp, 0, (uint32_t)code, strcmp(kind, "down") == 0);
+            g_queue_outgoing(router, (unsigned char)channel, msg, (unsigned)len);
+        }
+        {
+            char hex[2 * 64 + 1];
+            hex_preview(msg, (unsigned)len, hex, sizeof hex);
+            gal_hook_logf("event=input.inject result=sent channel=%u kind=%s code=%lu value=%d disp=%d last_bytes=%s",
+                          channel, kind, code, value, disp, hex);
+        }
+    }
+    fclose(f);
+    (void)unlink(INJECT_PATH);
+}
+
+/* The phone's KeyBindingRequest (0x8002) on the cluster input channel: there is
+ * no endpoint behind that service, so answer it here with status 0. Until it is
+ * answered the phone has no reason to accept any input for the cluster. */
+static void cluster_input_message(void *router, unsigned char channel, const void *buffer)
+{
+    unsigned n = 0u;
+    const unsigned char *m = (const unsigned char *)iobuffer_bytes(buffer, &n);
+    char hex[2 * 40 + 1];
+    unsigned id;
+
+    if (m == NULL || n < 2u) return;
+    id = ((unsigned)m[0] << 8) | m[1];
+    hex_preview(m, n < 40u ? n : 40u, hex, sizeof hex);
+    if (id == 0x8002u) {
+        unsigned char reply[4] = { 0x80u, 0x03u, 0x08u, 0x00u };
+        (void)resolve_symbol("_ZN13MessageRouter13queueOutgoingEhPvj", (void **)&g_queue_outgoing);
+        if (g_queue_outgoing != NULL && router != NULL) {
+            g_queue_outgoing(router, channel, reply, sizeof reply);
+            gal_hook_logf("event=cluster.input.binding channel=%u request=%s reply=status_0", (unsigned)channel, hex);
+        } else {
+            gal_hook_logf("event=cluster.input.binding channel=%u request=%s reply=unsent", (unsigned)channel, hex);
+        }
+    } else {
+        static unsigned logged;
+        if (logged++ < 40u)
+            gal_hook_logf("event=cluster.input.msg channel=%u msg_id=0x%04x bytes=%u data=%s", (unsigned)channel, id, n, hex);
+    }
 }
 
 /* Diagnostic only: log stock/secondary VideoConfiguration registrations. */

@@ -81,7 +81,7 @@ package() {
   # The scripts treat their own directory as the card root, so they sit at the root;
   # lib_app_mount.sh is looked up in scripts/ first.
   # Layout from the upstream install guide (commit 23d63d4, dropped from the docs later).
-  cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh "$ROOT"/scripts/remove_turn_by_turn_jar.sh "$D/"
+  cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh "$ROOT"/scripts/remove_turn_by_turn_jar.sh "$ROOT"/scripts/zoom_test.sh "$D/"
   mkdir -p "$D/docs" && cp "$ROOT"/wiki/Field-Guide-Sharing-With-Friends.md "$ROOT"/wiki/Navigation-Status-Messages.md "$D/docs/"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" "$D/scripts/"
   cp "$ROOT/car/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
