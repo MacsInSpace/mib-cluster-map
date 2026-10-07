@@ -72,7 +72,7 @@ package() {
   # The scripts treat their own directory as the card root, so they sit at the root;
   # lib_app_mount.sh is looked up in scripts/ first.
   # Layout from the upstream install guide (commit 23d63d4, dropped from the docs later).
-  cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$D/"
+  cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh "$D/"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" "$D/scripts/"
   cp "$ROOT/car/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
   (cd "$D" && shasum -a 256 libgal_hook.so stream-player lib/libdmdt_flush.so > SHA256SUMS.txt)

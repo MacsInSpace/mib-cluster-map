@@ -170,6 +170,15 @@ static int g_secondary_started;
 static queue_unencrypted_fn g_queue_unencrypted;
 static route_message_fn g_route_message;
 static unsigned long g_channel_seen[256];
+/* Last AAP message id seen per channel, and how many ids were traced, so an
+ * "unexpected message" reply can be tied to the message that caused it. */
+static unsigned short g_channel_last_id[256];
+static unsigned char g_channel_traced[256];
+static char g_service_class[256][40];
+typedef void (*unexpected_fn)(void *, unsigned char);
+static unexpected_fn g_send_unexpected;
+static unsigned long g_unexpected_total;
+#define CHANNEL_TRACE_MESSAGES 12u
 static void **g_controller_instance_slot;
 static uintptr_t g_resolved_impl_vtable;
 static uintptr_t g_resolved_cbhandler_vtable;
@@ -857,6 +866,20 @@ int _ZN11GalReceiver15registerServiceEP20ProtocolEndpointBase(void *receiver,
                     primary ? "primary_video" : "other", receiver, endpoint,
                     endpoint_service_id(endpoint));
     result = g_register_service(receiver, endpoint);
+    /* Name every service once: the ids are assigned by gal at runtime, and a
+     * log that says "channel 12" cannot be read without knowing what 12 is. */
+    if (endpoint != NULL) {
+        Dl_info info;
+        unsigned id = endpoint_service_id(endpoint);
+        uint32_t vt = load_u32(endpoint, 0u);
+        const char *name = "?";
+        if (vt != 0u && dladdr((void *)(uintptr_t)(vt - 8u), &info) != 0 &&
+            info.dli_sname != NULL)
+            name = info.dli_sname;
+        (void)snprintf(g_service_class[id & 0xffu], sizeof g_service_class[0], "%s", name);
+        gal_hook_logf("event=service.class service=%u vtable=0x%08x class=%s result=%d",
+                      id, (unsigned)vt, name, result);
+    }
     if (primary) {
         g_primary_sink = endpoint;
         gal_hook_logf("event=primary.register result=%s service=%u sink=%p impl=%p",
@@ -2009,6 +2032,23 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
     (void)resolve_symbol("_ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE",
                          (void **)&g_route_message);
     count = ++g_channel_seen[channel];
+    {
+        /* Message-id trace for the first few messages on every channel. */
+        unsigned nbytes = 0u;
+        const unsigned char *m = (const unsigned char *)iobuffer_bytes(buffer, &nbytes);
+        if (m != NULL && nbytes >= 2u) {
+            unsigned id = ((unsigned)m[0] << 8) | m[1];
+            g_channel_last_id[channel] = (unsigned short)id;
+            if (g_channel_traced[channel] < CHANNEL_TRACE_MESSAGES &&
+                channel != (unsigned char)g_secondary_service_id &&
+                !(g_primary_sink != NULL &&
+                  channel == (unsigned char)endpoint_service_id(g_primary_sink) && id == 0u)) {
+                ++g_channel_traced[channel];
+                gal_hook_logf("event=aap.msg channel=%u class=%s msg_id=0x%04x bytes=%u n=%lu",
+                              (unsigned)channel, g_service_class[channel], id, nbytes, count);
+            }
+        }
+    }
     if (count == 1ul) {
         const gal_secondary_config *config = gal_hook_config();
         const char *role = "other";
@@ -2087,6 +2127,41 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
     }
     if (g_route_message != NULL) g_route_message(router, channel, buffer);
     fc_run_mailbox();
+}
+
+/*
+ * MessageRouter::sendUnexpectedMessage(unsigned char channel)
+ *
+ * routeMessage tail-calls this through the PLT when an endpoint returns -253
+ * for a message id it does not know. Once the receiver claims a newer protocol
+ * (GAL_DUALSCREEN_AAP_MINOR) the phone may send such messages to the stock
+ * services, and on MHI2Q units this reply made the phone reset the link
+ * (kamgurgul/mib2q-carplay aa_hook.c, from wasimlhr's car runs). The first car
+ * run of this build looped the connection within half a second of the first
+ * message on one status service, with no shutdown lines from gal.
+ *
+ * Every call is logged with the message id that triggered it. The reply is
+ * dropped while the second sink is registered; GAL_FIX_SUPPRESS_UNEXPECTED=0
+ * sends it as stock does.
+ */
+void _ZN13MessageRouter21sendUnexpectedMessageEh(void *router, unsigned char channel)
+{
+    static int suppress = -1;
+    (void)resolve_symbol("_ZN13MessageRouter21sendUnexpectedMessageEh",
+                         (void **)&g_send_unexpected);
+    if (suppress < 0) {
+        const char *v = getenv("GAL_FIX_SUPPRESS_UNEXPECTED");
+        suppress = (v != NULL && (strcmp(v, "0") == 0 || strcmp(v, "false") == 0 ||
+                                  strcmp(v, "no") == 0)) ? 0 : 1;
+    }
+    ++g_unexpected_total;
+    if (g_unexpected_total <= 64ul || g_unexpected_total % 200ul == 0ul)
+        gal_hook_logf("event=aap.unexpected channel=%u class=%s last_msg_id=0x%04x total=%lu action=%s fix=suppress_unexpected",
+                      (unsigned)channel, g_service_class[channel],
+                      (unsigned)g_channel_last_id[channel], g_unexpected_total,
+                      (suppress && g_secondary_registered) ? "suppressed" : "sent");
+    if (suppress && g_secondary_registered) return;
+    if (g_send_unexpected != NULL) g_send_unexpected(router, channel);
 }
 
 /* Diagnostic only: log stock/secondary VideoConfiguration registrations. */
