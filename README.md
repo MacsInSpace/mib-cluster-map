@@ -52,11 +52,21 @@ and waking from sleep have had little testing. Treat it as experimental.
 
 ## Install
 
-1. Download the zip from [Releases](../../releases) and extract it to the root
-   of a FAT32 SD card.
-2. Put the card in slot 1 and follow the
-   [Install guide](wiki/Install-Guide.md): from the green menu, or over SSH.
+**New to this? Follow the [Quick start](wiki/Quick-Start.md).** It covers
+preparing the SD card, installing the toolbox, opening the green menu, and
+every step after that.
+
+In short:
+
+1. Put the [MQB Coding MIB2 Toolbox](https://github.com/jilleb/mib2-toolbox)
+   and this project's zip from [Releases](../../releases) on a FAT32 SD card,
+   in slot 1.
+2. In the green menu, add this project's screen, run its compatibility check,
+   then Install.
 3. Reboot the unit, plug in the phone, and put the cluster in map view.
+
+The [Install guide](wiki/Install-Guide.md) is the detailed reference,
+including installing over SSH.
 
 **Uninstall and restore original state** is one menu entry or one command. It
 puts back the original files, including anything the installer switched off.
@@ -88,6 +98,7 @@ before you start.
 
 ## Documentation
 
+- [Quick start](wiki/Quick-Start.md): blank SD card to working map, step by step
 - [Which cars and head units are supported](wiki/Supported-Units.md)
 - [Firmware support matrix](wiki/Firmware-Support-Matrix.md) and [Porting to another firmware](wiki/Porting-To-Another-Firmware.md)
 - [Install guide](wiki/Install-Guide.md)

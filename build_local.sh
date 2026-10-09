@@ -93,7 +93,7 @@ package() {
   cp "$ROOT"/greenmenu/gem/*.sh "$D/gem/"
   cp "$ROOT/greenmenu/aa-cluster-map.esd" "$S/Custom/GreenMenu/"
   cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
-  cp "$ROOT"/wiki/Install-Guide.md "$ROOT"/wiki/Supported-Units.md "$ROOT"/wiki/Firmware-Support-Matrix.md "$ROOT"/wiki/Navigation-Status-Messages.md "$ROOT"/wiki/Cluster-Zoom-Findings.md "$D/docs/"
+  cp "$ROOT"/wiki/Quick-Start.md "$ROOT"/wiki/Install-Guide.md "$ROOT"/wiki/Supported-Units.md "$ROOT"/wiki/Firmware-Support-Matrix.md "$ROOT"/wiki/Navigation-Status-Messages.md "$ROOT"/wiki/Cluster-Zoom-Findings.md "$D/docs/"
   cp "$ROOT/LICENSE" "$D/LICENSE"
   # The unit's shell needs LF line endings and plain ASCII in everything it runs.
   bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/gem/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)

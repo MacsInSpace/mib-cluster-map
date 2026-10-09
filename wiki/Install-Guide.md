@@ -1,5 +1,8 @@
 # Install guide
 
+First time? Use the [Quick start](Quick-Start.md) instead. This page is the
+reference: requirements, both install routes, settings, and recovery.
+
 This describes the build in this fork, which uses an open toolchain and adds
 several fixes to upstream. Status: working on one car. The cluster map ran for eight minutes at about 30
 frames per second, with and without a route, through repeated input tests, with
@@ -35,8 +38,9 @@ AAClusterMap/            everything this project installs or runs
 Custom/GreenMenu/        one menu screen for the MQB Coding MIB2 Toolbox
 ```
 
-If the card already holds the toolbox, merge the `Custom` folder; nothing is
-overwritten. To build the package yourself, see "Building" at the end.
+The card must also hold the MQB Coding MIB2 Toolbox files: the toolbox only
+imports custom screens from a card that has its `Toolbox` folder. Merge the
+`Custom` folders; nothing is overwritten. Use slot 1 and leave slot 2 empty. To build the package yourself, see "Building" at the end.
 
 ## 3. Install
 

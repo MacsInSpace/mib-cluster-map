@@ -82,6 +82,7 @@ This project is an experimental research endeavor intended strictly for personal
 
 ## Notes from this fork (not from upstream)
 
+* [Quick start](Quick-Start.md)
 * [Which cars and head units are supported](Supported-Units.md)
 * [Firmware support matrix](Firmware-Support-Matrix.md)
 * [Porting to another firmware](Porting-To-Another-Firmware.md)
