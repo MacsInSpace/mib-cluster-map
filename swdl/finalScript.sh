@@ -39,6 +39,22 @@ if [ "$MODE" = uninstall ]; then
 else
     echo "Mode: install" > $RESULT
     on -f mmx /bin/sh $LOCAL/AAClusterMap/GEM/install.sh >> $RESULT 2>&1
+    if grep -q "AACLUSTER_INSTALL_OK" $RESULT; then
+        # Make the green engineering menu reachable (hold MENU > Testmode), so
+        # the AAClusterMap screen this update copied can be used for status,
+        # logs and uninstall. The same switch the MQB Coding MIB2 Toolbox sets
+        # when it installs. It is left on at uninstall.
+        export LD_LIBRARY_PATH=/mnt/app/root/lib-target:/eso/lib:/mnt/app/usr/lib:/mnt/app/armle/lib:/mnt/app/armle/lib/dll:/mnt/app/armle/usr/lib
+        export IPL_CONFIG_DIR=/etc/eso/production
+        on -f mmx /net/mmx/mnt/app/eso/bin/apps/pc b:0:0xC002000D 1 >> $RESULT 2>&1
+        echo "Engineering menu enabled: hold MENU > Testmode > Green Developer Menu > AAClusterMap" >> $RESULT
+    elif grep -q "NOT SUPPORTED" $RESULT; then
+        # Nothing was installed. Gather what a port to this firmware needs, so
+        # the owner does not have to do anything else to help.
+        echo >> $RESULT
+        echo "Collecting files for porting instead..." >> $RESULT
+        on -f mmx /bin/sh $LOCAL/AAClusterMap/GEM/collect_for_porting.sh --small >> $RESULT 2>&1
+    fi
 fi
 
 on -f mmx /bin/mount -ur $LOCAL

@@ -18,8 +18,8 @@ There are two ways to install. Both end in the same place.
 | You see a compatibility verdict before anything changes | No, but the installer still refuses unsuitable firmware and writes the reason to the card | Yes |
 | Tested on a car | **Not yet** | **Not yet** (the same installer run over SSH is) |
 
-Way 1 is the least effort. Way 2 shows you more and gives you a menu for
-status, logs and uninstall. You can use Way 1 now and add the toolbox later.
+Way 1 is the least effort, and it also puts the `AAClusterMap` menu screen on
+the unit. Way 2 is for people who already live in the toolbox's menu.
 
 ## What you need
 
@@ -79,10 +79,18 @@ installer does the real check itself and changes nothing if it fails.
 
 What the update did, without asking:
 
+- copied the `AAClusterMap` menu screen to the unit;
 - checked the firmware, and stopped if it is not supported;
 - added the NavActiveIgnore patch if it was missing (supported firmware only);
 - switched off the turn-by-turn arrows jar if it was loaded;
-- installed the cluster map.
+- installed the cluster map;
+- switched on the unit's engineering ("green") menu, so you can reach that
+  screen: hold MENU > `Testmode` > `Green Developer Menu` > `AAClusterMap`. It
+  offers status, logs, uninstall and the turn-arrows switch.
+
+**If your firmware is not supported**, nothing is installed. The update
+instead copies the files a port would need into a `porting_...` folder on the
+card. See [Supported units](Supported-Units.md) for what to do with it.
 
 To see what happened, put the card in a computer and open
 `AAClusterMap/update_result.txt`. It ends with `AACLUSTER_INSTALL_OK`, or says
@@ -107,9 +115,10 @@ Use this if you already have the
 or want its menu. To install the toolbox, follow its README; it is its own
 software update from its own SD card.
 
-For this way the card must hold the toolbox's files as well as ours: copy the
-toolbox's files to the card first, then `AAClusterMap` and `Custom`, merging
-the `Custom` folders. **Leave the toolbox's `metainfo2.txt` in place; do not
+If you used Way 1, the screen is already there: skip to step 4. Otherwise the
+card must hold the toolbox's files as well as ours: copy the toolbox's files
+to the card first, then `AAClusterMap` and `Custom`, merging the `Custom`
+folders. **Leave the toolbox's `metainfo2.txt` in place; do not
 replace it with ours.**
 
 1. Hold the **MENU** button until the service screen appears, choose
@@ -120,7 +129,7 @@ replace it with ours.**
    GreenMenu screens and scripts from Custom/GreenMenu**. A message about a
    missing `scripts` folder is harmless.
 3. Leave the green menu completely (press `MENU` or `HOME`) and open it again.
-4. Go to `mqbcoding` > `Customization` > **`AAClusterMap`** and run
+4. Go to **`AAClusterMap`** (top level of the green menu) and run
    **1. Status and compatibility check**.
 
 | It says | What to do |

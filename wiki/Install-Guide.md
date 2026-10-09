@@ -59,6 +59,11 @@ entry, and writes its output to `AAClusterMap/update_result.txt`. With a file
 whose name starts with `UNINSTALL` in `AAClusterMap`, it runs the uninstall
 instead. A ready-made one ships in a subfolder.
 
+After a successful install the final script also switches on the unit's
+engineering menu (the same setting the toolbox turns on), so the screen the
+update copied is reachable. On unsupported firmware it installs nothing and
+runs the file collection instead.
+
 ### Route A: from the green menu (no SSH)
 
 Status: written to the toolbox's documented custom-screen format, **not yet
@@ -69,7 +74,7 @@ tested on a car**. Route B is the tested one.
    and scripts from Custom/GreenMenu**. The toolbox copies the screen to the
    unit. A message about a missing `scripts` folder is harmless.
 3. Leave and re-enter the green menu. Go to
-   `MQBCoding` > `Customization` > `AAClusterMap`.
+   `AAClusterMap` (top level of the green menu).
 4. Run **1. Status and compatibility check**. It must say the firmware is supported.
 5. Run **2. Install cluster map** and wait for `AACLUSTER_INSTALL_OK`.
 6. Hold the power button for ten seconds to reboot.

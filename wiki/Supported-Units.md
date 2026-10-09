@@ -38,7 +38,7 @@ as stock. So the wrong firmware does no harm, but it also does nothing.
 **"Software: 1367" on the System information screen is not enough to be sure**,
 because two firmware trains carry that number. To see the train:
 
-- green menu, `MQBCoding` > `Customization` > `AAClusterMap` > **Status and
+- green menu, `AAClusterMap` (top level of the green menu) > **Status and
   compatibility check**, which prints the train and a verdict; or
 - the folder name the toolbox creates under `Backup/` on its SD card.
 
@@ -88,8 +88,14 @@ the phone's map only while Android Auto is sending it.
 This applies to Harman units only (firmware names starting `MHI2_`). It needs
 someone with that firmware who is willing to test on their own car.
 
-1. Put the package on an SD card and add the green menu screen, as in the
-   [Install guide](Install-Guide.md). Do **not** run Install.
+1. Put the package on an SD card and run it as a software update, as in the
+   [Quick start](Quick-Start.md). On unsupported firmware it installs nothing
+   and collects the files by itself, into a `porting_<train>` folder, without
+   the large Java interface image. That is enough for a cluster map port.
+
+Or, with the green menu:
+
+1. Add the `AAClusterMap` screen. Do **not** run Install.
 2. Run **Status and compatibility check** and note what it says.
 3. Run **Collect files for porting (other firmware)**. It only reads from the
    unit. It writes a `porting_<train>` folder into `AAClusterMap` on the card,

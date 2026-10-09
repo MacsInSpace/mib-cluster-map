@@ -35,7 +35,10 @@ take /mnt/system/etc/eso/production/displaymanager.json
 take /mnt/app/eso/hmi/lsd/lsd.sh
 # The Java interface image: needed only to port the turn-by-turn arrows, which
 # are a Java patch built against it. About 55 MB.
-if [ -r /ifs/lsd.jxe ]; then take /ifs/lsd.jxe; else take /mnt/app/eso/hmi/lsd/lsd.jxe; fi
+# Skipped with --small (used by the software update, which has a time limit).
+if [ "${1:-}" = "--small" ]; then
+    say "skipped lsd.jxe (run Collect files for porting from the green menu to add it)"
+elif [ -r /ifs/lsd.jxe ]; then take /ifs/lsd.jxe; else take /mnt/app/eso/hmi/lsd/lsd.jxe; fi
 
 # Which window carries the cluster map, from the boot log and the display table.
 echo "--- first-swap lines from the system log" >> "$INFO"

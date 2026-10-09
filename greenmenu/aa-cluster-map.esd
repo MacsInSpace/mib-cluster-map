@@ -1,14 +1,15 @@
 ###########################################################################################
 #
 # Custom Green Engineering Menu screen: Android Auto cluster map
-# Needs the MQB Coding MIB2 Toolbox (jilleb/mib2-toolbox).
-# Main -> MQBCoding -> Customization -> AAClusterMap
+# Attached to the top level of the green engineering menu, so it does not
+# depend on any other screen being installed.
+# Main -> AAClusterMap
 #
 # The entries run scripts straight from the SD card in slot 1:
 #   /fs/sda0/AAClusterMap/GEM/
 #
 ###########################################################################################
-screen AAClusterMap Customization
+screen AAClusterMap Main
 
 keyValue
     value   String sys 0x00000000 0
