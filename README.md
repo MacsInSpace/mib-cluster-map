@@ -26,7 +26,7 @@ an installer that needs no SSH, and prebuilt packages.
 | Firmware | `MHI2_ER_VWG13_P4521`, software **1367**. More are wanted: see the [support matrix](wiki/Firmware-Support-Matrix.md) |
 | Cluster | Active Info Display that can show the navigation map |
 | Phone | Android Auto over USB |
-| Needs | [MQB Coding MIB2 Toolbox](https://github.com/jilleb/mib2-toolbox) installed, with its NavActiveIgnore patch |
+| Needs | Nothing else. The [MQB Coding MIB2 Toolbox](https://github.com/jilleb/mib2-toolbox) is optional but recommended: it adds a menu, and SSH as a way back in |
 
 **Check the firmware train, not just "Software: 1367".** Two trains carry that
 number and only P4521 is tested. Full details, other MIB generations and other
@@ -46,7 +46,7 @@ and waking from sleep have had little testing. Treat it as experimental.
 |---|---|
 | Phone map on the cluster, with or without a route | Zooming the cluster map from the steering wheel |
 | Main screen Android Auto unchanged | Turn arrows beside the map (the turn-by-turn jar must be off) |
-| Install, status, logs and full uninstall from the green menu (untested on a car; the SSH route is tested) | Any other firmware |
+| Install and uninstall as a software update, or from the green menu (both untested on a car; the same installer over SSH is tested) | Any other firmware |
 | Optional switch to turn-by-turn arrows instead of the map | Map and arrows at the same time |
 | A menu entry that collects the files needed to port to other Harman firmware | |
 
@@ -58,12 +58,17 @@ every step after that.
 
 In short:
 
-1. Put the [MQB Coding MIB2 Toolbox](https://github.com/jilleb/mib2-toolbox)
-   and this project's zip from [Releases](../../releases) on a FAT32 SD card,
-   in slot 1.
-2. In the green menu, add this project's screen, run its compatibility check,
-   then Install.
+1. Extract the zip from [Releases](../../releases) to the root of a FAT32 SD
+   card and put it in slot 1.
+2. On the head unit, hold MENU for the service screen, then
+   `Software updates/versions` > `Update` > SD card > `Android Auto Cluster Map`.
 3. Reboot the unit, plug in the phone, and put the cluster in map view.
+
+No toolbox is needed for that. The installer checks the firmware, adds the
+NavActiveIgnore patch if it is missing, and switches off anything that
+conflicts. If you have the
+[MQB Coding MIB2 Toolbox](https://github.com/jilleb/mib2-toolbox), the same
+card also adds a green menu screen with status, logs and uninstall.
 
 The [Install guide](wiki/Install-Guide.md) is the detailed reference,
 including installing over SSH.
@@ -91,7 +96,8 @@ before you start.
 - **Missing pieces restored.** The helper library build step and a status
   helper that upstream's published tree lacks.
 - **Firmware profiles.** Everything specific to one firmware build is one table entry in `src/firmware_profiles.h`, with a tool that proposes an entry from a unit's files and a way to trial it without rebuilding.
-- **Green menu screen.** Install, status, logs and uninstall without SSH.
+- **One-step install.** The SD card is a software update the head unit runs by itself: firmware check, NavActiveIgnore if missing, conflicting jar off, cluster map on. Uninstall the same way.
+- **Green menu screen.** Status, install, logs, full uninstall and file collection, for units with the toolbox.
 - **Quiet by default.** Debug logging is off; a small log is kept in RAM.
 - **Zoom investigated.** No input makes the phone zoom its cluster map.
   [Findings](wiki/Cluster-Zoom-Findings.md).
@@ -119,7 +125,7 @@ Needs Docker. See "Building" in the [Install guide](wiki/Install-Guide.md).
 
 - **chopinwong01**: the original project this is forked from.
 - **andrewleech** and **OneB1t**: VcMOSTRenderMqb, the cluster rendering path the player derives from.
-- **jilleb**, **olli991** and contributors: the MQB Coding MIB2 Toolbox.
+- **jilleb**, **olli991** and contributors: the MQB Coding MIB2 Toolbox. Its `NavActiveIgnore.jar` (contributed by andrewleech) and the signed header of its update metadata are bundled unmodified under `thirdparty/` (MIT).
 - **adi961**: mib2-android-auto-vc. Its 0.1.4 jar is bundled unmodified under `thirdparty/` (MIT) as the optional arrows mode.
 - **kamgurgul**, **wasimlhr** and **luka-dev**: the MHI2Q projects whose notes on the "unexpected message" reply and the newer navigation messages pointed to the loop fix, and the open QNX toolchain.
 - **FFmpeg**: H.264 decoding, statically linked, LGPL v2.1 or later.
@@ -127,7 +133,8 @@ Needs Docker. See "Building" in the [Install guide](wiki/Install-Guide.md).
 ## License
 
 GPL-3.0, the same as upstream. See [LICENSE](LICENSE). The release packages
-contain files built from this source plus the MIT-licensed `VCAndroidAuto.jar`. They contain no Volkswagen or
+contain files built from this source plus three MIT-licensed files from the
+projects credited above. They contain no Volkswagen or
 Harman firmware.
 
 Not affiliated with or endorsed by Volkswagen AG, Harman or Google. Android

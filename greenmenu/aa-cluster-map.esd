@@ -5,7 +5,7 @@
 # Main -> MQBCoding -> Customization -> AAClusterMap
 #
 # The entries run scripts straight from the SD card in slot 1:
-#   /fs/sda0/AAClusterMap/gem/
+#   /fs/sda0/AAClusterMap/GEM/
 #
 ###########################################################################################
 screen AAClusterMap Customization
@@ -21,25 +21,25 @@ keyValue
     poll    0
 
 script
-    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/status.sh"
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/status.sh"
     label   "1. Status and compatibility check"
 
 script
-    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/install.sh"
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/install.sh"
     label   "2. Install cluster map"
 
 script
-    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/uninstall.sh"
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/uninstall.sh"
     label   "Uninstall and restore original state"
 
 script
-    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/switch_to_turn_by_turn.sh"
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/switch_to_turn_by_turn.sh"
     label   "Switch to turn-by-turn arrows instead (no map)"
 
 script
-    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/savelogs.sh"
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/savelogs.sh"
     label   "Save logs to SD"
 
 script
-    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/collect_for_porting.sh"
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/collect_for_porting.sh"
     label   "Collect files for porting (other firmware)"

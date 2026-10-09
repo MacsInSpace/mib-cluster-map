@@ -1,5 +1,5 @@
 #!/bin/sh
-. /fs/sda0/AAClusterMap/gem/common.sh 2>/dev/null || . `dirname "$0"`/common.sh
+. /fs/sda0/AAClusterMap/GEM/common.sh 2>/dev/null || . `dirname "$0"`/common.sh
 echo "Android Auto cluster map: install"
 echo "Firmware train: $TRAIN"
 if ! train_supported; then

@@ -159,17 +159,26 @@ if [ -d "$PRELOAD_WRITE_DIR" ] || [ -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" ] |
 fi
 trap - 0 1 2 15
 
-# Full revert: if the installer took the turn-by-turn jar's start-up line out,
-# put it back, so the unit ends up as it was before the install. Skipped with
-# --keep-jar-removed. A failure here leaves lsd.sh untouched and is reported.
-if [ "${1:-}" != "--keep-jar-removed" ] && [ -f /mnt/app/eso/hmi/lsd/.aacluster_tbt_removed ]; then
+# Full revert of the Java start-up script, so the unit ends up as it was before
+# the install: put the turn-by-turn jar's line back if the installer took it
+# out, and take NavActiveIgnore out again if the installer added it. Skipped
+# with --keep-jar-removed. A failure leaves lsd.sh untouched and is reported.
+if [ "${1:-}" != "--keep-jar-removed" ] && [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo
-    if [ -r "$CARD_ROOT/turn_by_turn.sh" ]; then
+    if [ -f /mnt/app/eso/hmi/lsd/.aacluster_tbt_removed ]; then
         sh "$CARD_ROOT/turn_by_turn.sh" restore || \
             echo "WARNING: could not restore the turn-by-turn jar line; lsd.sh is unchanged." >&2
-    else
-        echo "Note: the installer removed the turn-by-turn jar line and turn_by_turn.sh" >&2
-        echo "      is not beside this script, so it was not put back." >&2
+    fi
+    if [ -f /mnt/app/eso/hmi/lsd/.aacluster_navignore_added ]; then
+        if sh "$CARD_ROOT/lsd_jar.sh" remove NavActiveIgnore.jar; then
+            mount -uw /mnt/app 2>/dev/null && {
+                rm -f /mnt/app/eso/hmi/lsd/.aacluster_navignore_added /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar
+                mount -ur /mnt/app 2>/dev/null || true
+            }
+            echo "Removed the NavActiveIgnore patch the installer had added."
+        else
+            echo "WARNING: could not remove the NavActiveIgnore line; lsd.sh is unchanged." >&2
+        fi
     fi
 fi
 echo "Reboot the unit to run GAL without the hook."

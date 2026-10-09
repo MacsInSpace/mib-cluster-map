@@ -89,5 +89,5 @@ anything outside it.
 
 Add the entry to `k_profiles[]` with `car_tested = 0`, open a pull request
 with the evidence (tool output and log lines), and add the firmware to
-`gem/common.sh` and the [support matrix](Firmware-Support-Matrix.md). It moves
+`GEM/common.sh` and the [support matrix](Firmware-Support-Matrix.md). It moves
 to `car_tested = 1` and "Supported" once the owner has driven with it.

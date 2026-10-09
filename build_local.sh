@@ -81,28 +81,34 @@ package() {
   #   AAClusterMap/                 scripts, binaries, settings, docs
   #   Custom/GreenMenu/*.esd        menu screen (copied to the unit by the toolbox)
   S="$ROOT/dist/sdcard"; D="$S/AAClusterMap"
-  rm -rf "$S"; mkdir -p "$D/scripts" "$D/lib" "$D/gem" "$D/docs" "$S/Custom/GreenMenu"
+  rm -rf "$S"; mkdir -p "$D/scripts" "$D/lib" "$D/GEM" "$D/docs" "$S/Custom/GreenMenu"
   cp "$ROOT/build/libgal_hook.so" "$ROOT/build/stream-player" "$D/"
   cp "$ROOT/build/libdmdt_flush.so" "$D/lib/"
   # The install scripts treat their own folder as the package root.
   cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh \
-     "$ROOT"/scripts/turn_by_turn.sh "$D/"
+     "$ROOT"/scripts/turn_by_turn.sh "$ROOT"/scripts/lsd_jar.sh "$D/"
   mkdir -p "$D/thirdparty" && cp "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAuto.jar "$D/thirdparty/" && \
      cp "$ROOT"/thirdparty/mib2-android-auto-vc/LICENSE "$D/thirdparty/VCAndroidAuto.LICENSE"
+  cp "$ROOT"/thirdparty/mib2-toolbox/NavActiveIgnore.jar "$D/thirdparty/" && cp "$ROOT"/thirdparty/mib2-toolbox/LICENSE "$D/thirdparty/NavActiveIgnore.LICENSE"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" "$D/scripts/"
-  cp "$ROOT"/greenmenu/gem/*.sh "$D/gem/"
+  cp "$ROOT"/greenmenu/GEM/*.sh "$D/GEM/"
   cp "$ROOT/greenmenu/aa-cluster-map.esd" "$S/Custom/GreenMenu/"
+  # Software-update route: the same screen, copied to the unit by the update
+  # itself, plus the final script that runs the installer.
+  cp "$ROOT/greenmenu/aa-cluster-map.esd" "$D/GEM/"
+  mkdir -p "$D/final" && cp "$ROOT/swdl/finalScript.sh" "$D/final/"
   cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
   cp "$ROOT"/wiki/Quick-Start.md "$ROOT"/wiki/Install-Guide.md "$ROOT"/wiki/Supported-Units.md "$ROOT"/wiki/Firmware-Support-Matrix.md "$ROOT"/wiki/Navigation-Status-Messages.md "$ROOT"/wiki/Cluster-Zoom-Findings.md "$D/docs/"
   cp "$ROOT/LICENSE" "$D/LICENSE"
   # The unit's shell needs LF line endings and plain ASCII in everything it runs.
-  bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/gem/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
+  bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/GEM/*.sh "$D"/final/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
   [ -z "$bad" ] || { echo "REJECTED: CR or non-ASCII in: $bad"; exit 1; }
   (cd "$D" && shasum -a 256 libgal_hook.so stream-player lib/libdmdt_flush.so > SHA256SUMS.txt)
+  python3 "$ROOT/tools/make_metainfo.py" "$S" "${RELEASE_VERSION:-$BUILD_ID}"
   VER=${RELEASE_VERSION:-$BUILD_ID}
   Z="$ROOT/dist/AAClusterMap_MHI2_$VER.zip"
   rm -f "$ROOT"/dist/*.zip "$ROOT"/dist/*.sha256
-  (cd "$S" && zip -qr -X "$Z" AAClusterMap Custom -x '*.DS_Store' -x '._*')
+  (cd "$S" && zip -qr -X "$Z" AAClusterMap Custom metainfo2.txt -x '*.DS_Store' -x '._*')
   (cd "$ROOT/dist" && shasum -a 256 "$(basename "$Z")" > "$(basename "$Z").sha256")
   echo "Packaged: $S"; echo "Archive:  $Z"
   (cd "$S" && find . -type f | sort)

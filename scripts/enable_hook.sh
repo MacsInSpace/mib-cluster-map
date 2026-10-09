@@ -37,6 +37,7 @@ STREAM=1
 SYSTEM_WRITABLE=0
 SYSTEM_TEMP=
 KEEP_TBT=0
+KEEP_NAVIGNORE=0
 
 # The preload target lives on the internal /mnt/app partition instead of the
 # SD card. The SD card mounts read-only again on every fresh boot unless
@@ -88,6 +89,7 @@ usage()
     echo "                    default the installer removes its start-up line,"
     echo "                    because the cluster map fails when a route starts"
     echo "                    while that jar is active."
+    echo "  --no-navignore    do not add the NavActiveIgnore patch when it is missing"
     echo "  --no-second-sink  register no second video service"
     echo "  --no-inject-meta  write no display_id/display_type fields"
     echo
@@ -222,6 +224,7 @@ while [ $# -gt 0 ]; do
         --debug) DEBUG=1; shift ;;
         --no-debug) DEBUG=0; shift ;;
         --keep-turn-by-turn) KEEP_TBT=1; shift ;;
+        --no-navignore) KEEP_NAVIGNORE=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -619,39 +622,62 @@ echo "    falls back to /tmp/gal_dualscreen.log (RAM-backed, does not survive"
 echo "    a reboot) if the SD card is read-only when GAL starts -- true on"
 echo "    every boot unless the SD card is remounted -uw before GAL starts."
 
-# ---- Java interface checks ------------------------------------------------
-# Both live in the Java start-up script, not in anything installed above.
+# ---- Java interface: the two patches that decide whether the map stays up ----
+# NavActiveIgnore must be loaded, and the turn-by-turn jar must not be. Both are
+# single lines in the Java start-up script, edited through lsd_jar.sh, which
+# checks every change before it replaces the file.
 LSD_SH=/mnt/app/eso/hmi/lsd/lsd.sh
+NAVIGNORE_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_navignore_added
+# Firmware where the bundled NavActiveIgnore.jar has been seen working. It is a
+# Java patch: on a firmware it does not fit, the centre screen may not start,
+# so it is never added automatically anywhere else.
+NAVIGNORE_TRAINS="MHI2_ER_VWG13_P4521"
+TRAIN=unknown
+for f in /net/rcc/dev/shmem/version.txt /dev/shmem/version.txt; do
+    if [ -r "$f" ]; then
+        TRAIN=`grep "Current train" "$f" | sed 's/Current train = //' | sed -e 's|["'"'"']||g' | sed 's/\r//'`
+        break
+    fi
+done
 echo
-if [ -r "$LSD_SH" ]; then
+if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
+    echo "WARNING: cannot check the Java interface ($LSD_SH or lsd_jar.sh missing)." >&2
+else
     if grep -q 'NavActiveIgnore.jar' "$LSD_SH"; then
         echo "Java check: NavActiveIgnore is loaded (required)."
+    elif [ "$KEEP_NAVIGNORE" -eq 1 ]; then
+        echo "Java check: NavActiveIgnore is NOT loaded and was left alone (--no-navignore)."
+        echo "            The cluster will drop its map when the phone navigates."
     else
-        echo "WARNING: NavActiveIgnore is NOT loaded by $LSD_SH." >&2
-        echo "         Without it the cluster drops its map when the phone navigates." >&2
-        echo "         Install it from the toolbox green menu, then reboot." >&2
+        NAV_OK=0
+        for t in $NAVIGNORE_TRAINS; do case "$TRAIN" in *${t}*) NAV_OK=1 ;; esac; done
+        if [ "$NAV_OK" -eq 1 ]; then
+            echo "Java check: NavActiveIgnore is not loaded; adding it (firmware $TRAIN)."
+            if sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$CARD_ROOT/thirdparty/NavActiveIgnore.jar"; then
+                mount -uw /mnt/app 2>/dev/null && { : > "$NAVIGNORE_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+            else
+                echo "WARNING: could not add NavActiveIgnore; lsd.sh is unchanged." >&2
+                echo "         Apply it from the toolbox: Customization > Navigation." >&2
+            fi
+        else
+            echo "WARNING: NavActiveIgnore is NOT loaded, and it is not added automatically" >&2
+            echo "         on firmware $TRAIN. Apply it from the toolbox:" >&2
+            echo "         Customization > Navigation > Ignore navigation-active status." >&2
+        fi
     fi
     if grep -q 'VCAndroidAuto.jar' "$LSD_SH"; then
         if [ "$KEEP_TBT" -eq 1 ]; then
             echo "Java check: VCAndroidAuto.jar is loaded and was kept (--keep-turn-by-turn)."
             echo "            Expect the cluster map to fail when a route starts."
-        elif [ -r "$CARD_ROOT/turn_by_turn.sh" ]; then
-            echo "Java check: VCAndroidAuto.jar is loaded; removing its start-up line."
-            if sh "$CARD_ROOT/turn_by_turn.sh" remove; then
-                :
-            else
-                echo "WARNING: could not remove the VCAndroidAuto.jar line; lsd.sh is unchanged." >&2
-                echo "         The hook is installed, but the map may fail when a route starts." >&2
-            fi
+        elif sh "$CARD_ROOT/turn_by_turn.sh" remove; then
+            :
         else
-            echo "WARNING: VCAndroidAuto.jar is loaded and turn_by_turn.sh is" >&2
-            echo "         not beside this script. The map may fail when a route starts." >&2
+            echo "WARNING: could not remove the VCAndroidAuto.jar line; lsd.sh is unchanged." >&2
+            echo "         The hook is installed, but the map may fail when a route starts." >&2
         fi
     else
         echo "Java check: VCAndroidAuto.jar is not loaded (good)."
     fi
-else
-    echo "WARNING: cannot read $LSD_SH; Java interface checks skipped." >&2
 fi
 
 echo

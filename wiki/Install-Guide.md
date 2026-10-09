@@ -19,8 +19,8 @@ Android Auto stock if it fails.
 | Harman MIB2.5 "Discover Pro" head unit | 9.2 inch glass screen, part number like `5NA 035 045` |
 | Digital cluster (Active Info Display) | the cluster can show the VW navigation map |
 | Firmware `MHI2_ER_VWG13_P4521`, software 1367 | "Software: 1367" on the System information screen is necessary but not sufficient; see [Supported units](Supported-Units.md) |
-| MQB Coding MIB2 Toolbox installed | [jilleb/mib2-toolbox](https://github.com/jilleb/mib2-toolbox). Install its SSH service too: route A does not use it, but it is the way back in if the screen ever fails to start |
-| NavActiveIgnore patch | toolbox green menu: `Customization` > `Navigation` > "Ignore navigation-active status from smartphone". Without it the cluster drops its map when the phone navigates |
+| MQB Coding MIB2 Toolbox | Optional for route 0, required for routes A and B. Recommended in any case, with its SSH service: it is the way back in if the screen ever fails to start |
+| NavActiveIgnore patch | Added by the installer if missing, on tested firmware. Elsewhere apply it from the toolbox: `Customization` > `Navigation` > "Ignore navigation-active status from smartphone" |
 
 Other firmware trains are **not** supported. The hook contains fixed addresses
 inside the stock `gal` program. On a mismatch its log says
@@ -48,6 +48,16 @@ Keep the engine running or a charger connected. Hours of ignition-on testing
 flattened a healthy battery during development, and low voltage produces
 unrelated dash warnings ("Proactive occupant protection restricted",
 "Manoeuvre braking restricted").
+
+### Route 0: as a software update (no toolbox, no SSH)
+
+Status: built on the toolbox's own update mechanism, **not yet tested on a
+car**. Steps are in the [Quick start](Quick-Start.md). The card's
+`metainfo2.txt` names `AAClusterMap/final/finalScript.sh` as the update's
+final script; it runs `GEM/install.sh`, the same script as the green menu
+entry, and writes its output to `AAClusterMap/update_result.txt`. With a file
+named `UNINSTALL` or `UNINSTALL.txt` in `AAClusterMap`, it runs the uninstall
+instead.
 
 ### Route A: from the green menu (no SSH)
 
@@ -82,7 +92,7 @@ Then hold the power button for ten seconds to reboot.
 | `/mnt/system/etc/eso/production/smartphone_integrator.json` | adds the preload entries to the `gal` child; original saved beside it as `.gal-dualscreen.original` |
 | `/mnt/app/eso/lib/gal_dualscreen/` | hook library, helper library, a copy of the settings file |
 | `/mnt/app/navigation/stream-player` | the video player |
-| `/mnt/app/eso/hmi/lsd/lsd.sh` | only if `VCAndroidAuto.jar` is loaded: its one line is removed, previous file saved as `lsd.sh.before_tbt_remove`. Uninstalling puts it back |
+| `/mnt/app/eso/hmi/lsd/lsd.sh` | only if `VCAndroidAuto.jar` is loaded: its one line is removed, previous file saved as `lsd.sh.before_VCAndroidAuto`. Uninstalling puts it back. If NavActiveIgnore is missing its one line is added, previous file `lsd.sh.before_NavActiveIgnore`; uninstalling removes it again |
 
 A copy of the original supervisor file is also written to
 `AAClusterMap/backups/` on the card. Keep it.
@@ -119,7 +129,8 @@ Then reboot. This is a full revert:
 - the saved supervisor file is put back;
 - the hook, helper library, settings copy and player are deleted;
 - if the installer took out the turn-by-turn jar's start-up line, that line is
-  put back.
+  put back;
+- if the installer added NavActiveIgnore, it is taken out again.
 
 Afterwards the unit is as it was before the install. Run the status check to
 confirm it says "Hook: not installed".
@@ -190,7 +201,7 @@ On the test car the map was solid with no route and went blank the moment a
 route started, while `VCAndroidAuto.jar` was loaded. The installer therefore
 checks the Java start-up script and:
 
-- warns if NavActiveIgnore is missing;
+- adds NavActiveIgnore if it is missing (tested firmware only; elsewhere it warns);
 - removes the one line that loads `VCAndroidAuto.jar`, keeping the previous file.
 
 Uninstalling puts that line back. `enable_hook.sh --keep-turn-by-turn` skips
@@ -227,7 +238,7 @@ If something goes wrong:
 |---|---|
 | Android Auto does not start, or keeps reconnecting | **Uninstall and restore original state**, then reboot |
 | Cluster map blank or frozen | Unplug and replug the phone. If it persists, save logs, then uninstall |
-| The centre screen stays black after a reboot | The Java interface did not start, so the green menu is unavailable. Connect over SSH, which does not need the screen, and restore the previous start-up script: `cp /mnt/app/eso/hmi/lsd/lsd.sh.before_tbt_remove /mnt/app/eso/hmi/lsd/lsd.sh` (or `.before_tbt_add`) after `mount -uw /mnt/app`, then reboot. This is why having the toolbox's SSH service installed beforehand is strongly recommended, even if you install from the green menu |
+| The centre screen stays black after a reboot | The Java interface did not start, so the green menu is unavailable. Connect over SSH, which does not need the screen, and restore the previous start-up script: `cp /mnt/app/eso/hmi/lsd/lsd.sh.before_NavActiveIgnore /mnt/app/eso/hmi/lsd/lsd.sh` (or `.before_VCAndroidAuto`, whichever is newest) after `mount -uw /mnt/app`, then reboot. This is why having the toolbox's SSH service installed beforehand is strongly recommended, even if you install from the green menu |
 | Nothing above helps | The supervisor original is at `/mnt/system/etc/eso/production/smartphone_integrator.json.gal-dualscreen.original` and in `AAClusterMap/backups/` on the card |
 
 No software can promise a modified head unit will always recover. These steps

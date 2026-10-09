@@ -1,7 +1,7 @@
 #!/bin/sh
 # Copies the files needed to port this project to another firmware onto the
 # SD card. Read-only on the unit; works on any firmware, installed or not.
-. /fs/sda0/AAClusterMap/gem/common.sh 2>/dev/null || . `dirname "$0"`/common.sh
+. /fs/sda0/AAClusterMap/GEM/common.sh 2>/dev/null || . `dirname "$0"`/common.sh
 echo "Android Auto cluster map: collect files for porting"
 echo "Firmware train: $TRAIN"
 NAME=`echo "$TRAIN" | sed 's/[^A-Za-z0-9_.-]/_/g'`

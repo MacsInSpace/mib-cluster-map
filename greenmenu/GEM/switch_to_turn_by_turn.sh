@@ -1,5 +1,5 @@
 #!/bin/sh
-. /fs/sda0/AAClusterMap/gem/common.sh 2>/dev/null || . `dirname "$0"`/common.sh
+. /fs/sda0/AAClusterMap/GEM/common.sh 2>/dev/null || . `dirname "$0"`/common.sh
 CONFIG=/mnt/system/etc/eso/production/smartphone_integrator.json
 echo "Switch to turn-by-turn arrows (removes the cluster map)"
 echo "Firmware train: $TRAIN"
