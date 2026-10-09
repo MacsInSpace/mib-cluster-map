@@ -71,13 +71,39 @@ on K4525, please report the result either way.
 outside this project. Updating a head unit carries its own risks, including
 losing activated features. Research it for your exact unit first.
 
-**Will it be ported to my firmware?** Only if someone with that firmware does
-the work. [Receiver layout verification](Receiver-Layout-Verification.md)
-describes the method, and the fixed addresses to re-derive are at the top of
-`src/video_sink_hook.c`.
+**Will it be ported to my firmware?** Only for other Harman MIB2 High and
+MIB2.5 High firmware, and only if an owner helps. See the next section.
 
 **Does the navigation built into the car still work?** Yes. The cluster shows
 the phone's map only while Android Auto is sending it.
 
 **Can I zoom the cluster map?** No. See
 [Cluster map zoom](Cluster-Zoom-Findings.md).
+
+## Helping port it to another firmware
+
+This applies to Harman units only (firmware names starting `MHI2_`). It needs
+someone with that firmware who is willing to test on their own car.
+
+1. Put the package on an SD card and add the green menu screen, as in the
+   [Install guide](Install-Guide.md). Do **not** run Install.
+2. Run **Status and compatibility check** and note what it says.
+3. Run **Collect files for porting (other firmware)**. It only reads from the
+   unit. It writes a `porting_<train>` folder into `AAClusterMap` on the card,
+   about 2.5 MB: the Android Auto program, its receiver library, four
+   configuration files, and an `info.txt` with the firmware train, file sizes
+   and the cluster display table.
+4. Open an issue saying which firmware and car you have and that you have the
+   files. **Do not attach or publish the files.** The two program files are
+   Volkswagen/Harman firmware and are not ours to distribute. `info.txt` on its
+   own is fine to post.
+
+What happens with them: one fixed address inside the Android Auto program has
+to be re-found for the new build, about twenty object layouts are checked
+against [the list verified for P4521](Receiver-Layout-Verification.md), and the
+cluster display values are compared. If everything lines up, a test build for
+that firmware can be made. Nothing is certain until it has run on a car.
+
+The collected folder contains no account data, phone names or vehicle
+identification number. It does include the unit's Java start-up script and
+smartphone configuration, which are the same on every unit of that firmware.

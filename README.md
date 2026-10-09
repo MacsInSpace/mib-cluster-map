@@ -48,6 +48,7 @@ and waking from sleep have had little testing. Treat it as experimental.
 | Main screen Android Auto unchanged | Turn arrows beside the map (the turn-by-turn jar must be off) |
 | Install, status, logs and full uninstall from the green menu (untested on a car; the SSH route is tested) | Any other firmware |
 | Optional switch to turn-by-turn arrows instead of the map | Map and arrows at the same time |
+| A menu entry that collects the files needed to port to other Harman firmware | |
 
 ## Install
 

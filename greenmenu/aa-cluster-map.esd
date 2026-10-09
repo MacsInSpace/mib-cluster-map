@@ -39,3 +39,7 @@ script
 script
     value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/savelogs.sh"
     label   "Save logs to SD"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/collect_for_porting.sh"
+    label   "Collect files for porting (other firmware)"

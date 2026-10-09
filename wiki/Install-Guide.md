@@ -94,6 +94,9 @@ A copy of the original supervisor file is also written to
 
 The logs are in RAM on the unit and are lost at the next reboot.
 
+The menu also has **Collect files for porting**, which is only for owners of
+other firmware; see [Supported units](Supported-Units.md).
+
 **Before posting logs publicly, read them.** `sloginfo.txt` is the unit's
 system log and can contain paired phone names, Bluetooth addresses and other
 details of your car.
