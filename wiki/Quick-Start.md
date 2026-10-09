@@ -88,10 +88,13 @@ To see what happened, put the card in a computer and open
 `AAClusterMap/update_result.txt`. It ends with `AACLUSTER_INSTALL_OK`, or says
 why nothing was installed. Go to "Use it" below.
 
-**To uninstall this way:** on a computer, create an empty file named
-`UNINSTALL.txt` inside the `AAClusterMap` folder on the card, then run the
-same update again. It removes everything and restores the original state.
-Delete that file afterwards if you want to install again.
+**To uninstall this way:** put the card in a computer. Inside `AAClusterMap`
+there is a folder called `to uninstall, move this file up one folder`. Move
+the `UNINSTALL.txt` file in it up into `AAClusterMap` itself, then run the same
+update again. It removes everything and restores the original state. Move the
+file back, or delete it, before installing again.
+
+The file only means something to this package, and only in that folder.
 
 The screens in steps 2 to 5 are described from the toolbox's instructions for
 its own update, which uses the same mechanism. If yours look different, tell
@@ -154,9 +157,9 @@ there when you start a route.
 | What you see | What to do |
 |---|---|
 | The cluster shows the car's own map, or "no map" | Check the cluster is in map view. Unplug the phone, wait ten seconds, plug it in again |
-| Android Auto keeps disconnecting | Uninstall (green menu **Uninstall and restore original state**, or the `UNINSTALL.txt` update), reboot, and open an issue. With the green menu, run **Save logs to SD** first |
+| Android Auto keeps disconnecting | Uninstall (green menu **Uninstall and restore original state**, or the uninstall update), reboot, and open an issue. With the green menu, run **Save logs to SD** first |
 | The map appears, then goes blank | Run the install again (either way) and reboot. It switches off the turn-by-turn jar if something re-enabled it |
-| You want it gone | Green menu **Uninstall and restore original state**, or the `UNINSTALL.txt` update. Then reboot |
+| You want it gone | Green menu **Uninstall and restore original state**, or the uninstall update. Then reboot |
 | The centre screen stays black after a reboot | See "Safety and recovery" in the [Install guide](Install-Guide.md). This is what the toolbox's SSH service is for |
 
 Always save logs **before** rebooting; they are lost at reboot. Read them

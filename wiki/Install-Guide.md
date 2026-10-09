@@ -56,8 +56,8 @@ car**. Steps are in the [Quick start](Quick-Start.md). The card's
 `metainfo2.txt` names `AAClusterMap/final/finalScript.sh` as the update's
 final script; it runs `GEM/install.sh`, the same script as the green menu
 entry, and writes its output to `AAClusterMap/update_result.txt`. With a file
-named `UNINSTALL` or `UNINSTALL.txt` in `AAClusterMap`, it runs the uninstall
-instead.
+whose name starts with `UNINSTALL` in `AAClusterMap`, it runs the uninstall
+instead. A ready-made one ships in a subfolder.
 
 ### Route A: from the green menu (no SSH)
 

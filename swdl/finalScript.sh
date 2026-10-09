@@ -1,8 +1,8 @@
 #!/bin/ksh
 # Final script of the "Android Auto Cluster Map" software update package.
 # The unit's update process runs it once, after copying the menu screen.
-# It installs the cluster map, or removes it when a file named UNINSTALL (or
-# UNINSTALL.txt) is present in the AAClusterMap folder on the card.
+# It installs the cluster map, or removes it when a file whose name starts with
+# UNINSTALL is present in the AAClusterMap folder on the card.
 # All output goes to AAClusterMap/update_result.txt on the card.
 
 echo FinalScript for HW ${1} on medium ${2}...
@@ -25,7 +25,15 @@ LOCAL=`echo "$VOLUME" | sed 's|^/net/mmx||'`
 on -f mmx /bin/mount -uw $LOCAL
 RESULT=$VOLUME/AAClusterMap/update_result.txt
 
-if [ -f "$VOLUME/AAClusterMap/UNINSTALL" ] || [ -f "$VOLUME/AAClusterMap/UNINSTALL.txt" ]; then
+# Any file in the AAClusterMap folder whose name starts with UNINSTALL, in any
+# letter case and with any extension (Windows hides extensions, so the file may
+# really be UNINSTALL.txt.txt). Only this folder is looked at.
+MODE=install
+for f in "$VOLUME"/AAClusterMap/UNINSTALL* "$VOLUME"/AAClusterMap/uninstall* "$VOLUME"/AAClusterMap/Uninstall*; do
+    [ -f "$f" ] && MODE=uninstall
+done
+
+if [ "$MODE" = uninstall ]; then
     echo "Mode: uninstall" > $RESULT
     on -f mmx /bin/sh $LOCAL/AAClusterMap/GEM/uninstall.sh >> $RESULT 2>&1
 else
