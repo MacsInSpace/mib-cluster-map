@@ -71,6 +71,5 @@ replaces Java classes inside the unit's interface, and those classes differ
 between firmware. Someone has to rebuild the patch against that firmware's
 `lsd.jxe` with the jar project's toolchain (an IBM Java 1.2-level compiler),
 fixing whatever no longer matches, and test it on a car. That work belongs in
-the jar's own project; this package only bundles its released jar. The
-**Collect files for porting** menu entry also copies `lsd.jxe` so an owner has
-what such a port needs.
+the jar's own project; this package only bundles its released jar. The menu entry **Collect for porting, with Java image** copies `lsd.jxe` as
+well, for an owner who wants to attempt such a port.

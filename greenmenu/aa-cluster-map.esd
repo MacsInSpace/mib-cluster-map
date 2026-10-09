@@ -43,4 +43,8 @@ script
 
 script
     value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/collect_for_porting.sh"
-    label   "Collect files for porting (other firmware)"
+    label   "Collect files for porting (quick)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/collect_for_porting_full.sh"
+    label   "Collect for porting, with Java image (55 MB, slow)"

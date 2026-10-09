@@ -90,8 +90,8 @@ someone with that firmware who is willing to test on their own car.
 
 1. Put the package on an SD card and run it as a software update, as in the
    [Quick start](Quick-Start.md). On unsupported firmware it installs nothing
-   and collects the files by itself, into a `porting_<train>` folder, without
-   the large Java interface image. That is enough for a cluster map port.
+   and collects the files by itself, into a `porting_<train>` folder. It is small
+   and takes a few seconds.
 
 Or, with the green menu:
 
@@ -99,8 +99,10 @@ Or, with the green menu:
 2. Run **Status and compatibility check** and note what it says.
 3. Run **Collect files for porting (other firmware)**. It only reads from the
    unit. It writes a `porting_<train>` folder into `AAClusterMap` on the card,
-   about 58 MB: the Android Auto program, its receiver library, the Java
-   interface image, four configuration files, and an `info.txt` with the firmware train, file sizes
+   about 2.5 MB: the Android Auto program, its receiver library, four
+   configuration files, and an `info.txt`. It takes a few seconds. A second
+   entry adds the 55 MB Java interface image, which only a turn-arrows port
+   needs with the firmware train, file sizes
    and the cluster display table.
 4. Open an issue saying which firmware and car you have and that you have the
    files. **Do not attach or publish the files.** The program files and `lsd.jxe` are

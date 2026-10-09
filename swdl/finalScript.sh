@@ -53,7 +53,7 @@ else
         # the owner does not have to do anything else to help.
         echo >> $RESULT
         echo "Collecting files for porting instead..." >> $RESULT
-        on -f mmx /bin/sh $LOCAL/AAClusterMap/GEM/collect_for_porting.sh --small >> $RESULT 2>&1
+        on -f mmx /bin/sh $LOCAL/AAClusterMap/GEM/collect_for_porting.sh >> $RESULT 2>&1
     fi
 fi
 
