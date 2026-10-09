@@ -137,7 +137,8 @@ Then reboot. This is a full revert:
   put back;
 - if the installer added NavActiveIgnore, it is taken out again.
 
-Afterwards the unit is as it was before the install. Run the status check to
+Afterwards the unit is as it was before the install, with one exception: if
+the software update switched on the engineering menu, it stays on. Run the status check to
 confirm it says "Hook: not installed".
 
 ## 5a. Turn-by-turn arrows instead of the map
