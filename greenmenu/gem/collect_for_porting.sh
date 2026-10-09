@@ -33,6 +33,9 @@ take /mnt/system/etc/eso/production/smartphone_integrator.json
 take /mnt/system/etc/eso/production/gal.json
 take /mnt/system/etc/eso/production/displaymanager.json
 take /mnt/app/eso/hmi/lsd/lsd.sh
+# The Java interface image: needed only to port the turn-by-turn arrows, which
+# are a Java patch built against it. About 55 MB.
+if [ -r /ifs/lsd.jxe ]; then take /ifs/lsd.jxe; else take /mnt/app/eso/hmi/lsd/lsd.jxe; fi
 
 # Which window carries the cluster map, from the boot log and the display table.
 echo "--- first-swap lines from the system log" >> "$INFO"

@@ -5,6 +5,9 @@ Short answer: **one firmware on one head unit.** Harman MIB2.5 High
 `MHI2_ER_VWG13_P4521`, software number 1367, with a digital cluster and Android
 Auto over USB.
 
+The aim is to cover every MIB2.5 High firmware over time. Progress is tracked in
+the [Firmware support matrix](Firmware-Support-Matrix.md).
+
 ## Why it is so narrow
 
 The project works by loading a small library into the head unit's own Android
@@ -90,19 +93,16 @@ someone with that firmware who is willing to test on their own car.
 2. Run **Status and compatibility check** and note what it says.
 3. Run **Collect files for porting (other firmware)**. It only reads from the
    unit. It writes a `porting_<train>` folder into `AAClusterMap` on the card,
-   about 2.5 MB: the Android Auto program, its receiver library, four
-   configuration files, and an `info.txt` with the firmware train, file sizes
+   about 58 MB: the Android Auto program, its receiver library, the Java
+   interface image, four configuration files, and an `info.txt` with the firmware train, file sizes
    and the cluster display table.
 4. Open an issue saying which firmware and car you have and that you have the
-   files. **Do not attach or publish the files.** The two program files are
+   files. **Do not attach or publish the files.** The program files and `lsd.jxe` are
    Volkswagen/Harman firmware and are not ours to distribute. `info.txt` on its
    own is fine to post.
 
-What happens with them: one fixed address inside the Android Auto program has
-to be re-found for the new build, about twenty object layouts are checked
-against [the list verified for P4521](Receiver-Layout-Verification.md), and the
-cluster display values are compared. If everything lines up, a test build for
-that firmware can be made. Nothing is certain until it has run on a car.
+What happens next is described in
+[Porting to another firmware](Porting-To-Another-Firmware.md).
 
 The collected folder contains no account data, phone names or vehicle
 identification number. It does include the unit's Java start-up script and

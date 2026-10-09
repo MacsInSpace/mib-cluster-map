@@ -93,14 +93,14 @@ package() {
   cp "$ROOT"/greenmenu/gem/*.sh "$D/gem/"
   cp "$ROOT/greenmenu/aa-cluster-map.esd" "$S/Custom/GreenMenu/"
   cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
-  cp "$ROOT"/wiki/Install-Guide.md "$ROOT"/wiki/Supported-Units.md "$ROOT"/wiki/Navigation-Status-Messages.md "$ROOT"/wiki/Cluster-Zoom-Findings.md "$D/docs/"
+  cp "$ROOT"/wiki/Install-Guide.md "$ROOT"/wiki/Supported-Units.md "$ROOT"/wiki/Firmware-Support-Matrix.md "$ROOT"/wiki/Navigation-Status-Messages.md "$ROOT"/wiki/Cluster-Zoom-Findings.md "$D/docs/"
   cp "$ROOT/LICENSE" "$D/LICENSE"
   # The unit's shell needs LF line endings and plain ASCII in everything it runs.
   bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/gem/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
   [ -z "$bad" ] || { echo "REJECTED: CR or non-ASCII in: $bad"; exit 1; }
   (cd "$D" && shasum -a 256 libgal_hook.so stream-player lib/libdmdt_flush.so > SHA256SUMS.txt)
   VER=${RELEASE_VERSION:-$BUILD_ID}
-  Z="$ROOT/dist/AAClusterMap_MHI2_ER_VWG13_P4521_MU1367_$VER.zip"
+  Z="$ROOT/dist/AAClusterMap_MHI2_$VER.zip"
   rm -f "$ROOT"/dist/*.zip "$ROOT"/dist/*.sha256
   (cd "$S" && zip -qr -X "$Z" AAClusterMap Custom -x '*.DS_Store' -x '._*')
   (cd "$ROOT/dist" && shasum -a 256 "$(basename "$Z")" > "$(basename "$Z").sha256")

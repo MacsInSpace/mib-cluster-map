@@ -10,6 +10,7 @@
 #include "vc_stream_out.h"
 #include "vc_player_mgr.h"
 #include "focus_ctl.h"
+#include "firmware_profiles.h"
 
 #include <dlfcn.h>
 #include <pthread.h>
@@ -20,29 +21,26 @@
 #include <string.h>
 #include <time.h>
 
-#define GAL_CONTROLLER_INSTANCE_ADDRESS ((uintptr_t)0x00237f70u)
-#define GAL_VIDEO_SINK_IMPL_CTOR_ADDRESS ((uintptr_t)0x001d9658u)
-#define GAL_VIDEO_SINK_IMPL_VTABLE       ((uintptr_t)0x00231e10u)
+/* Firmware-specific addresses and layouts live in firmware_profiles.h. */
 /*
  * The object VideoSink keeps at +0x38 is a gal::CVideoSinkCallbackHandler,
  * NOT a gal::CVideoSinkImpl. VideoSink calls it purely virtually --
  * handleSetup invokes vtable+0x14, playbackStart +0x18, playbackStop +0x1c
  * (from libautoreceiver.so, decompiled) -- so what belongs there is an
- * IVideoSinkCallbacks implementor. GAL_VIDEO_SINK_IMPL_CTOR_ADDRESS builds
+ * IVideoSinkCallbacks implementor. The profile's `ctor` builds
  * exactly that: it writes five vptrs, all pointing inside
  * _ZTVN3gal25CVideoSinkCallbackHandlerE (0x00231d18, size 188) at +8, +0x58,
  * +0x6c, +0x78 and +0x94 -- a multiply-inheriting class. Its primary vptr is
  * therefore 0x00231d20, which is exactly what the primary sink's +0x38 object
  * reports on-car.
  */
-#define GAL_VIDEO_SINK_CBHANDLER_VTABLE  ((uintptr_t)0x00231d20u)
 
 /*
  * Object sizes. Both are verified rather than assumed, because a value
  * smaller than the real class means GAL's own code writes past the end of
  * our heap block -- corruption that would surface anywhere but here.
  *
- * VIDEO_SINK_IMPL_SIZE is the historical macro name, but the object is a
+ * handler_size in the profile (once the VIDEO_SINK_IMPL_SIZE macro): the object is a
  * CVideoSinkCallbackHandler. Its size is exact: GAL uses `mov r0, #240`
  * immediately before `bl 0x1d9658` (the constructor this hook calls), i.e.
  * operator new(0xf0). tools/verify_constants.sh checks that instruction pair
@@ -55,7 +53,6 @@
  * margin. The hook's own highest write is +0x4c.
  */
 #define VIDEO_SINK_SIZE 0x50u
-#define VIDEO_SINK_IMPL_SIZE 0xf0u
 #define VIDEO_CODEC_RESOLUTION_800_480 1
 
 /* (GalReceiver *this, ProtocolEndpointBase *endpoint) -- see the hook's
@@ -245,10 +242,82 @@ static int resolve_runtime(void)
     return 0;
 }
 
+static const gal_profile *g_profile;
+static gal_profile g_trial_profile;
+static char g_trial_name[48];
+
+/*
+ * GAL_PROFILE_TRIAL: a profile supplied in gal_dualscreen.conf, for testing a
+ * port without rebuilding. Twelve colon-separated fields in the order of
+ * struct gal_profile, numbers in hex, without car_tested and the three
+ * settings fields (which take the first built-in profile's values):
+ *
+ *   name:controller:impl_vt:cb_vt:ctor:first_word:size:ctl_cfg:ctl_creator:h_count:h_data:entry
+ *
+ * It is used only when no built-in profile matches, and only if its three
+ * fingerprint addresses equal what this gal actually exports -- so a trial
+ * line left in the file cannot be applied to a different build.
+ */
+static const gal_profile *parse_trial_profile(void)
+{
+    const char *v = getenv("GAL_PROFILE_TRIAL");
+    unsigned f[11];
+    char name[sizeof g_trial_name];
+
+    if (v == NULL || *v == '\0') return NULL;
+    if (sscanf(v, "%47[^:]:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x", name,
+               &f[0], &f[1], &f[2], &f[3], &f[4], &f[5], &f[6], &f[7], &f[8], &f[9], &f[10]) != 12) {
+        gal_hook_logf("event=firmware.trial result=rejected reason=parse value=%s", v);
+        return NULL;
+    }
+    g_trial_profile = k_profiles[0];          /* settings fields */
+    (void)snprintf(g_trial_name, sizeof g_trial_name, "%s", name);
+    g_trial_profile.name = g_trial_name;
+    g_trial_profile.car_tested = 0;
+    g_trial_profile.controller_slot = f[0];
+    g_trial_profile.impl_vtable = f[1];
+    g_trial_profile.cbhandler_vtable = f[2];
+    g_trial_profile.ctor = f[3];
+    g_trial_profile.ctor_first_word = f[4];
+    g_trial_profile.handler_size = f[5];
+    g_trial_profile.ctl_config_off = f[6];
+    g_trial_profile.ctl_creator_off = f[7];
+    g_trial_profile.h_cfg_count_off = f[8];
+    g_trial_profile.h_cfg_data_off = f[9];
+    g_trial_profile.cfg_entry_size = f[10];
+    return &g_trial_profile;
+}
+
+/* Everything that can be checked about a profile without calling into gal. */
+static const char *profile_problem(const gal_profile *p)
+{
+    uint32_t word;
+
+    if (p->cfg_entry_size < 28u || p->cfg_entry_size > GAL_PROFILE_MAX_ENTRY) return "entry_size";
+    if (p->handler_size < 0x60u || p->handler_size > 0x400u) return "handler_size";
+    if (p->ctl_config_off > 0x1000u || p->ctl_creator_off > 0x1000u) return "controller_offsets";
+    if (p->h_cfg_count_off + 4u > p->handler_size || p->h_cfg_data_off + 4u > p->handler_size) return "handler_offsets";
+    if (p->settings_last + 4u > p->handler_size || p->settings_first > p->settings_last) return "settings_range";
+    /*
+     * gal is a fixed-address executable whose code sits below its data, so a
+     * constructor address must be word-aligned, above the image base and
+     * below the exported data symbols. Only then is it safe to read.
+     */
+    if ((p->ctor & 3u) != 0u || p->ctor < 0x00100000u ||
+        p->ctor >= p->cbhandler_vtable || p->ctor >= p->controller_slot) return "ctor_range";
+    memcpy(&word, (const void *)(uintptr_t)p->ctor, sizeof word);
+    if (word != p->ctor_first_word) return "ctor_first_word";
+    return NULL;
+}
+
 static int verify_firmware_abi(void)
 {
     void *vtable_symbol;
     void *cb_vtable_symbol;
+    const gal_profile *trial;
+    const char *problem;
+    unsigned i;
+
     if (g_firmware_check_attempted) return g_firmware_verified ? 0 : -1;
     g_firmware_check_attempted = 1;
     g_controller_instance_slot = (void **)dlsym(
@@ -256,30 +325,55 @@ static int verify_firmware_abi(void)
     vtable_symbol = dlsym(RTLD_DEFAULT, "_ZTVN3gal14CVideoSinkImplE");
     cb_vtable_symbol = dlsym(RTLD_DEFAULT,
                              "_ZTVN3gal25CVideoSinkCallbackHandlerE");
-    if ((uintptr_t)cb_vtable_symbol != GAL_VIDEO_SINK_CBHANDLER_VTABLE - 8u ||
-        (uintptr_t)g_controller_instance_slot !=
-            GAL_CONTROLLER_INSTANCE_ADDRESS ||
-        (uintptr_t)vtable_symbol != GAL_VIDEO_SINK_IMPL_VTABLE - 8u) {
+
+    for (i = 0u; i < GAL_PROFILE_COUNT; ++i) {
+        const gal_profile *p = &k_profiles[i];
+        if ((uintptr_t)g_controller_instance_slot == p->controller_slot &&
+            (uintptr_t)vtable_symbol == p->impl_vtable &&
+            (uintptr_t)cb_vtable_symbol == p->cbhandler_vtable) {
+            g_profile = p;
+            break;
+        }
+    }
+    if (g_profile == NULL && (trial = parse_trial_profile()) != NULL) {
+        if ((uintptr_t)g_controller_instance_slot == trial->controller_slot &&
+            (uintptr_t)vtable_symbol == trial->impl_vtable &&
+            (uintptr_t)cb_vtable_symbol == trial->cbhandler_vtable) {
+            g_profile = trial;
+            gal_hook_logf("event=firmware.trial result=selected name=%s note=UNTESTED_PROFILE_FROM_CONFIG", trial->name);
+        } else {
+            gal_hook_logf("event=firmware.trial result=rejected reason=fingerprint_mismatch name=%s", trial->name);
+        }
+    }
+    if (g_profile == NULL) {
         /*
-         * Report all three, including the callback-handler vtable, which
-         * was checked but never printed -- so a mismatch there produced a
-         * failure message showing only values that looked correct.
+         * The fingerprint line is everything a new profile's first three
+         * fields need; tools/find_profile.py derives the rest from the gal
+         * file itself.
          */
         gal_hook_logf(
-            "event=firmware.verify result=failed controller_symbol=%p expected_controller=0x%08x impl_vtable_symbol=%p expected_impl=0x%08x cbhandler_vtable_symbol=%p expected_cbhandler=0x%08x action=leave_stock_gal_untouched",
-            (void *)g_controller_instance_slot,
-            (unsigned)GAL_CONTROLLER_INSTANCE_ADDRESS, vtable_symbol,
-            (unsigned)(GAL_VIDEO_SINK_IMPL_VTABLE - 8u), cb_vtable_symbol,
-            (unsigned)(GAL_VIDEO_SINK_CBHANDLER_VTABLE - 8u));
+            "event=firmware.verify result=failed reason=no_profile profiles=%u fingerprint=controller:0x%08x,impl_vtable:0x%08x,cbhandler_vtable:0x%08x action=leave_stock_gal_untouched",
+            (unsigned)GAL_PROFILE_COUNT,
+            (unsigned)(uintptr_t)g_controller_instance_slot,
+            (unsigned)(uintptr_t)vtable_symbol,
+            (unsigned)(uintptr_t)cb_vtable_symbol);
+        return -1;
+    }
+    problem = profile_problem(g_profile);
+    if (problem != NULL) {
+        gal_hook_logf("event=firmware.verify result=failed reason=profile_check name=%s check=%s ctor=0x%08x action=leave_stock_gal_untouched",
+                      g_profile->name, problem, (unsigned)g_profile->ctor);
+        g_profile = NULL;
         return -1;
     }
     g_resolved_impl_vtable = (uintptr_t)vtable_symbol + 8u;
     g_resolved_cbhandler_vtable = (uintptr_t)cb_vtable_symbol + 8u;
     g_firmware_verified = 1;
-    gal_hook_logf("event=firmware.verify result=success target=MHI2_P4521 controller_symbol=%p impl_vtable=0x%08x hidden_impl_ctor=0x%08x",
+    gal_hook_logf("event=firmware.verify result=success profile=%s car_tested=%d controller_symbol=%p impl_vtable=0x%08x hidden_impl_ctor=0x%08x",
+                  g_profile->name, g_profile->car_tested,
                   (void *)g_controller_instance_slot,
                   (unsigned)g_resolved_impl_vtable,
-                  (unsigned)GAL_VIDEO_SINK_IMPL_CTOR_ADDRESS);
+                  (unsigned)g_profile->ctor);
     return 0;
 }
 
@@ -487,7 +581,7 @@ static int build_secondary_sink(void *primary, void *controller)
      * reverse-engineered assumption, not something this file can verify.
      * A static buffer removes the dangling-pointer risk if it retains.
      */
-    static unsigned char secondary_config_entry[40];
+    static unsigned char secondary_config_entry[GAL_PROFILE_MAX_ENTRY];
     /*
      * Static for exactly the reason secondary_config_entry above is: the
      * constructor is handed this vector and it is not known whether it
@@ -522,6 +616,10 @@ static int build_secondary_sink(void *primary, void *controller)
         return -1;
     }
     if (resolve_runtime() != 0) return -1;
+    if (g_profile == NULL) {
+        gal_hook_log("event=secondary.build result=skipped reason=no_firmware_profile");
+        return -1;
+    }
 
     router = (void *)(uintptr_t)load_u32(primary, 0x08u);
     /*
@@ -549,7 +647,7 @@ static int build_secondary_sink(void *primary, void *controller)
     }
 
     g_secondary_sink = calloc(1, VIDEO_SINK_SIZE);
-    g_secondary_impl = calloc(1, VIDEO_SINK_IMPL_SIZE);
+    g_secondary_impl = calloc(1, g_profile->handler_size);
     reference_count = (uint32_t *)calloc(1, sizeof(*reference_count));
     if (g_secondary_sink == NULL || g_secondary_impl == NULL ||
         reference_count == NULL) {
@@ -585,9 +683,9 @@ static int build_secondary_sink(void *primary, void *controller)
      * not: CVideoRendererCreator::create stores its single renderer pointer at
      * creator+0xfc. This is why the secondary stock render path is withheld.
      */
-    impl_ctor = (video_sink_impl_ctor_fn)GAL_VIDEO_SINK_IMPL_CTOR_ADDRESS;
-    primary_config_count = load_u32(g_primary_impl, 0x80u);
-    primary_config_data = (void *)(uintptr_t)load_u32(g_primary_impl, 0x84u);
+    impl_ctor = (video_sink_impl_ctor_fn)(uintptr_t)g_profile->ctor;
+    primary_config_count = load_u32(g_primary_impl, g_profile->h_cfg_count_off);
+    primary_config_data = (void *)(uintptr_t)load_u32(g_primary_impl, g_profile->h_cfg_data_off);
     if (primary_config_count == 0u || primary_config_count > 64u ||
         primary_config_data == NULL) {
         gal_hook_logf("event=secondary.video_config result=failed count=%u data=%p",
@@ -595,10 +693,10 @@ static int build_secondary_sink(void *primary, void *controller)
         goto fail;
     }
     for (index = 0u; index < primary_config_count; ++index) {
-        unsigned char *entry = (unsigned char *)primary_config_data + index * 40u;
+        unsigned char *entry = (unsigned char *)primary_config_data + index * g_profile->cfg_entry_size;
         if (load_u32(entry, 0u) == VIDEO_CODEC_RESOLUTION_800_480 &&
             load_u32(entry, 4u) == config->fps) {
-            memcpy(secondary_config_entry, entry, sizeof(secondary_config_entry));
+            memcpy(secondary_config_entry, entry, g_profile->cfg_entry_size);
             store_u32(secondary_config_entry, 16u, config->dpi);
             store_u32(secondary_config_entry, 20u, 0u);
             store_u32(secondary_config_entry, 24u, 0u);
@@ -617,8 +715,8 @@ static int build_secondary_sink(void *primary, void *controller)
     secondary_config_vector[0] = 1u;
     secondary_config_vector[1] = (uint32_t)(uintptr_t)secondary_config_entry;
     config_vector = secondary_config_vector;
-    renderer_creator = (unsigned char *)controller + 0xc4u;
-    (void)impl_ctor(g_secondary_impl, (unsigned char *)controller + 0x94u,
+    renderer_creator = (unsigned char *)controller + g_profile->ctl_creator_off;
+    (void)impl_ctor(g_secondary_impl, (unsigned char *)controller + g_profile->ctl_config_off,
                     config_vector, renderer_creator);
     /*
      * Same class as the primary's +0x38 object: impl_ctor builds a
@@ -685,15 +783,15 @@ static int build_secondary_sink(void *primary, void *controller)
      * Replace only an exact stock displayable ID in the private secondary
      * copy. If this firmware stores it elsewhere, the hook leaves it alone.
      */
-    for (offset = 0x34u; offset <= 0x58u; offset += 4u) {
+    for (offset = g_profile->settings_first; offset <= g_profile->settings_last; offset += 4u) {
         uint32_t value = load_u32(g_secondary_impl, offset);
         gal_hook_debugf("event=secondary.impl_config offset=0x%02x value=0x%08x",
                         offset, value);
-        if (value == 59u) {
+        if (value == g_profile->stock_displayable) {
             store_u32(g_secondary_impl, offset, config->displayable_id);
             patched_displayable = 1u;
-            gal_hook_logf("event=secondary.output_patch stage=impl offset=0x%02x from=59 to=%u result=success",
-                          offset, config->displayable_id);
+            gal_hook_logf("event=secondary.output_patch stage=impl offset=0x%02x from=%u to=%u result=success",
+                          offset, (unsigned)g_profile->stock_displayable, config->displayable_id);
         }
     }
     if (!patched_displayable) {

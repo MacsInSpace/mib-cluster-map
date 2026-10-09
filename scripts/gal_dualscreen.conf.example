@@ -141,6 +141,13 @@ GAL_SECONDARY_SERVICE_ID=0
 #GAL_PLAYER_STATS=0
 #GAL_HOOK_LOG_MAX_MB=1
 
+# ---- trial firmware profile (porting only) ----------------------------
+# A profile for a firmware the hook has no built-in entry for, as printed by
+# tools/find_profile.py. Used only if no built-in profile matches and its
+# three fingerprint addresses equal this unit's. See
+# wiki/Porting-To-Another-Firmware.md.
+#GAL_PROFILE_TRIAL=name:controller:impl_vt:cb_vt:ctor:first_word:size:ctl_cfg:ctl_creator:h_count:h_data:entry
+
 # ---- logging ---------------------------------------------------------
 # Unset by default: the hook uses its built-in path and falls back to
 # /tmp/gal_dualscreen.log when the card is read-only, which it is on every

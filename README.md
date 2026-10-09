@@ -23,7 +23,7 @@ an installer that needs no SSH, and prebuilt packages.
 | | |
 |---|---|
 | Head unit | Harman MIB2.5 High, "Discover Pro" 9.2 inch |
-| Firmware | `MHI2_ER_VWG13_P4521`, software **1367**, and nothing else |
+| Firmware | `MHI2_ER_VWG13_P4521`, software **1367**. More are wanted: see the [support matrix](wiki/Firmware-Support-Matrix.md) |
 | Cluster | Active Info Display that can show the navigation map |
 | Phone | Android Auto over USB |
 | Needs | [MQB Coding MIB2 Toolbox](https://github.com/jilleb/mib2-toolbox) installed, with its NavActiveIgnore patch |
@@ -80,6 +80,7 @@ before you start.
   installed, and checks for the NavActiveIgnore patch.
 - **Missing pieces restored.** The helper library build step and a status
   helper that upstream's published tree lacks.
+- **Firmware profiles.** Everything specific to one firmware build is one table entry in `src/firmware_profiles.h`, with a tool that proposes an entry from a unit's files and a way to trial it without rebuilding.
 - **Green menu screen.** Install, status, logs and uninstall without SSH.
 - **Quiet by default.** Debug logging is off; a small log is kept in RAM.
 - **Zoom investigated.** No input makes the phone zoom its cluster map.
@@ -88,6 +89,7 @@ before you start.
 ## Documentation
 
 - [Which cars and head units are supported](wiki/Supported-Units.md)
+- [Firmware support matrix](wiki/Firmware-Support-Matrix.md) and [Porting to another firmware](wiki/Porting-To-Another-Firmware.md)
 - [Install guide](wiki/Install-Guide.md)
 - [Navigation status messages and the connection loop](wiki/Navigation-Status-Messages.md)
 - [Cluster map zoom: what was tried](wiki/Cluster-Zoom-Findings.md)

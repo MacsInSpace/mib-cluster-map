@@ -2,7 +2,9 @@
 # makes the card writable and checks the firmware train.
 PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/sbin:/mnt/app/armle/usr/bin:/mnt/app/armle/usr/sbin:$PATH
 export PATH
-SUPPORTED_TRAIN=MHI2_ER_VWG13_P4521
+# Firmware trains with a car-tested profile in the hook, space separated.
+SUPPORTED_TRAINS="MHI2_ER_VWG13_P4521"
+SUPPORTED_TRAIN="$SUPPORTED_TRAINS"
 
 PKG=
 for v in /fs/sda0 /fs/sdb0 /net/mmx/fs/sda0 /net/mmx/fs/sdb0; do
@@ -31,9 +33,11 @@ RECEIVER_SIZE=1067402
 SUPPORT_NOTE=
 train_supported()
 {
-    case "$TRAIN" in
-        *${SUPPORTED_TRAIN}*) SUPPORT_NOTE="tested firmware"; return 0 ;;
-    esac
+    for t in $SUPPORTED_TRAINS; do
+        case "$TRAIN" in
+            *${t}*) SUPPORT_NOTE="tested firmware"; return 0 ;;
+        esac
+    done
     g=`wc -c < /mnt/app/eso/bin/apps/gal 2>/dev/null | sed 's/ //g'`
     r=`wc -c < /mnt/app/eso/lib/libautoreceiver.so 2>/dev/null | sed 's/ //g'`
     if [ "$g" = "$GAL_SIZE" ] && [ "$r" = "$RECEIVER_SIZE" ]; then

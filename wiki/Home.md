@@ -83,6 +83,8 @@ This project is an experimental research endeavor intended strictly for personal
 ## Notes from this fork (not from upstream)
 
 * [Which cars and head units are supported](Supported-Units.md)
+* [Firmware support matrix](Firmware-Support-Matrix.md)
+* [Porting to another firmware](Porting-To-Another-Firmware.md)
 * [Install guide](Install-Guide.md)
 * [Receiver layout verification](Receiver-Layout-Verification.md)
 * [Upstream README](Upstream-README.md)
