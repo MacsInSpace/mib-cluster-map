@@ -80,8 +80,11 @@ This project is an experimental research endeavor intended strictly for personal
 
 ---
 
-## Local field notes (not from upstream)
+## Notes from this fork (not from upstream)
 
-* [Field guide: installing this on another car](Field-Guide-Sharing-With-Friends.md)
+* [Which cars and head units are supported](Supported-Units.md)
+* [Install guide](Install-Guide.md)
+* [Receiver layout verification](Receiver-Layout-Verification.md)
+* [Upstream README](Upstream-README.md)
 * [Navigation status messages and the connection loop](Navigation-Status-Messages.md)
 * [Cluster map zoom: what was tried](Cluster-Zoom-Findings.md)

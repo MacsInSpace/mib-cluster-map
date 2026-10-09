@@ -1,6 +1,6 @@
 # Navigation status messages and the connection loop
 
-Local field notes, not from upstream. Measured on a VW Golf 7.5, Discover Pro,
+Field notes from this fork, not from upstream. Measured on a VW Golf 7.5, Discover Pro,
 `MHI2_ER_VWG13_P4521` (MU1367), October 2026.
 
 ## The short version
@@ -81,9 +81,9 @@ draws turn arrows from them, such as `VCAndroidAuto.jar`, has nothing to show.
 been ported here. It is the place to start if turn arrows are wanted beside the
 cluster map.
 
-## Checklist when a friend's car loops
+## Checklist when a car loops
 
-1. Collect logs with `collect_logs.sh`.
+1. Collect logs (green menu: Save logs to SD, or `collect_logs.sh`).
 2. Find the navigation service id in the `event=service.class` lines.
 3. Look for `event=aap.unexpected`. If the lines say `action=sent`, the
    suppression is off or the cluster sink did not register.

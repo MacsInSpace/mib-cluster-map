@@ -1,6 +1,7 @@
 #!/bin/sh
 # Input experiment: which Android Auto input, if any, zooms the cluster map?
-#   sh /fs/sda0/zoom_test.sh
+#   copy this file into the AAClusterMap folder on the card, then:
+#   sh /fs/sda0/AAClusterMap/zoom_test.sh
 # Needs GAL_INPUT_INJECT=1 in gal_dualscreen.conf and the phone connected with
 # the map on the cluster. Watch the CLUSTER map and the CENTRE screen and note
 # the step numbers where something changes.
@@ -42,4 +43,4 @@ step 11 "MAIN channel, rotary +1 with display id 1"          "m rot 65536 1 1"  
 step 12 "MAIN channel, DPAD up (19) with display id 1"       "m key 19 1 1"      2
 echo
 echo "Done. Note which steps changed the cluster or the centre screen,"
-echo "then run:  sh /fs/sda0/collect_logs.sh"
+echo "then run:  sh /fs/sda0/AAClusterMap/collect_logs.sh"

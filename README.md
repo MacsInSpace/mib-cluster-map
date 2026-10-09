@@ -1,219 +1,120 @@
-# mhi2-android-auto-video-vc
+# Android Auto map on the VW digital cluster (MIB2.5 High)
 
-> **Experimental hook for Harman MHI2 stock GAL to enable Android Auto instrument cluster projection.**  
-> *Developed for personal research and study; tested and verified strictly on Volkswagen MIB2.5 High EU MU1367 (`MHI2_ER_VWG13_P4521_MU1367`).*
+Shows the Google Maps (or Waze) map from Android Auto on the Volkswagen Active
+Info Display, for Harman MIB2.5 "Discover Pro" head units.
 
-📖 **For in-depth technical guides, troubleshooting, and architectural deep-dives, visit the [Project Wiki](wiki/Home.md).**
+No VNC, no wifi and no app on the phone. The phone sends Android Auto's own
+cluster video stream over the USB cable, and the head unit passes it to the
+cluster the same way it sends the stock VW map.
 
----
-
-### 🧩 Upstream Foundations & Companion Projects
-
-This project provides the **native C preload hook and hardware video streaming pipeline**. It builds upon and integrates with key projects in the MIB2 / MQB ecosystem:
-
-* 📺 **[VcMOSTRenderMqb](https://github.com/andrewleech/VcMOSTRenderMqb)** *(by [@andrewleech](https://github.com/andrewleech))*  
-  The foundational MOST150 video transmission and Tegra 3 OpenKODE/GLES2 cluster rendering architecture adapted by `stream-player`.
-* 🧭 **[NavActiveIgnore](https://github.com/jille/mib2-navignore)** (`navignore` *(by [@jille](https://github.com/jille) / [M.I.B.](https://github.com/Mr-MIBoner/M.I.B._More-Incredible-Bash))*  
-  The **minimum baseline requirement** on the vehicle's Java HMI. Bypasses the factory mutual exclusion check so phone navigation and cluster displays run concurrently without kicking each other out.
-* 🎮 **[mib2-android-auto-vc](https://github.com/adi961/mib2-android-auto-vc)** *(by [@adi961](https://github.com/adi961))*  
-  The foundational **Java HMI patch** (`VCAndroidAuto.jar` / `VCAndroidAuto_mapmode.jar`). Routes steering wheel (MFL) D-pad Up/Down button events to zoom the Android Auto cluster map, injects D-pad keys, and suppresses duplicate cluster turn banners.
-* 🛠️ **[MIB SDK](https://gitlab.com/andrewleech/mibsdk)** *(by [@andrewleech](https://github.com/andrewleech))*  
-  The Dockerized QNX Neutrino 6.5.0 cross-compilation toolchain used to build all native binaries.
-
----
+This is a fork of
+[chopinwong01/mhi2-android-auto-video-vc](https://github.com/chopinwong01/mhi2-android-auto-video-vc),
+which did the hard part. This fork adds an open build, fixes found on a car,
+an installer that needs no SSH, and prebuilt packages.
 
 > [!CAUTION]
-> **CRITICAL WARNING — RISK OF HEAD UNIT DAMAGE OR BRICKING:**  
-> This software interacts directly with low-level QNX RTOS services, hardware graphics controllers, and vehicle bus gateways.  
-> * **Software Risk:** Improper configuration, exceeding supervisor environment limits (Rule of 10), or deploying incompatible Java bytecode will cause bootloops, supervisor crashes, or complete loss of the vehicle's infotainment UI (black screen).  
-> * **Hardware / System Risk:** Flash memory corruption, overheating from unthrottled decoding workloads, or bus desync can permanently disable the MMX unit (requiring bench flashing / hardware recovery).  
-> * **Development Disclosure ("Vibe Coded"):** This project was heavily "vibe coded" and iteratively developed with various Large Language Models (LLMs)—including **Google Gemini**, **Anthropic Claude**, and **OpenAI GPT**. While rigorously bench-tested and telemetry-audited on real vehicle hardware, AI-assisted low-level code inherently demands thorough review before deployment.  
-> **Never modify files in `/lib` or `/usr/lib`. Proceed strictly at your own risk.**
+> This modifies system files on the head unit. A mistake can leave Android Auto
+> or the whole infotainment screen not starting. Use it only on a car you own,
+> keep the SD card with its backups, keep the battery charged, and never
+> install or test while driving. No warranty of any kind.
 
----
+## Supported
 
-## Overview
+| | |
+|---|---|
+| Head unit | Harman MIB2.5 High, "Discover Pro" 9.2 inch |
+| Firmware | `MHI2_ER_VWG13_P4521`, software **1367**, and nothing else |
+| Cluster | Active Info Display that can show the navigation map |
+| Phone | Android Auto over USB |
+| Needs | [MQB Coding MIB2 Toolbox](https://github.com/jilleb/mib2-toolbox) installed, with its NavActiveIgnore patch |
 
-Modern Volkswagen Group vehicles equipped with the Virtual Cockpit (Active Info Display / FPK) receive navigation video feeds over the MOST150 optical bus (`/dev/mlb/isoTX2`). The factory Harman MIB2 High (MMX / Nvidia Tegra 30 / QNX 6.5.0) `gal` daemon only implements a single primary display sink (Channel 1).
+**Check the firmware train, not just "Software: 1367".** Two trains carry that
+number and only P4521 is tested. Full details, other MIB generations and other
+brands: [Which cars and head units are supported](wiki/Supported-Units.md).
 
-**`mhi2-android-auto-video-vc`** provides a native runtime injection and rendering pipeline to project secondary Android Auto navigation video (e.g. Google Maps, Waze) directly onto the instrument cluster.
+The hook contains addresses inside the stock Android Auto program for this
+exact firmware. On any other firmware it detects the mismatch, logs it and
+leaves Android Auto untouched.
 
-```text
-[ Android Phone ] --(AAP USB)--> [ MIB2 gal Daemon ]
-                                         │
-                                  [ libgal_hook.so ]
-                                         │ (TCP loopback 127.0.0.1:12346 / 2MB Buffer)
-                                         ▼
-                                  [ stream-player ]
-                                         │ (glDrawTextureNV -> Context 70)
-                                         ▼
-                             [ Virtual Cockpit Display ]
-```
+## Status
 
----
+Working on one car: a VW Golf 7.5. The cluster map ran at about 30 frames per
+second with and without a route. Long drives, reconnects, the reverse camera
+and waking from sleep have had little testing. Treat it as experimental.
 
-## Repository Structure
+| Works | Does not work |
+|---|---|
+| Phone map on the cluster, with or without a route | Zooming the cluster map from the steering wheel |
+| Main screen Android Auto unchanged | Turn arrows beside the map (the turn-by-turn jar must be off) |
+| Install, status, logs and full uninstall from the green menu (untested on a car; the SSH route is tested) | Any other firmware |
+| Optional switch to turn-by-turn arrows instead of the map | Map and arrows at the same time |
 
-The repository is organized into self-contained, minimal modules:
+## Install
 
-```text
-mhi2-android-auto-video-vc/
-├── Makefile                 # Docker-based build for libgal_hook.so
-├── LICENSE                  # GNU General Public License v3.0 (GPLv3)
-├── README.md                # Project documentation & reference
-├── src/                     # Native C hook source (libgal_hook.so)
-│   ├── gal_hook.c           # Entry point, symbol interceptors & lifecycle
-│   ├── gal_hook.h
-│   ├── focus_ctl.c          # Secondary video focus state machine & phone credit pacing
-│   ├── focus_ctl.h
-│   ├── video_sink_hook.c    # ProtocolEndpointBase allocation & Channel 3 spoof
-│   ├── vc_stream_out.c      # 2MB TCP loopback streaming & player-ACK flow control
-│   ├── vc_stream_out.h
-│   ├── vc_player_mgr.c      # Automatic stream-player process supervisor & Kombi watche
-│   └── vc_player_mgr.h
-├── player/                  # Cluster video renderer (stream-player)
-│   ├── opengl_gpu.cc        # Low-delay zero-frame-delay renderer (glDrawTextureNV)
-│   ├── config.txt           # OpenKODE / Displayable context definition
-│   ├── Makefile             # Docker build script linking against ffmpeg-mini
-│   └── README.md            # Technical details & upstream attribution
-├── scripts/                 # Safe QNX installation & management scripts
-│   ├── enable_hook.sh       # Patches smartphone_integrator.json (enforces Rule of 10)
-│   ├── disable_hook.sh      # Clean uninstaller & factory backup restoration
-│   ├── hook_status.sh       # In-car diagnostic utility for hook & player status
-│   ├── lib_app_mount.sh     # Shared /mnt/app safe mounting helpe
-│   ├── deploy_to_car.sh     # SCP / SSH deployment script
-│   └── gal_dualscreen.conf.example # Configuration file template
-└── wiki/                    # Comprehensive documentation & engineering runbooks
-    ├── Home.md              # Wiki index & quick navigation
-    ├── Compatibility-Matrix.md # Hardware & firmware specifications
-    ├── Installation-and-Safety-Guide.md # Step-by-step install & safety rules
-    ├── Architecture-Deep-Dive.md # Reverse engineering & flow control
-    ├── Companion-HMI-Integration.md # Java HMI layer (NavActiveIgnore & zoom)
-    ├── Troubleshooting-and-Diagnostics.md # Diagnostics & verified telemetry
-    └── Build-Environment.md # Docker cross-compilation toolchain
-```
+1. Download the zip from [Releases](../../releases) and extract it to the root
+   of a FAT32 SD card.
+2. Put the card in slot 1 and follow the
+   [Install guide](wiki/Install-Guide.md): from the green menu, or over SSH.
+3. Reboot the unit, plug in the phone, and put the cluster in map view.
 
----
+**Uninstall and restore original state** is one menu entry or one command. It
+puts back the original files, including anything the installer switched off.
+If you would rather have simple turn arrows than the map, the same menu can
+switch to those instead. See [Safety and recovery](wiki/Install-Guide.md#8-safety-and-recovery)
+before you start.
 
-## Technical Highlights & Runtime Process Flow
+## What this fork changes
 
-The dual-screen projection pipeline executes across four synchronized phases from the moment the Android phone is connected to the vehicle:
+- **Open toolchain.** Upstream needs a private Docker image. `build_local.sh`
+  builds everything with
+  [luka-dev/qnx65-armv7-toolchain](https://github.com/luka-dev/qnx65-armv7-toolchain).
+- **Connection loop fixed.** With a cluster display the phone sends navigation
+  messages the 2018 receiver does not know, and the receiver's reply makes the
+  phone reset the link. The hook drops that reply.
+  [Details](wiki/Navigation-Status-Messages.md).
+- **Blank cluster on route start fixed.** Caused by `VCAndroidAuto.jar`; the
+  installer checks for it and removes its start-up line, reversibly.
+- **Installer fixes.** Counts the supervisor's environment limit correctly,
+  keeps the settings on the unit so the SD card can be removed, removes what it
+  installed, and checks for the NavActiveIgnore patch.
+- **Missing pieces restored.** The helper library build step and a status
+  helper that upstream's published tree lacks.
+- **Green menu screen.** Install, status, logs and uninstall without SSH.
+- **Quiet by default.** Debug logging is off; a small log is kept in RAM.
+- **Zoom investigated.** No input makes the phone zoom its cluster map.
+  [Findings](wiki/Cluster-Zoom-Findings.md).
 
-```text
-  [ Android Phone ]
-         │
-  Phase 1: Handshake & Dynamic Focus (focus_ctl)
-         ▼
-  [ MIB2 gal Daemon ] ◄── (libgal_hook.so holds mode 2; grants mode 1 on player connect)
-         │
-  Phase 2: H.264 NALU Stream (tcp://127.0.0.1:12346, 2MB Buffer)
-         ▼
-  [ stream-player ] ◄── (Zero-delay low-delay decode, AV_CODEC_FLAG_LOW_DELAY)
-         │
-  Phase 3: Hardware Blit (glDrawTextureNV)
-         ▼
-  [ Virtual Cockpit ] (Displayable 3, Context 70 on MOST150)
-         │
-  Phase 4: 1-Byte Hardware ACK (/tmp/gal_ack.sock)
-         ▼
-  [ libgal_hook.so ] ──► (Releases AAP Frame ACK to Phone — Hardware Flow Control)
-```
+## Documentation
 
-### 1. Dynamic Service Injection & Focus Control (`focus_ctl`)
-* **Dynamic Protocol Allocation:** The stock `/usr/bin/gal` daemon strictly rejects secondary screen blocks in `gal.json`. `libgal_hook.so` intercepts `GalReceiver::registerService`, dynamically allocates a C++ `ProtocolEndpointBase` structure in heap memory, and binds it into GAL's internal dispatch table at offset `service_id + 0x40`.
-* **Why Static Focus Failed (The Early-Stream Flood):** Earlier prototypes hardcoded static focus (`sink+0x30 = 1u`). Android Auto immediately flooded H.264 frames before `stream-player` launched or the Kombi cluster was ready, dropping initial IDR keyframes and causing green artifact flashes.
-* **The Dynamic Focus Solution:** `focus_ctl.c` holds the secondary sink in focus mode 2 (native: projection inactive) until `stream-player` connects to the stream socket and the Kombi map is verified ready (`GAL_FOCUS_WAIT_KOMBI`). Only then is mode 1 granted. The phone responds by naturally emitting a fresh, clean SPS/PPS parameter set and IDR keyframe directly to the player.
-
-### 2. High-Speed Loopback Transport: TCP vs. AF_UNIX Buffer Limits
-* **Why AF_UNIX Failed (The 5 KB Buffer Bottleneck):** On QNX 6.5.0 SP1, `AF_UNIX` stream sockets are hardcoded to a fixed buffer of **7,168 bytes send / 5,120 bytes receive**, and `setsockopt(SO_SNDBUF/SO_RCVBUF)` is completely ignored. Because cluster H.264 video frames range from 28 KB (p95) to 140 KB (IDR keyframes), transmitting over AF_UNIX required 6 to 27 round trips per frame through the 5 KB window, thrashing the scheduler and collapsing framerate to **3.3–4 FPS**. Furthermore, both families are serviced by `io-pkt`, so AF_UNIX offered zero process bypass advantage.
-* **The Production Solution (TCP Loopback):** `tcp://127.0.0.1:12346` accepts full 2 MB socket buffers (`SO_SNDBUF` / `SO_RCVBUF`), allowing even 140 KB keyframes to cross in a single atomic write and sustaining an unbroken **25–30 FPS**.
-* **Helper Init Guard (`HOOK_FIX_HELPER_INIT_GUARD`):** By inspecting process identity on startup, child helper processes skip hook initialization entirely, preventing any process exit destructors from interfering with the socket environment.
-* **RVC / OPS Resilience:** A **250ms socket write timeout** smoothly absorbs transient display pauses (e.g., shifting into Reverse gear for the Rear View Camera or parking sensors). Keeping the secondary video sink continuously live in combination with this 250ms buffer allows playback to resume instantaneously when shifting back into Drive (D), avoiding the latency and keyframe renegotiation overhead of focus cycling.
-
-### 3. Low-Delay Zero-Frame-Delay Decoding (`stream-player`)
-* **Why Multi-Frame Threading Failed (The 3.3 FPS Deadlock):** Early builds configured FFmpeg with `FF_THREAD_FRAME`. Frame threading holds each decoded frame until the *subsequent* packet arrives. Under hardware flow control (which withholds ACKs until display swap), the phone exhausted its sliding-window credit and paused waiting for an ACK before sending the next packet. This circular lock caused a ~300ms phone timeout per frame, collapsing playback to **3.3 FPS with 313ms latency**.
-* **The Zero-Delay Solution:** `stream-player` configures `AV_CODEC_FLAG_LOW_DELAY` with `FF_THREAD_SLICE`. Decoded frames are presented immediately without holding delays. Because 800×480 H.264 decode takes only ~1 ms on a Cortex-A9 core, slice threading provides immediate presentation and returns the render ACK synchronously at rock-solid 30 FPS.
-* Direct rendering is performed using Nvidia's dedicated hardware blit extension `GL_NV_draw_texture` (`glDrawTextureNV`), bypassing Tegra 3's disabled online GLSL compiler.
-
-### 4. End-to-End Hardware Paced Flow Control (Zero Macroblocking)
-* **Why Unpaced USB ACKs Failed:** ACKing video packets the moment they arrived over USB caused the phone's encoder to assume infinite bandwidth, flooding socket buffers, dropping reference frames, and causing severe green macroblocking.
-* **The Closed Backpressure Loop:** `libgal_hook.so` withholds the AAP protocol frame ACK until `stream-player` completes hardware presentation (`eglSwapBuffers()`) and writes a 1-byte ACK (`0x01`) into `/tmp/gal_ack.sock`.
-* This organically throttles the phone's hardware video encoder to the exact physical swap rate of the Tegra 3 GPU (verified at 99.84% synchronous lockstep with zero packet drops).
-
----
-
-## Companion HMI Requirements
-
-The video pipeline operates independently at the QNX RTOS level. To integrate with the Volkswagen Java HMI:
-
-* **Minimum Requirement (`NavActiveIgnore`):** Suppresses the mutual exclusion check that prevents Android Auto and cluster navigation from running concurrently.
-* **Full Steering Wheel Integration:** See [wiki/Companion-HMI-Integration.md](wiki/Companion-HMI-Integration.md) for details on [`mib2-android-auto-vc`](https://github.com/adi961/mib2-android-auto-vc) which adds steering wheel D-pad Up/Down button zoom and key routing.
-
----
+- [Which cars and head units are supported](wiki/Supported-Units.md)
+- [Install guide](wiki/Install-Guide.md)
+- [Navigation status messages and the connection loop](wiki/Navigation-Status-Messages.md)
+- [Cluster map zoom: what was tried](wiki/Cluster-Zoom-Findings.md)
+- [Receiver layout verification](wiki/Receiver-Layout-Verification.md), for anyone porting to another firmware
+- [Upstream README](wiki/Upstream-README.md) and the rest of the upstream [wiki](wiki/Home.md): architecture and development history
 
 ## Building
 
-### Prerequisites
-* Docke
-* Access to the MIB SDK Docker image: `registry.gitlab.com/andrewleech/mibsdk:latest`
+Needs Docker. See "Building" in the [Install guide](wiki/Install-Guide.md).
 
-### Building the Preload Hook (`libgal_hook.so`)
-```bash
-make hook
+```sh
+./build_local.sh        # hook, helper library, FFmpeg, player, SD card package, zip
 ```
-The compiled library will be output to `./libgal_hook.so`.
 
-### Building the Stream Player (`stream-player`)
-See [player/README.md](player/README.md) for build instructions linking against minimal FFmpeg.
+## Credits
 
----
-
-## Installation & Safety
-
-> [!CAUTION]
-> **Strict OEM Safety Rules:**
-> 1. **Never modify files in `/lib` or `/usr/lib` on the MIB2 root partition.** Custom shared libraries live strictly in `/mnt/app/eso/lib/`.
-> 2. **Supervisor "Rule of 10":** `smartphone_integrator.json` silently discards the entire environment array if it contains 11 or more variables. `enable_hook.sh` strictly enforces `ENTRY_COUNT <= 10`.
-
-1. Copy compiled binaries and scripts to an SD card.
-2. In QNX terminal on the head unit:
-   ```sh
-   sh /fs/sda0/scripts/enable_hook.sh
-   ```
-3. Verify status:
-   ```sh
-   sh /fs/sda0/scripts/hook_status.sh
-   ```
-4. Reboot the head unit by holding the power button for 10 seconds.
-
----
-
-## 🗺️ Roadmap / Implementation Status
-
-* [x] **Dynamic Secondary Video Focus & Mode Switch:**
-  * Implemented via `focus_ctl.c` / `focus_ctl.h`. Holds secondary sink in mode 2 (native) until `stream-player` connects, triggering an immediate native SPS/PPS + IDR keyframe from the phone.
-  * Verified Kombi map readiness check (`GAL_FOCUS_WAIT_KOMBI`).
-  * Seamless RVC transitions via 250ms socket buffer with live secondary sink.
-* [x] ~~**Unix Domain Socket Migration (`AF_UNIX`)**~~ *(Evaluated & Abandoned — Proven RTOS Limitation)*:
-  * Measured on-car via `vc_sockbuf`: QNX 6.5.0 hardcodes `AF_UNIX` buffers to **7,168 bytes send / 5,120 bytes receive**, and `setsockopt(SO_SNDBUF/SO_RCVBUF)` is completely ignored. Transmitting 28 KB–140 KB H.264 video frames required 6 to 27 round trips per frame, collapsing framerate to **3.3–4 FPS**. Furthermore, both families are served by `io-pkt`. TCP loopback (`tcp://127.0.0.1:12346`) with 2 MB buffers is the definitive production transport.
-* [x] **Zero Frame Delay Decoding Pipeline:**
-  * Replaced `FF_THREAD_FRAME` with `AV_CODEC_FLAG_LOW_DELAY` (`FF_THREAD_SLICE`) to eliminate the 3.3 FPS / 300ms phone credit timeout deadlock.
-* [ ] **Hardware NVSS / NvMedia Video Decoder Renderer:**
-  * Transition `stream-player` from software multi-threaded FFmpeg decoding to hardware video decoding via **NvSS / NvMedia** (`/dev/nvss`, Nvidia Tegra hardware video decoder), substantially cutting Cortex-A9 CPU utilization.
-* [x] ~~**GPS Sensor Uncertainty Hook (Tunnel Loss Prevention)**~~ *(Abandoned — Proven Architectural Dead-End)*:
-  * **Finding:** Intercepting `SensorSource::reportLocationData` to clamp reported accuracy to $\le 10\text{m}$ corrupted Google Maps' Extended Kalman Filter (EKF) covariance matrix ($R_k \to 0$). Normal 5–12m urban multipath noise was interpreted as real physical vehicle displacement, causing violent compass spinning, 90°/180° map orientation flipping, and endless reroute loops. Overriding `has_acc = false` also suppressed Android Auto's native failover to the phone's internal dual-frequency L1/L5 GNSS. Production code leaves OEM sensor data untouched (`src/sensor_hook.c` deleted in `7eb2317`).
-
----
-
-## Attribution & Acknowledgments
-
-* **Andrew Leech:** For the [MIB SDK](https://gitlab.com/andrewleech/mibsdk) toolchain and the foundation of `VcMOSTRenderMqb`.
-* **FFmpeg Project:** Multi-threaded H.264 video decoding.
-* **MQB / MIB2 Hacking Community:** Research and tools on Harman MHI2 architectures.
-* **Large Language Models (LLMs):** Rapid reverse-engineering, architecture synthesis, and "vibe coding" across **Google Gemini**, **Anthropic Claude**, and **OpenAI GPT**.
-
----
+- **chopinwong01**: the original project this is forked from.
+- **andrewleech** and **OneB1t**: VcMOSTRenderMqb, the cluster rendering path the player derives from.
+- **jilleb**, **olli991** and contributors: the MQB Coding MIB2 Toolbox.
+- **adi961**: mib2-android-auto-vc. Its 0.1.4 jar is bundled unmodified under `thirdparty/` (MIT) as the optional arrows mode.
+- **kamgurgul**, **wasimlhr** and **luka-dev**: the MHI2Q projects whose notes on the "unexpected message" reply and the newer navigation messages pointed to the loop fix, and the open QNX toolchain.
+- **FFmpeg**: H.264 decoding, statically linked, LGPL v2.1 or later.
 
 ## License
 
-This project is released under the [GNU General Public License v3.0](LICENSE) (GPLv3).
+GPL-3.0, the same as upstream. See [LICENSE](LICENSE). The release packages
+contain files built from this source plus the MIT-licensed `VCAndroidAuto.jar`. They contain no Volkswagen or
+Harman firmware.
+
+Not affiliated with or endorsed by Volkswagen AG, Harman or Google. Android
+Auto and Google Maps are trademarks of Google LLC.

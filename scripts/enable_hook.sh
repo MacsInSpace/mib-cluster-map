@@ -635,16 +635,16 @@ if [ -r "$LSD_SH" ]; then
         if [ "$KEEP_TBT" -eq 1 ]; then
             echo "Java check: VCAndroidAuto.jar is loaded and was kept (--keep-turn-by-turn)."
             echo "            Expect the cluster map to fail when a route starts."
-        elif [ -r "$CARD_ROOT/remove_turn_by_turn_jar.sh" ]; then
+        elif [ -r "$CARD_ROOT/turn_by_turn.sh" ]; then
             echo "Java check: VCAndroidAuto.jar is loaded; removing its start-up line."
-            if sh "$CARD_ROOT/remove_turn_by_turn_jar.sh"; then
+            if sh "$CARD_ROOT/turn_by_turn.sh" remove; then
                 :
             else
                 echo "WARNING: could not remove the VCAndroidAuto.jar line; lsd.sh is unchanged." >&2
                 echo "         The hook is installed, but the map may fail when a route starts." >&2
             fi
         else
-            echo "WARNING: VCAndroidAuto.jar is loaded and remove_turn_by_turn_jar.sh is" >&2
+            echo "WARNING: VCAndroidAuto.jar is loaded and turn_by_turn.sh is" >&2
             echo "         not beside this script. The map may fail when a route starts." >&2
         fi
     else

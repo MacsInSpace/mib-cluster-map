@@ -6,7 +6,7 @@
 #   ./build_local.sh hook       only libgal_hook.so + libdmdt_flush.so
 #   ./build_local.sh player     only stream-player (builds ffmpeg-mini on first use)
 #
-# Output: dist/sdcard/  -- copy its CONTENTS to the SD card root.
+# Output: dist/sdcard/ (copy its CONTENTS to the SD card root) and a release zip in dist/.
 set -euo pipefail
 IMG=${QNX_IMAGE:-qnx65-armv7-toolchain:8.5}
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -33,6 +33,7 @@ build_hook() {
     $P-gcc -O2 -Wall -Wextra -shared -fPIC -I./src -DGAL_HOOK_BUILD="\"$BUILD_ID\"" \
         ./src/*.c -Wl,--exclude-libs,ALL -lsocket -o build/libgal_hook.so
     $P-gcc -O2 -Wall -shared -fPIC dmdt_flush/dmdt_flush.c -Wl,--exclude-libs,ALL -o build/libdmdt_flush.so
+    $P-strip --strip-debug build/libgal_hook.so build/libdmdt_flush.so
     echo "--- exported symbols that are not ours (must be empty):"
     bad=$($P-nm -D --defined-only build/libgal_hook.so | awk "{print \$3}" | \
           grep -Ev "^(_ZN|gal_hook_|fc_|vc_|hook_fix_enabled|_init|_fini|__bss|_edata|_end|__end__|_bss_end__|__bss_start__|__bss_end__|__data_start|__exidx_start|__exidx_end|_btext|_stack)" || true)
@@ -75,18 +76,36 @@ build_player() {
 }
 
 package() {
-  D="$ROOT/dist/sdcard"; rm -rf "$D"; mkdir -p "$D/scripts" "$D/lib"
+  # SD card layout. Everything of ours sits in one folder; the green menu screen
+  # goes where the MQB Coding MIB2 Toolbox looks for custom screens.
+  #   AAClusterMap/                 scripts, binaries, settings, docs
+  #   Custom/GreenMenu/*.esd        menu screen (copied to the unit by the toolbox)
+  S="$ROOT/dist/sdcard"; D="$S/AAClusterMap"
+  rm -rf "$S"; mkdir -p "$D/scripts" "$D/lib" "$D/gem" "$D/docs" "$S/Custom/GreenMenu"
   cp "$ROOT/build/libgal_hook.so" "$ROOT/build/stream-player" "$D/"
   cp "$ROOT/build/libdmdt_flush.so" "$D/lib/"
-  # The scripts treat their own directory as the card root, so they sit at the root;
-  # lib_app_mount.sh is looked up in scripts/ first.
-  # Layout from the upstream install guide (commit 23d63d4, dropped from the docs later).
-  cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh "$ROOT"/scripts/remove_turn_by_turn_jar.sh "$D/"
-  mkdir -p "$D/docs" && cp "$ROOT"/wiki/Field-Guide-Sharing-With-Friends.md "$ROOT"/wiki/Navigation-Status-Messages.md "$ROOT"/wiki/Cluster-Zoom-Findings.md "$D/docs/"
+  # The install scripts treat their own folder as the package root.
+  cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh \
+     "$ROOT"/scripts/turn_by_turn.sh "$D/"
+  mkdir -p "$D/thirdparty" && cp "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAuto.jar "$D/thirdparty/" && \
+     cp "$ROOT"/thirdparty/mib2-android-auto-vc/LICENSE "$D/thirdparty/VCAndroidAuto.LICENSE"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" "$D/scripts/"
-  cp "$ROOT/car/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
+  cp "$ROOT"/greenmenu/gem/*.sh "$D/gem/"
+  cp "$ROOT/greenmenu/aa-cluster-map.esd" "$S/Custom/GreenMenu/"
+  cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
+  cp "$ROOT"/wiki/Install-Guide.md "$ROOT"/wiki/Supported-Units.md "$ROOT"/wiki/Navigation-Status-Messages.md "$ROOT"/wiki/Cluster-Zoom-Findings.md "$D/docs/"
+  cp "$ROOT/LICENSE" "$D/LICENSE"
+  # The unit's shell needs LF line endings and plain ASCII in everything it runs.
+  bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/gem/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
+  [ -z "$bad" ] || { echo "REJECTED: CR or non-ASCII in: $bad"; exit 1; }
   (cd "$D" && shasum -a 256 libgal_hook.so stream-player lib/libdmdt_flush.so > SHA256SUMS.txt)
-  echo "Packaged: $D"; ls -la "$D" "$D/lib" "$D/scripts"
+  VER=${RELEASE_VERSION:-$BUILD_ID}
+  Z="$ROOT/dist/AAClusterMap_MHI2_ER_VWG13_P4521_MU1367_$VER.zip"
+  rm -f "$ROOT"/dist/*.zip "$ROOT"/dist/*.sha256
+  (cd "$S" && zip -qr -X "$Z" AAClusterMap Custom -x '*.DS_Store' -x '._*')
+  (cd "$ROOT/dist" && shasum -a 256 "$(basename "$Z")" > "$(basename "$Z").sha256")
+  echo "Packaged: $S"; echo "Archive:  $Z"
+  (cd "$S" && find . -type f | sort)
 }
 
 case "$WHAT" in

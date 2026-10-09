@@ -1,0 +1,41 @@
+###########################################################################################
+#
+# Custom Green Engineering Menu screen: Android Auto cluster map
+# Needs the MQB Coding MIB2 Toolbox (jilleb/mib2-toolbox).
+# Main -> MQBCoding -> Customization -> AAClusterMap
+#
+# The entries run scripts straight from the SD card in slot 1:
+#   /fs/sda0/AAClusterMap/gem/
+#
+###########################################################################################
+screen AAClusterMap Customization
+
+keyValue
+    value   String sys 0x00000000 0
+    label   "Android Auto map on the digital cluster"
+    poll    0
+
+keyValue
+    value   String sys 0x00000000 0
+    label   "SD card must be in slot 1. Reboot after install."
+    poll    0
+
+script
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/status.sh"
+    label   "1. Status and compatibility check"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/install.sh"
+    label   "2. Install cluster map"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/uninstall.sh"
+    label   "Uninstall and restore original state"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/switch_to_turn_by_turn.sh"
+    label   "Switch to turn-by-turn arrows instead (no map)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/gem/savelogs.sh"
+    label   "Save logs to SD"

@@ -1,7 +1,7 @@
 # Cluster map zoom: what was tried and why it is not implemented
 
-Local field notes, not from upstream. VW Golf 7.5, `MHI2_ER_VWG13_P4521`
-(MU1367), Google Maps via Android Auto on a Pixel, October 2026.
+Field notes from this fork, not from upstream. VW Golf 7.5, `MHI2_ER_VWG13_P4521`
+(MU1367), Google Maps via Android Auto, October 2026.
 
 ## Conclusion
 

@@ -159,10 +159,17 @@ if [ -d "$PRELOAD_WRITE_DIR" ] || [ -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" ] |
 fi
 trap - 0 1 2 15
 
-if [ -r /mnt/app/eso/hmi/lsd/lsd.sh.before_tbt_remove ]; then
+# Full revert: if the installer took the turn-by-turn jar's start-up line out,
+# put it back, so the unit ends up as it was before the install. Skipped with
+# --keep-jar-removed. A failure here leaves lsd.sh untouched and is reported.
+if [ "${1:-}" != "--keep-jar-removed" ] && [ -f /mnt/app/eso/hmi/lsd/.aacluster_tbt_removed ]; then
     echo
-    echo "Note: the installer removed the VCAndroidAuto.jar (turn-by-turn) start-up line."
-    echo "      It is NOT put back automatically. To restore it:"
-    echo "        sh $CARD_ROOT/remove_turn_by_turn_jar.sh --restore"
+    if [ -r "$CARD_ROOT/turn_by_turn.sh" ]; then
+        sh "$CARD_ROOT/turn_by_turn.sh" restore || \
+            echo "WARNING: could not restore the turn-by-turn jar line; lsd.sh is unchanged." >&2
+    else
+        echo "Note: the installer removed the turn-by-turn jar line and turn_by_turn.sh" >&2
+        echo "      is not beside this script, so it was not put back." >&2
+    fi
 fi
 echo "Reboot the unit to run GAL without the hook."
