@@ -18,6 +18,10 @@ help; see [Other firmware](#other-firmware). Details:
 [Supported units](wiki/Supported-Units.md) and the
 [Firmware support matrix](wiki/Firmware-Support-Matrix.md).
 
+[before](thirdparty/before.jpg)
+[after](thirdparty/after.jpg)
+
+
 ## Install
 
 The [Quick start](wiki/Quick-Start.md) has every step with explanations. In
