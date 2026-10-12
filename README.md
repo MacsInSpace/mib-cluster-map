@@ -18,8 +18,9 @@ help; see [Other firmware](#other-firmware). Details:
 [Supported units](wiki/Supported-Units.md) and the
 [Firmware support matrix](wiki/Firmware-Support-Matrix.md).
 
-[before](thirdparty/before.jpg)
-[after](thirdparty/after.jpg)
+![before](thirdparty/before.jpg)
+
+![after](thirdparty/after.jpg)
 
 
 ## Install
