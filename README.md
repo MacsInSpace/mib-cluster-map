@@ -3,12 +3,46 @@
 Shows the Google Maps or Waze map from Android Auto on the Volkswagen Active
 Info Display, for Harman "Discover Pro" head units.
 
-No VNC, no wifi and no app on the phone. The phone sends Android Auto's own
-cluster video stream over the USB cable, and the head unit passes it to the
-cluster the same way it sends the built-in VW map.
-
 It installs from an SD card as a software update. No toolbox, laptop or
 command line is needed.
+
+No VNC and no special app on the phone. The phone sends Android Auto's own
+cluster video stream, and the head unit passes it to the
+cluster the same way it sends the built-in VW map.
+
+
+If your device is not supported yet, running it once fails nicely, and will copy off the files needed to support your head unit for me.
+
+The aim is every MIB2.5 High firmware. Each one needs an owner willing to
+help; see [Other firmware](#other-firmware). Details:
+[Supported units](wiki/Supported-Units.md) and the
+[Firmware support matrix](wiki/Firmware-Support-Matrix.md).
+
+## Install
+
+The [Quick start](wiki/Quick-Start.md) has every step with explanations. In
+short:
+
+**1. Make the SD card.** Format a 2 to 32 GB card as FAT32. Download the zip
+from [Releases](../../releases) and copy everything inside it to the card:
+
+```text
+(SD card)
+├── AAClusterMap/
+├── Custom/
+└── metainfo2.txt
+```
+
+Put it in **SD slot 1**, with the other slot empty.
+
+**2. Run the update.** Engine running or a charger connected. Hold the
+**MENU** button until the service screen appears, then
+`Software updates/versions` > `Update` > the SD card >
+**`Android Auto Cluster Map`**. Let it finish, then hold the power button for
+ten seconds to reboot.
+
+**3. Use it.** Plug in the phone, open Google Maps in Android Auto, and switch
+the cluster to its map view with the steering wheel buttons.
 
 > [!CAUTION]
 > This modifies system files on the head unit. A mistake can leave Android Auto
@@ -46,10 +80,6 @@ nothing if it is not supported.
 | MIB1, MIB3 | No. Different platforms |
 | Apple CarPlay | No. See [omonob/MHI2-Carplay-Maps](https://github.com/omonob/MHI2-Carplay-Maps) |
 
-The aim is every MIB2.5 High firmware. Each one needs an owner willing to
-help; see [Other firmware](#other-firmware). Details:
-[Supported units](wiki/Supported-Units.md) and the
-[Firmware support matrix](wiki/Firmware-Support-Matrix.md).
 
 ## Status
 
@@ -71,32 +101,6 @@ What it does not do:
   makes the phone zoom it. [Findings](wiki/Cluster-Zoom-Findings.md).
 - **Show turn arrows together with the map.** It is one or the other; see
   [Turn arrows instead](#turn-arrows-instead).
-
-## Install
-
-The [Quick start](wiki/Quick-Start.md) has every step with explanations. In
-short:
-
-**1. Make the SD card.** Format a 2 to 32 GB card as FAT32. Download the zip
-from [Releases](../../releases) and copy everything inside it to the card:
-
-```text
-(SD card)
-├── AAClusterMap/
-├── Custom/
-└── metainfo2.txt
-```
-
-Put it in **SD slot 1**, with the other slot empty.
-
-**2. Run the update.** Engine running or a charger connected. Hold the
-**MENU** button until the service screen appears, then
-`Software updates/versions` > `Update` > the SD card >
-**`Android Auto Cluster Map`**. Let it finish, then hold the power button for
-ten seconds to reboot.
-
-**3. Use it.** Plug in the phone, open Google Maps in Android Auto, and switch
-the cluster to its map view with the steering wheel buttons.
 
 What the update does without asking:
 
