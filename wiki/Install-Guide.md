@@ -6,8 +6,9 @@ reference: requirements, both install routes, settings, and recovery.
 This describes the build in this fork, which uses an open toolchain and adds
 several fixes to upstream. Status: working on one car. The cluster map ran for eight minutes at about 30
 frames per second, with and without a route, through repeated input tests, with
-no drops. Longer drives, reconnects, reverse-camera use and waking from sleep
-are not yet tested.
+no drops. Driving with a route works, and the map resumes after the phone is
+unplugged and plugged in again. Long drives, reverse-camera use and waking
+from sleep have had little testing.
 
 ## 1. Will it fit your car
 

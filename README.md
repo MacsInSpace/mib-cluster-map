@@ -87,7 +87,8 @@ nothing if it is not supported.
 ## Status
 
 Experimental. It works on one car, a VW Golf 7.5: the cluster map ran at about
-30 frames per second, with and without a route.
+30 frames per second, with and without a route, and comes back by itself after
+the phone is unplugged and plugged in again.
 
 | Part | State |
 |---|---|
@@ -96,7 +97,8 @@ Experimental. It works on one car, a VW Golf 7.5: the cluster map ran at about
 | Installing as a software update from the SD card | Built and simulated. **Not yet tested on a car** |
 | The green menu screen | Built and simulated. **Not yet tested on a car** |
 | The green menu screen on a unit that never had the toolbox | Unknown |
-| Long drives, phone reconnects, reverse camera, waking from sleep | Little or no testing |
+| Driving with a route, and unplugging and replugging the phone | Tested on a car: the map resumes |
+| Long drives, reverse camera, waking from sleep | Little or no testing |
 
 What it does not do:
 
