@@ -119,8 +119,8 @@ while the phone sends it.
 
 | Where | What |
 |---|---|
-| `/mnt/system/etc/eso/production/smartphone_integrator.json` | adds the hook to the Android Auto program's start-up; original kept as `.gal-dualscreen.original` and in `ClusterMap/backups/` on the card |
-| `/mnt/app/eso/lib/gal_dualscreen/` | the hook, a helper library, a copy of the settings |
+| `/mnt/system/etc/eso/production/smartphone_integrator.json` | adds the hook to the Android Auto program's start-up, and the CarPlay hook to CarPlay's where the unit's CarPlay library fits; original kept as `.gal-dualscreen.original` and in `ClusterMap/backups/` on the card |
+| `/mnt/app/eso/lib/gal_dualscreen/` | the hooks, a helper library, the CarPlay supervisor script, a copy of the settings |
 | `/mnt/app/navigation/stream-player` | the video player |
 | `/mnt/app/eso/hmi/lsd/lsd.sh` | Java patch lines: NavActiveIgnore added if missing, the turn-arrows jar's line removed (map) or added (arrows). Previous file kept as `lsd.sh.before_<jar>` |
 | `/mnt/app/eso/hmi/engdefs/cluster-map.esd` | the menu screen |

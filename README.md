@@ -7,7 +7,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 |---|---|---|
 | Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521` and `K4525` |
 | Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
-| Apple CarPlay | The Apple Maps or Google Maps map, live | **In development**: see [CarPlay](docs/CarPlay.md) |
+| Apple CarPlay | The Apple Maps or Google Maps map, live | **Built, not yet car-tested**: see [CarPlay](docs/CarPlay.md) |
 
 It installs from an SD card as a software update. No toolbox, laptop or
 command line is needed. The installer checks the unit and installs what fits
@@ -91,7 +91,7 @@ itself after the phone is unplugged and plugged in again.
 | Android Auto map, installer and uninstaller over SSH | Tested on a car |
 | Software update and green menu routes | Built and simulated; first car runs pending |
 | Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Built; first car test under way |
-| CarPlay map | In development |
+| CarPlay map | Built and simulated; first iPhone test pending |
 | Long drives, reverse camera, waking from sleep | Little testing |
 
 Not possible so far: zooming the cluster map from the steering wheel
@@ -127,7 +127,8 @@ addresses.
   `thirdparty/` (MIT) as the arrows mode.
 - **harman-f** ([mhi2_altscreen_carplay](https://github.com/harman-f/mhi2_altscreen_carplay))
   and **aberbic** ([Audi MHI2 AltScreen](https://github.com/aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto)):
-  the open CarPlay cluster work the CarPlay map builds on.
+  the open CarPlay cluster work the CarPlay map builds on. harman-f's hook is
+  included from source under GPL-3.0.
 - **kamgurgul**, **wasimlhr** and **luka-dev**: the MHI2Q projects whose notes
   led to the connection-loop fix, and the open QNX toolchain.
 - **FFmpeg**: H.264 decoding, statically linked, LGPL v2.1 or later.

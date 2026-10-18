@@ -38,6 +38,16 @@ SYSTEM_WRITABLE=0
 SYSTEM_TEMP=
 KEEP_TBT=0
 KEEP_NAVIGNORE=0
+CARPLAY=1
+# The CarPlay map: harman-f's cluster-stream hook (in libcarplay_cluster.so)
+# patches functions of this exact CarPlay library, so it is installed only on
+# a unit whose libairplay.so has this size (SHA-256 193a4fd9...46b5 on MU1440
+# and MU1367). The hook also checks the function prologues itself and leaves
+# CarPlay stock on a mismatch.
+AIRPLAY_LIB=/mnt/app/eso/lib/libairplay.so
+AIRPLAY_SIZE=703688
+CARPLAY_PRELOAD=/mnt/app/eso/lib/gal_dualscreen/libcarplay_cluster.so
+CARPLAY_OK=0
 
 # The preload target lives on the internal /mnt/app partition instead of the
 # SD card. The SD card mounts read-only again on every fresh boot unless
@@ -89,6 +99,7 @@ usage()
     echo "                    because the cluster map fails when a route starts"
     echo "                    while that jar is active."
     echo "  --no-navignore    do not add the NavActiveIgnore patch when it is missing"
+    echo "  --no-carplay      install the Android Auto map only, not the CarPlay map"
     echo "  --no-second-sink  register no second video service"
     echo "  --no-inject-meta  write no display_id/display_type fields"
     echo
@@ -224,6 +235,7 @@ while [ $# -gt 0 ]; do
         --no-debug) DEBUG=0; shift ;;
         --keep-turn-by-turn) KEEP_TBT=1; shift ;;
         --no-navignore) KEEP_NAVIGNORE=1; shift ;;
+        --no-carplay) CARPLAY=0; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown option: $1" >&2; usage >&2; exit 2 ;;
     esac
@@ -375,6 +387,31 @@ if [ -x "$CARD_ROOT/stream-player" ]; then
     chmod 755 "$APP_MOUNT/navigation/stream-player" 2>/dev/null || true
     echo "Installed stream-player to: $APP_MOUNT/navigation/stream-player"
 fi
+
+# The CarPlay map, when this unit's CarPlay library is the one the hook knows.
+CARPLAY_WHY=
+if [ "$CARPLAY" -eq 0 ]; then
+    CARPLAY_WHY="not requested (--no-carplay)"
+elif [ ! -r "$CARD_ROOT/carplay/libcarplay_cluster.so" ] || [ ! -r "$CARD_ROOT/carplay/carplay_cluster.sh" ]; then
+    CARPLAY_WHY="its files are not in this package"
+elif [ "`wc -c < $AIRPLAY_LIB 2>/dev/null | sed 's/ //g'`" != "$AIRPLAY_SIZE" ]; then
+    CARPLAY_WHY="this unit's CarPlay library is a different build (`wc -c < $AIRPLAY_LIB 2>/dev/null | sed 's/ //g'` bytes)"
+elif [ -d "$APP_MOUNT/carplaymaps" ] || grep -q carplaymaps "$APP_MOUNT/eso/bin/apps/dio_manager" 2>/dev/null; then
+    CARPLAY_WHY="CarPlay Maps VC is installed; uninstall it first to use this one"
+else
+    cp "$CARD_ROOT/carplay/libcarplay_cluster.so" "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new" && \
+        cp "$CARD_ROOT/carplay/carplay_cluster.sh" "$PRELOAD_WRITE_DIR/carplay_cluster.sh" && \
+        [ "`wc -c < $CARD_ROOT/carplay/libcarplay_cluster.so`" = "`wc -c < $PRELOAD_WRITE_DIR/libcarplay_cluster.so.new`" ] && \
+        chmod 755 "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new" "$PRELOAD_WRITE_DIR/carplay_cluster.sh" && \
+        mv "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new" "$PRELOAD_WRITE_DIR/libcarplay_cluster.so" && CARPLAY_OK=1
+    if [ "$CARPLAY_OK" -eq 1 ]; then
+        echo "Installed the CarPlay map files to: $PRELOAD_WRITE_DIR"
+    else
+        rm -f "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new"
+        CARPLAY_WHY="copying its files failed"
+    fi
+fi
+[ "$CARPLAY_OK" -eq 1 ] || echo "CarPlay map: not installed, $CARPLAY_WHY."
 
 mount -ur "$APP_MOUNT" 2>/dev/null || true
 APP_WRITABLE=0
@@ -531,6 +568,58 @@ grep -q "LD_PRELOAD=$PRELOAD_SO_ALIAS" "$TEMP" || {
     echo "Generated supervisor config failed verification" >&2
     exit 1
 }
+
+# CarPlay: the same edit, on the "carplay" child (dio_manager). Built into the
+# same file because a repeated install starts again from the untouched
+# original, and the uninstall puts that original back: both phones' entries
+# always come and go together. 800x480 is the window the player draws, the
+# same as for Android Auto.
+if [ "$CARPLAY_OK" -eq 1 ]; then
+    CP_INJECTION="\"LD_PRELOAD=$CARPLAY_PRELOAD\", \"ALTSCREEN111_WIDTH=800\", \"ALTSCREEN111_HEIGHT=480\", "
+    CP_EXISTING=`awk '
+    BEGIN { in_children=0; in_cp=0 }
+    {
+        if ($0 ~ /"children"[ 	]*:/) in_children=1
+        if (in_children && !in_cp && $0 ~ /^[ 	]*"carplay"[ 	]*:/) in_cp=1
+        if (in_cp && $0 ~ /^[ 	]*"envs"[ 	]*:\[/) {
+            line=$0; sub(/^[^\[]*\[/, "", line); sub(/\].*$/, "", line)
+            if (line ~ /LD_PRELOAD/) { print "preload"; exit }
+            n=split(line, parts, /"[ 	]*,[ 	]*"/)
+            if (line ~ /^[ 	]*$/) n=0
+            print n; exit
+        }
+    }' "$SOURCE"`
+    if [ "$CP_EXISTING" = preload ]; then
+        CARPLAY_OK=0; CARPLAY_WHY="CarPlay already has a preloaded library (another CarPlay mod?)"
+    elif [ -z "$CP_EXISTING" ]; then
+        CARPLAY_OK=0; CARPLAY_WHY="no carplay entry in the supervisor config"
+    elif [ `expr $CP_EXISTING + 3` -gt 10 ]; then
+        CARPLAY_OK=0; CARPLAY_WHY="its environment list would pass the limit of 10"
+    else
+        awk -v injection="$CP_INJECTION" '
+        BEGIN { in_children=0; in_cp=0; patched=0 }
+        {
+            if ($0 ~ /"children"[ 	]*:/) in_children=1
+            if (in_children && !in_cp && $0 ~ /^[ 	]*"carplay"[ 	]*:/) in_cp=1
+            if (in_cp && !patched && $0 ~ /^[ 	]*"envs"[ 	]*:\[/) {
+                sub(/\[/, "[" injection)
+                patched=1
+            }
+            print
+        }
+        END { if (!patched) exit 3 }
+        ' "$TEMP" > "$TEMP.cp" && grep -q "LD_PRELOAD=$CARPLAY_PRELOAD" "$TEMP.cp" && \
+            grep -q "LD_PRELOAD=$PRELOAD_SO_ALIAS" "$TEMP.cp" && mv "$TEMP.cp" "$TEMP" || {
+            rm -f "$TEMP.cp"
+            CARPLAY_OK=0; CARPLAY_WHY="the carplay entry could not be edited"
+        }
+    fi
+    if [ "$CARPLAY_OK" -eq 1 ]; then
+        echo "CarPlay map: added to dio_manager's start-up ($CP_EXISTING + 3 environment entries)."
+    else
+        echo "CarPlay map: not installed, $CARPLAY_WHY. The Android Auto map is unaffected."
+    fi
+fi
 LD_LIBRARY_PATH="$VALIDATOR_LD_LIBRARY_PATH" "$JSONLINT" --file "$TEMP" || {
     rm -f "$TEMP"
     echo "Generated supervisor config failed jsonlint validation" >&2
@@ -611,6 +700,7 @@ echo "    on the internal /mnt/app partition, not the SD card -- avoids the"
 echo "    SD-card mount-timing race at GAL's boot-time launch."
 echo "  output mode: $OUTPUT (video forwarded to stream-player)"
 echo "  cluster: 800x480 @ 30 fps, DPI $DPI"
+if [ "$CARPLAY_OK" -eq 1 ]; then echo "  CarPlay map: installed"; else echo "  CarPlay map: no ($CARPLAY_WHY)"; fi
 echo "  debug logs: $DEBUG"
 echo "  second sink: $SECOND_SINK   inject metadata: $INJECT_META"
 echo "  AAP minor version: ${AAP_MINOR:-2 (stock)}"

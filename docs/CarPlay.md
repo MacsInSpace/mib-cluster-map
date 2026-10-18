@@ -1,6 +1,6 @@
 # CarPlay map
 
-**State: in development. Not in any release yet.**
+**State: built, not yet tested on a car. Not in any release yet.**
 
 The goal is one package that puts the phone's map on the cluster for both
 phone types. Only one phone projects at a time, so the two only have to share
@@ -30,10 +30,17 @@ iPhone video → hook in the CarPlay program (dio_manager) → stream-player →
 - **It fits these units exactly.** The CarPlay library it was written and
   car-tested against (`libairplay.so`, SHA-256 `193a4fd9…46b5`, Skoda MU1440)
   is byte-identical on VW MU1367 (`P4521`, `K4525`) and, by harman-f's
-  survey, SEAT MU1447. The installer will check that hash and install CarPlay
-  only on that exact file.
+  survey, SEAT MU1447. The installer installs CarPlay only when the unit's
+  `libairplay.so` is that build (703688 bytes); on any other it installs the
+  Android Auto map alone. The hook also checks the functions it attaches to
+  and switches itself off if they differ.
+- **Source, not binary:** the hook is built here from harman-f's published
+  development source (`thirdparty/mhi2_altscreen_carplay/`, provenance in its
+  `PROVENANCE.md`), not from their car-tested binary, for which no exact
+  source is published.
 - **Rendering:** `stream-player` reads that socket instead of Android Auto's
-  and uses the same hardware decoder and cluster switching.
+  and uses the same decoder and cluster switching. The CarPlay cluster stream
+  is requested at 800×480, the size the Android Auto map uses.
 - **Reference renderer:** [aberbic's Audi MHI2 project](https://github.com/aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto)
   does both phones this way on an Audi Tegra unit, with a CarPlay core derived
   from harman-f's.
@@ -55,20 +62,50 @@ It should also make the cockpit size irrelevant: the unit's encoder scales
 the window for whichever cluster is fitted, as it already does for the
 Android Auto map at 800×480. That still has to be shown on a car.
 
+## How it runs
+
+The installer builds one library, `libcarplay_cluster.so`: harman-f's hook
+plus a small launcher. It adds three entries to the `carplay` program's
+environment in `smartphone_integrator.json`, in the same edit as the Android
+Auto entry:
+
+```text
+LD_PRELOAD=/mnt/app/eso/lib/gal_dualscreen/libcarplay_cluster.so
+ALTSCREEN111_WIDTH=800
+ALTSCREEN111_HEIGHT=480
+```
+
+When an iPhone connects, the unit starts `dio_manager`, the library loads,
+and the launcher starts `carplay_cluster.sh`. That script watches the hook's
+state file (`/tmp/mibr-carplay111.state`): while it says `streaming` it runs
+`stream-player` on `tcp://127.0.0.1:19820`; when it stops, or `dio_manager`
+ends, it stops the player, which hands the cluster back to the stock map.
+
+Install over SSH with `enable_hook.sh --no-carplay` to leave CarPlay alone.
+The status check says whether the CarPlay map is installed and what the
+stream is doing. **Save logs to SD** copies its logs to
+`ClusterMap/run_logs/carplay/`.
+
+The installer skips CarPlay, and still installs the Android Auto map, when:
+
+- the unit's `libairplay.so` is a different build;
+- CarPlay Maps VC is installed (see below);
+- the `carplay` entry already preloads a library, or would pass 10
+  environment entries.
+
 ## Steps
 
 | Step | State |
 |---|---|
 | Hardware decoder in `stream-player` (`GAL_PLAYER_DECODER=hw`, off by default) | Built; first car test under way (with Android Auto) |
-| harman-f's hook builds with this project's toolchain | Done, no warnings |
-| Bundle the hook from source, with its notice | To do |
-| `stream-player` input from the CarPlay socket | To do |
-| Installer: `dio_manager` entry, hash check, uninstall | To do |
+| harman-f's hook built from source, with its notice | Done, no warnings |
+| `stream-player` input from the CarPlay socket | Done (`--no-ack`) |
+| Installer: `dio_manager` entry, library check, uninstall | Done; simulated against this unit's configuration |
 | Car test with an iPhone | To do |
 
 ## Testing
 
-When a test card exists: run the update, reboot, then with the iPhone check
+Run the update, reboot, then with the iPhone check
 stock CarPlay on the centre screen, the cluster in map view, a route for two
 minutes, and unplugging. Then the same with the Android phone, and swap
 phones twice without rebooting. **Save logs to SD** before switching off.

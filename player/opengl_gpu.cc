@@ -1154,6 +1154,9 @@ static void load_player_config() {
 
 #if defined(__QNX__) || defined(__linux__)
 static int g_ack_fd = -1;
+/* --no-ack: the stream does not come from the Android Auto hook (CarPlay),
+ * so there is nobody to pace; never touch gal's ACK socket. */
+static bool g_noAck = false;
 /*
  * At startup, not at the first swap: the hook grants the phone's stream only
  * once this socket is connected, and before the stream there is nothing to
@@ -1162,7 +1165,7 @@ static int g_ack_fd = -1;
  * A failed connect is retried on the next ACK.
  */
 static void ack_connect() {
-    if (g_ack_fd >= 0) return;
+    if (g_ack_fd >= 0 || g_noAck) return;
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
     if (fd < 0) return;
     struct sockaddr_un addr;
@@ -1207,7 +1210,11 @@ int main(int argc, char* argv[]) {
     load_player_config();
 
     for (int i = 1; i < argc; ++i) {
-        if (strcmp(argv[i], "--loop") == 0) {
+        if (strcmp(argv[i], "--no-ack") == 0) {
+#if defined(__QNX__) || defined(__linux__)
+            g_noAck = true;
+#endif
+        } else if (strcmp(argv[i], "--loop") == 0) {
             g_loopFile = true;
         } else if (strcmp(argv[i], "--overlay") == 0 || strcmp(argv[i], "--no-overlay") == 0) {
             /* Retained as accepted no-op options; the on-video metrics HUD was removed. */
