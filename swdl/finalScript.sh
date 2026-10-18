@@ -7,6 +7,8 @@
 # All output goes to ClusterMap/update_result.txt on the card.
 
 echo FinalScript for HW ${1} on medium ${2}...
+# A trace in RAM even if the card is never found: Save logs copies it.
+echo "`date` FinalScript HW=${1} medium=${2}" >> /tmp/clustermap_final.txt
 
 VOLUME="${2}"
 if [ -z "$VOLUME" ] || [ ! -d "$VOLUME/ClusterMap" ]; then
@@ -16,6 +18,7 @@ if [ -z "$VOLUME" ] || [ ! -d "$VOLUME/ClusterMap" ]; then
         VOLUME=/net/mmx/fs/sdb0
     else
         echo ClusterMap folder not found on an SD card.
+        echo "ClusterMap folder not found (medium=${2})" >> /tmp/clustermap_final.txt
         touch /tmp/SWDLScript.Result
         exit 0
     fi
@@ -47,7 +50,7 @@ elif [ "$MODE" = uninstall ]; then
     echo "Mode: uninstall" > $RESULT
     on -f mmx /bin/sh $LOCAL/ClusterMap/GEM/uninstall.sh >> $RESULT 2>&1
 else
-    echo "Mode: install" > $RESULT
+    echo "Mode: install (HW=${1} medium=${2} card=$VOLUME)" > $RESULT
     on -f mmx /bin/sh $LOCAL/ClusterMap/GEM/install.sh >> $RESULT 2>&1
     if grep -q -e "CLUSTERMAP_INSTALL_OK" -e "CLUSTERMAP_TURN_BY_TURN_OK" $RESULT; then
         # Make the green engineering menu reachable (hold MENU > Testmode), so
