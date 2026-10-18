@@ -34,6 +34,18 @@ script
     label   "Uninstall and restore original state"
 
 script
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/carplay_install_790.sh"
+    label   "CarPlay map: install, 10.25in cockpit (790)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/carplay_install_791.sh"
+    label   "CarPlay map: install, 12.3in cockpit (791/794)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/carplay_uninstall.sh"
+    label   "CarPlay map: uninstall"
+
+script
     value   sys 1 0x0100 "/fs/sda0/AAClusterMap/GEM/switch_to_turn_by_turn.sh"
     label   "Switch to turn-by-turn arrows instead (no map)"
 

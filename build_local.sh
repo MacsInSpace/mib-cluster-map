@@ -86,7 +86,18 @@ package() {
   cp "$ROOT/build/libdmdt_flush.so" "$D/lib/"
   # The install scripts treat their own folder as the package root.
   cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh \
-     "$ROOT"/scripts/turn_by_turn.sh "$ROOT"/scripts/lsd_jar.sh "$D/"
+     "$ROOT"/scripts/turn_by_turn.sh "$ROOT"/scripts/lsd_jar.sh "$ROOT"/scripts/carplay.sh "$D/"
+  # Optional, for testing: CarPlay Maps VC's per-firmware folders, from a
+  # checkout of github.com/omonob/MHI2-Carplay-Maps given as CARPLAY_SRC. Not
+  # in the release: its binaries are published without their source code.
+  if [ -n "${CARPLAY_SRC:-}" ]; then
+    for d in "$CARPLAY_SRC"/MU*/79*_*; do
+      [ -f "$d/run-install.sh" ] || continue
+      t="$D/carplay/$(basename "$(dirname "$d")")"; mkdir -p "$t" && cp -R "$d" "$t/"
+    done
+    cp "$CARPLAY_SRC/LICENSE" "$D/carplay/LICENSE"
+    echo "CarPlay Maps VC from $CARPLAY_SRC (`git -C "$CARPLAY_SRC" rev-parse --short HEAD 2>/dev/null`) added under carplay/"
+  fi
   mkdir -p "$D/thirdparty" && cp "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAuto.jar "$D/thirdparty/" && \
      cp "$ROOT"/thirdparty/mib2-android-auto-vc/LICENSE "$D/thirdparty/VCAndroidAuto.LICENSE"
   cp "$ROOT"/thirdparty/mib2-toolbox/NavActiveIgnore.jar "$D/thirdparty/" && cp "$ROOT"/thirdparty/mib2-toolbox/LICENSE "$D/thirdparty/NavActiveIgnore.LICENSE"

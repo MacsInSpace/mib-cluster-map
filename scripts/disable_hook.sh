@@ -169,7 +169,12 @@ if [ "${1:-}" != "--keep-jar-removed" ] && [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
         sh "$CARD_ROOT/turn_by_turn.sh" restore || \
             echo "WARNING: could not restore the turn-by-turn jar line; lsd.sh is unchanged." >&2
     fi
-    if [ -f /mnt/app/eso/hmi/lsd/.aacluster_navignore_added ]; then
+    if [ -f /mnt/app/eso/hmi/lsd/.aacluster_navignore_added ] && [ -d /mnt/app/carplaymaps ] && \
+       ! sh "$CARD_ROOT/lsd_jar.sh" loaded CarPlayNavigationPatch.jar; then
+        # CarPlay Maps VC found this patch at its install and uses it instead
+        # of its own copy. The marker stays, so a later uninstall removes it.
+        echo "Kept NavActiveIgnore: the CarPlay map needs it too."
+    elif [ -f /mnt/app/eso/hmi/lsd/.aacluster_navignore_added ]; then
         if sh "$CARD_ROOT/lsd_jar.sh" remove NavActiveIgnore.jar; then
             mount -uw /mnt/app 2>/dev/null && {
                 rm -f /mnt/app/eso/hmi/lsd/.aacluster_navignore_added /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar

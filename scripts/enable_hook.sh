@@ -643,8 +643,11 @@ echo
 if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo "WARNING: cannot check the Java interface ($LSD_SH or lsd_jar.sh missing)." >&2
 else
-    if grep -q 'NavActiveIgnore.jar' "$LSD_SH"; then
+    if sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar; then
         echo "Java check: NavActiveIgnore is loaded (required)."
+    elif sh "$CARD_ROOT/lsd_jar.sh" loaded CarPlayNavigationPatch.jar; then
+        # CarPlay Maps VC ships the same nine classes under another name.
+        echo "Java check: CarPlayNavigationPatch is loaded (the same patch as NavActiveIgnore)."
     elif [ "$KEEP_NAVIGNORE" -eq 1 ]; then
         echo "Java check: NavActiveIgnore is NOT loaded and was left alone (--no-navignore)."
         echo "            The cluster will drop its map when the phone navigates."
@@ -665,7 +668,7 @@ else
             echo "         Customization > Navigation > Ignore navigation-active status." >&2
         fi
     fi
-    if grep -q 'VCAndroidAuto.jar' "$LSD_SH"; then
+    if sh "$CARD_ROOT/lsd_jar.sh" loaded VCAndroidAuto.jar; then
         if [ "$KEEP_TBT" -eq 1 ]; then
             echo "Java check: VCAndroidAuto.jar is loaded and was kept (--keep-turn-by-turn)."
             echo "            Expect the cluster map to fail when a route starts."
