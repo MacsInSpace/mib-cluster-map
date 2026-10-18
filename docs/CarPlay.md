@@ -59,7 +59,7 @@ Android Auto map at 800×480. That still has to be shown on a car.
 
 | Step | State |
 |---|---|
-| Hardware decoder in `stream-player` | Built; first car test pending (with Android Auto) |
+| Hardware decoder in `stream-player` (`GAL_PLAYER_DECODER=hw`, off by default) | Built; first car test under way (with Android Auto) |
 | harman-f's hook builds with this project's toolchain | Done, no warnings |
 | Bundle the hook from source, with its notice | To do |
 | `stream-player` input from the CarPlay socket | To do |

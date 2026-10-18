@@ -139,8 +139,8 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 | `GAL_SECONDARY_DPI` | 125 | map text and turn card too big (lower) or too small (higher) |
 | `GAL_SECONDARY_INSETS`, `GAL_SECONDARY_UI_CONFIG_HEX` | 40,40,127,127 | map controls hide behind the dials. The hex value overrides the insets: change both or delete the hex line |
 | `GAL_SECONDARY_UI_THEME` | 2 (dark) | 0 follows the phone, 1 is light |
-| `GAL_PLAYER_DECODER` | hw | `sw` is the tested software decoder. `hw` uses the unit's own video decoder and frees most of a processor core. If it will not open, the player uses software; if it fails while decoding, it stays off until the next reboot. **Not yet car-tested** |
-| `GAL_PLAYER_NVSS_OUTPUT` | 1 | the cluster stays black with `hw`: try 0 |
+| `GAL_PLAYER_DECODER` | sw | `sw` is the tested software decoder. `hw` uses the unit's own video decoder and frees most of a processor core. If it will not open, the player uses software; if it fails while decoding, it stays off until the next reboot. **Not yet car-tested** |
+| `GAL_PLAYER_NVSS_OUTPUT` | 1 | the cluster stays black with `hw`: try 0 (uncomment the line first) |
 | `GAL_DUALSCREEN_DEBUG`, `GAL_FIX_STREAM_TIMING`, `GAL_PLAYER_STATS`, `GAL_HOOK_LOG_MAX_MB` | 0, 0, 0, 1 | full trace for a bug report: 0, 1, 1, 10, then install over SSH with `enable_hook.sh --debug` |
 
 Logs are kept in RAM only (`/tmp/gal_dualscreen.log`, `/tmp/stream-player.log`)
@@ -155,7 +155,7 @@ phone names and Bluetooth addresses.
 | The car's own map, or "no map" | Check the cluster is in map view. Unplug the phone, wait ten seconds, plug it in |
 | The phone keeps disconnecting | Save logs, uninstall, reboot, open an issue |
 | The map appears, then goes blank when a route starts | Run the install again: something re-enabled the turn-arrows jar |
-| Black cluster after changing the decoder | `GAL_PLAYER_NVSS_OUTPUT=0`, or `GAL_PLAYER_DECODER=sw` |
+| Black cluster with `GAL_PLAYER_DECODER=hw` | `GAL_PLAYER_NVSS_OUTPUT=0`, or back to `sw` |
 | The centre screen stays black after a reboot | See below |
 
 ## Safety and recovery

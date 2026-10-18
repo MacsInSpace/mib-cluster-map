@@ -90,7 +90,7 @@ itself after the phone is unplugged and plugged in again.
 |---|---|
 | Android Auto map, installer and uninstaller over SSH | Tested on a car |
 | Software update and green menu routes | Built and simulated; first car runs pending |
-| Hardware video decoding (`GAL_PLAYER_DECODER=hw`) | Built; not yet run on a car. `sw` is the tested decoder |
+| Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Built; first car test under way |
 | CarPlay map | In development |
 | Long drives, reverse camera, waking from sleep | Little testing |
 
