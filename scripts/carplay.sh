@@ -44,11 +44,15 @@ JXE_SIZE=$5
 # car with a known cockpit. Add "WIDTHxHEIGHT:790|791" pairs as owners report
 # them; anything else stays "unknown" and needs the menu entry for the size.
 KNOWN_CLUSTERS=""
-DMDT=/eso/bin/apps/dmdt
-[ -x $DMDT ] || DMDT=dmdt
+# dmdt needs the display manager's environment, and buffers its output when
+# piped unless the flush shim is preloaded (as in collect_for_porting.sh).
 cluster_size()
 {
-    $DMDT gs 2>/dev/null | sed -n 's/.*display_id: *4, *display\.width: *\([0-9][0-9]*\); *display\.height: *\([0-9][0-9]*\).*/\1x\2/p' | head -1
+    [ -x /eso/bin/apps/dmdt ] || return 0
+    PRE=
+    [ -f "$HERE/lib/libdmdt_flush.so" ] && PRE="$HERE/lib/libdmdt_flush.so"
+    ( cd /eso && LD_PRELOAD="$PRE" LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib \
+      IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt gs ) 2>/dev/null | sed -n 's/.*display_id: *4, *display\.width: *\([0-9][0-9]*\); *display\.height: *\([0-9][0-9]*\).*/\1x\2/p' | head -1
 }
 detect_cluster()
 {
