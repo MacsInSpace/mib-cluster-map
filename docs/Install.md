@@ -41,8 +41,10 @@ way back into the unit if the centre screen ever fails to start.
 2. `Software updates/versions` > `Update` (top right) > the SD card >
    **`MIB Cluster Map`**.
 3. Let it run. The unit may restart, then show a list of modules mostly marked
-   `N/A`: press back (top right). If it asks you to connect a computer and
-   clear error codes, press `Cancel`.
+   `N/A` and `ClusterMap` `OK`: press back (top right). A screen headed
+   **Version back documentation** ("Start diagnostic tester ... Accepting the
+   error code leads to a restart") is normal: press `Cancel`. The unit
+   restarts once more.
 4. Back at the home screen, hold the power button for ten seconds to reboot.
 
 What it does, without asking:

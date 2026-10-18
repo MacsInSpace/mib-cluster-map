@@ -19,6 +19,8 @@ cp /tmp/gal_dualscreen.log /tmp/stream-player.log /tmp/gal_kombi_ready /tmp/clus
 sloginfo > $OUT/sloginfo.txt 2>&1
 pidin ar > $OUT/pidin_ar.txt 2>&1
 ls -l /mnt/ota /mnt/ota/* /var/dumps /tmp > $OUT/dumps_listing.txt 2>&1
+# The software update's own records, if the unit keeps any.
+ls -lR /mnt/ota/system/logs /net/rcc/tmp > $OUT/update_logs_listing.txt 2>&1
 ls -l /lib/libEGL* /lib/libGLESv2* /usr/lib/libEGL* > $OUT/gl_libs.txt 2>&1
 grep -n "gal" /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/gal_config_lines.txt 2>&1
 sh $HERE/scripts/hook_status.sh > $OUT/status.txt 2>&1

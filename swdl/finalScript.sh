@@ -25,9 +25,17 @@ fi
 # The same card as the multimedia processor sees it (ksh, no sed).
 LOCAL=${VOLUME#/net/mmx}
 
-on -f mmx /bin/mount -uw $LOCAL
-on -f mmx /bin/sh $LOCAL/ClusterMap/final/update_run.sh $LOCAL "${1}" "${2}"
-on -f mmx /bin/mount -ur $LOCAL
+# Exactly as the toolbox: make the card writable through its RCC path and
+# log there first, so even a failure below leaves a record on the card.
+on -f mmx /bin/mount -uw $VOLUME
+TRACE=$VOLUME/ClusterMap/final_trace.txt
+{
+    echo "FinalScript started: HW=${1} medium=${2} card=$VOLUME mmx-path=$LOCAL"
+    echo "pwd=`pwd`"
+} > $TRACE 2>&1
+on -f mmx /bin/sh $LOCAL/ClusterMap/final/update_run.sh $LOCAL "${1}" "${2}" >> $TRACE 2>&1
+echo "update_run.sh returned $?" >> $TRACE 2>&1
+on -f mmx /bin/mount -ur $VOLUME
 
 echo Done.
 touch /tmp/SWDLScript.Result
