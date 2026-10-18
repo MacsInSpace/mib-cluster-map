@@ -151,7 +151,7 @@ def main():
         for n in missing: print(f"   MISSING {n}")
         for n, v in moved: print(f"   moved   {v:#x} (P4521 {RECEIVER[n]:#x})  {n}")
         print("The hook resolves these by name, so moved offsets are fine. What matters is that the\n"
-              "object layouts in wiki/Receiver-Layout-Verification.md still hold: re-check each row.")
+              "object layouts in docs/Development.md ('Adding a firmware') still hold: re-check each row.")
         if missing: print("STOP: a missing symbol means the hook cannot work with this receiver.")
 
     print("\n--- proposed entry for k_profiles[] in src/firmware_profiles.h  (car_tested = 0)")
@@ -166,7 +166,7 @@ def main():
     print("\n--- or, to try it without rebuilding, one line in gal_dualscreen.conf")
     print(f"GAL_PROFILE_TRIAL={name}:{addr['controller_slot']:x}:{addr['impl_vtable']:x}:{addr['cbhandler_vtable']:x}:"
           f"{c['ctor']:x}:{c['first']:x}:{c['size']:x}:{c['cfg']:x}:{c['creator']:x}:80:84:28")
-    print("\nNext: wiki/Porting-To-Another-Firmware.md, section 'Checking a proposed profile'.")
+    print("\nNext: docs/Development.md, section 'Adding a firmware'.")
     return 0
 
 

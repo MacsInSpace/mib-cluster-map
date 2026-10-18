@@ -1,6 +1,6 @@
 #!/bin/bash
 # Local build with the open QNX 6.5 ARMv7 toolchain image (luka-dev/qnx65-armv7-toolchain,
-# tag 8.5) instead of the private mibsdk image the upstream Makefiles expect.
+# tag 8.5).
 #
 #   ./build_local.sh            build everything and assemble dist/sdcard
 #   ./build_local.sh hook       only libgal_hook.so + libdmdt_flush.so
@@ -103,7 +103,7 @@ package() {
   mkdir -p "$D/to only check compatibility, move this file up one folder"
   printf 'While a file whose name starts with COLLECT is in the ClusterMap folder,\r\nrunning the update from this card INSTALLS NOTHING. It writes a compatibility\r\ncheck to update_result.txt and copies the files a port needs to porting_<train>/.\r\nOnly the menu screen file is copied to the unit. Move this file back here to install.\r\n' > "$D/to only check compatibility, move this file up one folder/COLLECT.txt"
   cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
-  cp "$ROOT"/wiki/Quick-Start.md "$ROOT"/wiki/Install-Guide.md "$ROOT"/wiki/Supported-Units.md "$ROOT"/wiki/Firmware-Support-Matrix.md "$ROOT"/wiki/Navigation-Status-Messages.md "$ROOT"/wiki/Cluster-Zoom-Findings.md "$D/docs/"
+  cp "$ROOT/README.md" "$ROOT/docs/Install.md" "$D/docs/"
   cp "$ROOT/LICENSE" "$D/LICENSE"
   # The unit's shell needs LF line endings and plain ASCII in everything it runs.
   bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/GEM/*.sh "$D"/final/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)

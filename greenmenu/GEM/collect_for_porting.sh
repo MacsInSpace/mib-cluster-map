@@ -59,5 +59,5 @@ echo
 echo "CLUSTERMAP_COLLECT_OK"
 echo "Saved to: $OUT"
 echo "These are Volkswagen/Harman firmware files. Do not post them publicly."
-echo "See docs/Supported-Units.md for what to do with them."
+echo "See docs/Install.md, "Getting your unit added", for what to do with them."
 exit 0

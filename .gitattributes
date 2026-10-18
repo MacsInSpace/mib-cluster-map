@@ -6,5 +6,4 @@
 *.h text eol=lf
 *.cc text eol=lf
 *.md text eol=lf
-Makefile text eol=lf
 thirdparty/mib2-toolbox/metainfo2_signed_header.bin binary

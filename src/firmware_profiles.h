@@ -21,7 +21,7 @@
  *
  * The remaining fields are object layouts inside gal. They were identical on
  * the builds seen so far, but they are per-profile so a build that differs can
- * be described without touching code. docs: wiki/Porting-To-Another-Firmware.md
+ * be described without touching code. docs: docs/Development.md, "Adding a firmware"
  *
  * A profile must not be added on the strength of the tool's output alone. Check
  * each field against the disassembly, then test on a car with that firmware.
@@ -64,7 +64,7 @@ static const gal_profile k_profiles[] = {
     /*
      * VW Discover Pro 9.2", MIB2.5 High. gal sha256 f84722179cbf..., 1269211
      * bytes; libautoreceiver.so sha256 b04cb5cf3b8c..., 1067402 bytes.
-     * Layouts verified in wiki/Receiver-Layout-Verification.md.
+     * Layouts verified in docs/Development.md ("Adding a firmware").
      */
     {
         "MHI2_ER_VWG13_P4521", 1,

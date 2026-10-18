@@ -15,7 +15,7 @@
 #include <unistd.h>
 
 /*
- * Build identity, stamped in by the Makefile. Every car capture so far had
+ * Build identity, stamped in by build_local.sh. Every car capture so far had
  * to be dated by which event names it did and did not contain; that guess
  * work is what made the 2026-08-28 log so expensive to read.
  */

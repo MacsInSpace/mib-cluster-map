@@ -79,11 +79,10 @@ usage()
     echo "          [--cluster-input] [--margins WxH]"
     echo "          [--output MODE] [--displayable N] [--log PATH]"
     echo
-    echo "  Most settings can also come from a config FILE, which has no"
-    echo "  entry limit and can be edited between boots without re-running"
-    echo "  this script: copy gal_dualscreen.conf.example to the SD card"
-    echo "  root as gal_dualscreen.conf. Options given here are injected"
-    echo "  into the environment and override the file."
+    echo "  Most settings come from a config FILE, which has no entry limit:"
+    echo "  ClusterMap/gal_dualscreen.conf on the SD card, copied to the unit"
+    echo "  by this script. Options given here are injected into the"
+    echo "  environment and override the file."
     echo
     echo "  --keep-turn-by-turn  leave adi961's VCAndroidAuto.jar loaded. By"
     echo "                    default the installer removes its start-up line,"
