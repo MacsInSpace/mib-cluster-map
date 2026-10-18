@@ -2,7 +2,8 @@
 # CarPlay map on the cluster, side by side with the Android Auto cluster map.
 #
 #   carplay.sh status
-#   carplay.sh install 790|791    run omonob's CarPlay Maps VC installer
+#   carplay.sh detect             print the cockpit type (790, 791) or unknown
+#   carplay.sh install auto|790|791  run omonob's CarPlay Maps VC installer
 #   carplay.sh uninstall          take it out again, leaving the AA map alone
 #
 # CarPlay Maps VC (github.com/omonob/MHI2-Carplay-Maps, GPL-3.0) is installed
@@ -37,6 +38,27 @@ case "$5" in
 esac
 JXE_SIZE=$5
 
+# The cockpit, from the size the display manager reports for the cluster
+# (display 4). The CarPlay core differs per cockpit (790: 1010x376 stream,
+# 791/794: 800x480), so it is only chosen automatically for sizes seen on a
+# car with a known cockpit. Add "WIDTHxHEIGHT:790|791" pairs as owners report
+# them; anything else stays "unknown" and needs the menu entry for the size.
+KNOWN_CLUSTERS=""
+DMDT=/eso/bin/apps/dmdt
+[ -x $DMDT ] || DMDT=dmdt
+cluster_size()
+{
+    $DMDT gs 2>/dev/null | sed -n 's/.*display_id: *4, *display\.width: *\([0-9][0-9]*\); *display\.height: *\([0-9][0-9]*\).*/\1x\2/p' | head -1
+}
+detect_cluster()
+{
+    SIZE=`cluster_size`
+    CLUSTER=unknown
+    for k in $KNOWN_CLUSTERS; do
+        [ "${k%%:*}" = "$SIZE" ] && CLUSTER=${k#*:}
+    done
+}
+
 stop_carplay()
 {
     for p in cpmap-guard carplay-cluster-supervisor altscreen-most-bridge carplay-pairing-helper; do
@@ -57,10 +79,23 @@ case "$ACTION" in
         else
             echo "  installed: no"
         fi
+        detect_cluster
+        echo "  cockpit: $CLUSTER (cluster display ${SIZE:-not reported})"
         ls -d "$HERE"/carplay/*/*_* 2>/dev/null | sed 's|.*/carplay/|  on the card: |'
         ;;
+    detect)
+        detect_cluster
+        echo "$CLUSTER ${SIZE:-none}"
+        [ "$CLUSTER" != unknown ]
+        ;;
     install)
-        case "$CL" in 790|791) ;; *) echo "usage: $0 install 790|791" >&2; exit 2 ;; esac
+        if [ "$CL" = auto ]; then
+            detect_cluster
+            [ "$CLUSTER" != unknown ] || { echo "NOT INSTALLED: the cockpit type is not known for cluster display size ${SIZE:-not reported}. Use the menu entry for your cockpit size, and please report this size. Nothing was changed."; exit 1; }
+            CL=$CLUSTER
+            echo "Cockpit: $CL (cluster display $SIZE)"
+        fi
+        case "$CL" in 790|791) ;; *) echo "usage: $0 install auto|790|791" >&2; exit 2 ;; esac
         [ -n "$MU" ] || { echo "NOT SUPPORTED: CarPlay Maps VC does not know this firmware (lsd.jxe $JXE_SIZE bytes). Nothing was changed."; exit 1; }
         if [ "$MU" = MU1440 ] && [ "$CL" != 790 ]; then echo "NOT SUPPORTED: MU1440 works with the 790 cluster only. Nothing was changed."; exit 1; fi
         DIR=
@@ -100,5 +135,5 @@ case "$ACTION" in
         echo "CARPLAY_UNINSTALL_OK"
         echo "Hold the power button for 10 seconds to reboot the unit."
         ;;
-    *) echo "usage: $0 status|install 790|791|uninstall" >&2; exit 2 ;;
+    *) echo "usage: $0 status|detect|install auto|790|791|uninstall" >&2; exit 2 ;;
 esac

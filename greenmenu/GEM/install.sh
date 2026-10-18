@@ -15,10 +15,22 @@ if train_supported; then
     echo
     if [ $RC -eq 0 ]; then
         echo "AACLUSTER_INSTALL_OK"
-        echo "Hold the power button for 10 seconds to reboot the unit."
     else
         echo "AACLUSTER_INSTALL_FAILED (code $RC). Read the messages above."
     fi
+    # The CarPlay map too, when its files are on the card and the cockpit
+    # type is known. It never touches the Android Auto map.
+    if [ $RC -eq 0 ] && ls -d "$PKG"/carplay/*/79*_* >/dev/null 2>&1; then
+        echo
+        if [ -d /mnt/app/carplaymaps ]; then
+            echo "CarPlay map: already installed, left as it is."
+        elif sh "$PKG/carplay.sh" install auto; then
+            echo "CARPLAY_INSTALL_OK"
+        else
+            echo "CarPlay map: not installed (see above). The Android Auto map is unaffected."
+        fi
+    fi
+    [ $RC -eq 0 ] && echo "Hold the power button for 10 seconds to reboot the unit."
     exit 0
 fi
 echo "The cluster map is not available on this firmware yet ($SUPPORT_NOTE)."
