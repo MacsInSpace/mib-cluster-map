@@ -631,7 +631,7 @@ NAVIGNORE_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_navignore_added
 # Firmware where the bundled NavActiveIgnore.jar has been seen working. It is a
 # Java patch: on a firmware it does not fit, the centre screen may not start,
 # so it is never added automatically anywhere else.
-NAVIGNORE_TRAINS="MHI2_ER_VWG13_P4521"
+NAVIGNORE_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525"
 TRAIN=unknown
 for f in /net/rcc/dev/shmem/version.txt /dev/shmem/version.txt; do
     if [ -r "$f" ]; then

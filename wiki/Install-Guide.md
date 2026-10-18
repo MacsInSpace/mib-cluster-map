@@ -60,6 +60,13 @@ entry, and writes its output to `AAClusterMap/update_result.txt`. With a file
 whose name starts with `UNINSTALL` in `AAClusterMap`, it runs the uninstall
 instead. A ready-made one ships in a subfolder.
 
+**Check only, change nothing:** with a file whose name starts with `COLLECT`
+in `AAClusterMap` (a ready-made one ships in a subfolder, like the uninstall
+one), the update installs nothing. It writes the status check (firmware
+train, verdict, Java patches) to `update_result.txt` and copies the files a
+port needs to `AAClusterMap/porting_<train>/`. The only thing it puts on the
+unit is the menu screen file, which does nothing until it is opened.
+
 After a successful install the final script also switches on the unit's
 engineering menu (the same setting the toolbox turns on), so the screen the
 update copied is reachable. On unsupported firmware it installs nothing and

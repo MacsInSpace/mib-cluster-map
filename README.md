@@ -61,21 +61,21 @@ Today it supports **one firmware on one head unit**:
 | | |
 |---|---|
 | Head unit | Harman MIB2.5 High: "Discover Pro" with the 9.2 inch glass screen |
-| Firmware | `MHI2_ER_VWG13_P4521`, shown as **Software: 1367** |
+| Firmware | `MHI2_ER_VWG13_P4521` or `MHI2_ER_VWG13_K4525` (also re-releases such as `P4521_2`), shown as **Software: 1367** |
 | Cluster | Digital cluster (Active Info Display) that can show the navigation map |
 | Phone | Android Auto over USB, already working in the car |
 | Also needed | Nothing. The [MQB Coding MIB2 Toolbox](https://github.com/jilleb/mib2-toolbox) is optional but recommended as a way back in if something goes wrong |
 
 To check: `MENU` > `Setup` > `System information` on the head unit.
 
-**"Software: 1367" is necessary but not proof.** A second firmware,
-`MHI2_ER_VWG13_K4525`, shows the same number and is untested. You do not have
-to work this out yourself: the installer checks the real firmware and changes
-nothing if it is not supported.
+**"Software: 1367" is necessary but not proof.** You do not have to work this
+out yourself: the installer checks the real firmware and changes nothing if it
+is not supported. To only check, without installing anything, see
+[Install guide](wiki/Install-Guide.md) (the `COLLECT` file).
 
 | Head unit | Supported |
 |---|---|
-| MIB2.5 High, Discover Pro 9.2 inch (`MHI2_ER_VWG13_...`) | **P4521 yes.** Other firmware wanted |
+| MIB2.5 High, Discover Pro 9.2 inch (`MHI2_ER_VWG13_...`) | **P4521 and K4525 yes** (K4525 confirmed by two owners, [#5](https://github.com/MacsInSpace/mhi2-android-auto-cluster-map/issues/5)). Other firmware wanted |
 | MIB2 High, Discover Pro 8 inch (`MHI2_..._VWG11_...`) | Not yet. Same family, a port may be possible |
 | Skoda and SEAT with the Harman unit | Not yet |
 | MIB2 Standard: Composition Media, Discover Media | No. Different hardware and software |

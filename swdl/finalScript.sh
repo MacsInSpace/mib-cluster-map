@@ -2,7 +2,8 @@
 # Final script of the "Android Auto Cluster Map" software update package.
 # The unit's update process runs it once, after copying the menu screen.
 # It installs the cluster map, or removes it when a file whose name starts with
-# UNINSTALL is present in the AAClusterMap folder on the card.
+# UNINSTALL is present in the AAClusterMap folder on the card, or only collects
+# files for a compatibility check (changing nothing) when one starts with COLLECT.
 # All output goes to AAClusterMap/update_result.txt on the card.
 
 echo FinalScript for HW ${1} on medium ${2}...
@@ -32,8 +33,17 @@ MODE=install
 for f in "$VOLUME"/AAClusterMap/UNINSTALL* "$VOLUME"/AAClusterMap/uninstall* "$VOLUME"/AAClusterMap/Uninstall*; do
     [ -f "$f" ] && MODE=uninstall
 done
+for f in "$VOLUME"/AAClusterMap/COLLECT* "$VOLUME"/AAClusterMap/collect* "$VOLUME"/AAClusterMap/Collect*; do
+    [ -f "$f" ] && MODE=collect
+done
 
-if [ "$MODE" = uninstall ]; then
+if [ "$MODE" = collect ]; then
+    # Look only: the status check and the porting files, nothing installed.
+    echo "Mode: collect only (nothing on the unit is changed)" > $RESULT
+    on -f mmx /bin/sh $LOCAL/AAClusterMap/GEM/status.sh >> $RESULT 2>&1
+    echo >> $RESULT
+    on -f mmx /bin/sh $LOCAL/AAClusterMap/GEM/collect_for_porting.sh >> $RESULT 2>&1
+elif [ "$MODE" = uninstall ]; then
     echo "Mode: uninstall" > $RESULT
     on -f mmx /bin/sh $LOCAL/AAClusterMap/GEM/uninstall.sh >> $RESULT 2>&1
 else

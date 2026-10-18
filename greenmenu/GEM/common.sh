@@ -3,7 +3,10 @@
 PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/sbin:/mnt/app/armle/usr/bin:/mnt/app/armle/usr/sbin:$PATH
 export PATH
 # Firmware trains with a car-tested profile in the hook, space separated.
-SUPPORTED_TRAINS="MHI2_ER_VWG13_P4521"
+# Matched as substrings, so re-releases such as MHI2_ER_VWG13_P4521_2 count;
+# the hook still checks the real addresses when it loads. K4525 runs the
+# P4521 profile unchanged (two owners, issue #5).
+SUPPORTED_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525"
 SUPPORTED_TRAIN="$SUPPORTED_TRAINS"
 
 PKG=
