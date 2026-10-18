@@ -7,7 +7,7 @@ export PATH
 # The folder this script sits in is the package folder; logs go beside it.
 HERE=`cd "\`dirname "$0"\`" && pwd`
 case "$HERE" in
-    /fs/sdb0*|/net/mmx/fs/sdb0*) SD=/fs/sdb0 ;;
+    */fs/sdb0*) SD=/fs/sdb0 ;;
     *) SD=/fs/sda0 ;;
 esac
 mount -uw $SD 2>/dev/null
