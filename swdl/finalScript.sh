@@ -49,7 +49,7 @@ elif [ "$MODE" = uninstall ]; then
 else
     echo "Mode: install" > $RESULT
     on -f mmx /bin/sh $LOCAL/AAClusterMap/GEM/install.sh >> $RESULT 2>&1
-    if grep -q "AACLUSTER_INSTALL_OK" $RESULT; then
+    if grep -q -e "AACLUSTER_INSTALL_OK" -e "AACLUSTER_TURN_BY_TURN_OK" $RESULT; then
         # Make the green engineering menu reachable (hold MENU > Testmode), so
         # the AAClusterMap screen this update copied can be used for status,
         # logs and uninstall. The same switch the MQB Coding MIB2 Toolbox sets

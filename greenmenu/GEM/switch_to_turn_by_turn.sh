@@ -3,15 +3,11 @@
 CONFIG=/mnt/system/etc/eso/production/smartphone_integrator.json
 echo "Switch to turn-by-turn arrows (removes the cluster map)"
 echo "Firmware train: $TRAIN"
-# The jar's author lists the two VW trains as tested; SEAT owners report the
-# same jar working on the two SEAT trains (issue #3).
-case "$TRAIN" in
-    *MHI2_ER_VWG13_P4521*|*MHI2_ER_VWG13_K4525*|*MHI2_ER_SEG11_P4708*|*MHI2_ER_SEG11_P4709*) ;;
-    *) echo "NOT SUPPORTED: the turn-by-turn jar is only known to work on"
-       echo "MHI2_ER_VWG13_P4521, MHI2_ER_VWG13_K4525, MHI2_ER_SEG11_P4708 and"
-       echo "MHI2_ER_SEG11_P4709. Nothing was changed."
-       exit 0 ;;
-esac
+if ! tbt_supported; then
+    echo "NOT SUPPORTED: the turn-by-turn jar is only known to work on"
+    echo "$TBT_TRAINS. Nothing was changed."
+    exit 0
+fi
 if grep -q 'libgal_hook.so' "$CONFIG" 2>/dev/null; then
     echo "Removing the cluster map first..."
     sh "$PKG/disable_hook.sh" --keep-jar-removed || { echo "AACLUSTER_SWITCH_FAILED: uninstall failed, nothing else was changed."; exit 0; }

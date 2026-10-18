@@ -50,3 +50,25 @@ train_supported()
     SUPPORT_NOTE="different Android Auto files (gal $g, receiver $r bytes)"
     return 1
 }
+
+# Firmware where adi961's turn-arrows jar (VCAndroidAuto.jar) is known to
+# work: the jar author's two VW trains, and the two SEAT trains its owners
+# report working (issue #3). The jar replaces Java classes of the unit's
+# interface; on a firmware it does not fit, the centre screen may not start,
+# so it is never installed on any other train.
+TBT_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SEG11_P4708 MHI2_ER_SEG11_P4709"
+tbt_supported()
+{
+    for t in $TBT_TRAINS; do
+        case "$TRAIN" in *${t}*) return 0 ;; esac
+    done
+    return 1
+}
+
+# The head unit family, from the train name, for messages only.
+case "$TRAIN" in
+    MHI2Q_*) FAMILY="Audi MIB2 High, Qualcomm (MHI2Q)" ;;
+    MHI2_*)  FAMILY="Harman MIB2 / MIB2.5 High (MHI2)" ;;
+    MST2_*)  FAMILY="MIB2 Standard (Technisat/Preh, MST2)" ;;
+    *)       FAMILY="unknown" ;;
+esac
