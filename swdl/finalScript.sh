@@ -22,8 +22,13 @@ if [ -z "$VOLUME" ] || [ ! -d "$VOLUME/ClusterMap" ]; then
         exit 0
     fi
 fi
-# The same card as the multimedia processor sees it (ksh, no sed).
-LOCAL=${VOLUME#/net/mmx}
+# The same card as the multimedia processor sees it (ksh, no sed). The unit
+# passes the card with the node's full name, e.g. /net/mmx.mibhigh.net/fs/sda0,
+# so everything up to the node name is removed, not just "/net/mmx".
+case "$VOLUME" in
+    /net/*/*) LOCAL=/${VOLUME#/net/*/} ;;
+    *) LOCAL=$VOLUME ;;
+esac
 
 # Exactly as the toolbox: make the card writable through its RCC path and
 # log there first, so even a failure below leaves a record on the card.
