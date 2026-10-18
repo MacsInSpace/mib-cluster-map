@@ -31,7 +31,8 @@ as stock. So the wrong firmware does no harm, but it also does nothing.
 | Firmware train | Software number | State |
 |---|---|---|
 | `MHI2_ER_VWG13_P4521` | 1367 | **Supported.** Tested on a car |
-| `MHI2_ER_VWG13_K4525` | 1367 | **Unknown.** Shares the software number with P4521 but is a different build. The installer checks it; see below |
+| `MHI2_ER_VWG13_K4525` | 1367 | **Supported.** Runs the P4521 profile unchanged; confirmed by two owners (Golf 7.5, Golf 7.5 GTE, [#5](https://github.com/MacsInSpace/mhi2-android-auto-cluster-map/issues/5)) |
+| `MHI2_ER_VWG13_P4521_2` and other re-releases | 1367 | Treated as their base train. The hook still checks the real addresses when Android Auto starts |
 | Any other `MHI2_ER_VWG13_...` train | other | Not supported |
 | North American trains (`MHI2_US_...`) | | Not supported |
 

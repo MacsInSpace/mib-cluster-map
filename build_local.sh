@@ -100,6 +100,8 @@ package() {
   # A ready-made marker, so nobody has to create a file by hand.
   mkdir -p "$D/to uninstall, move this file up one folder"
   printf 'While a file whose name starts with UNINSTALL is in the AAClusterMap folder,\r\nrunning the update from this card REMOVES the cluster map and restores the\r\noriginal state. Move this file back here (or delete it) to install again.\r\n' > "$D/to uninstall, move this file up one folder/UNINSTALL.txt"
+  mkdir -p "$D/to only check compatibility, move this file up one folder"
+  printf 'While a file whose name starts with COLLECT is in the AAClusterMap folder,\r\nrunning the update from this card INSTALLS NOTHING. It writes a compatibility\r\ncheck to update_result.txt and copies the files a port needs to porting_<train>/.\r\nOnly the menu screen file is copied to the unit. Move this file back here to install.\r\n' > "$D/to only check compatibility, move this file up one folder/COLLECT.txt"
   cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
   cp "$ROOT"/wiki/Quick-Start.md "$ROOT"/wiki/Install-Guide.md "$ROOT"/wiki/Supported-Units.md "$ROOT"/wiki/Firmware-Support-Matrix.md "$ROOT"/wiki/Navigation-Status-Messages.md "$ROOT"/wiki/Cluster-Zoom-Findings.md "$D/docs/"
   cp "$ROOT/LICENSE" "$D/LICENSE"

@@ -30,7 +30,7 @@ There are two features, and they port separately:
 | Brand | Firmware train | Software | Cluster map | Turn arrows | Notes |
 |---|---|---|---|---|---|
 | VW | `MHI2_ER_VWG13_P4521` | 1367 | **Supported** | Works (jar author and this project) | Golf 7.5. The development car |
-| VW | `MHI2_ER_VWG13_K4525` | 1367 | Wanted | Works (jar author) | Same software number as P4521. The status check says whether its Android Auto files are identical; if so the map may already work |
+| VW | `MHI2_ER_VWG13_K4525` | 1367 | **Supported** (owners, #5) | Works (jar author) | Same software number as P4521; runs its profile unchanged. Confirmed by two owners (Golf 7.5, Golf 7.5 GTE) |
 | VW | `MHI2_ER_VWG13_P4512` | ? | Wanted | Reported not working | |
 | Skoda | `MHI2_ER_SKG13_P4526` | 1440 | Wanted | Reported not working | Cluster routing may differ from VW |
 | VW, other regions | `MHI2_US_VWG13_...` and others | ? | Wanted | Unknown | |
