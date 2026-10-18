@@ -108,7 +108,7 @@ package() {
   # Software-update route: the same screen, copied to the unit by the update
   # itself, plus the final script that runs the installer.
   cp "$ROOT/greenmenu/cluster-map.esd" "$D/GEM/"
-  mkdir -p "$D/final" && cp "$ROOT/swdl/finalScript.sh" "$D/final/"
+  mkdir -p "$D/final" && cp "$ROOT/swdl/finalScript.sh" "$ROOT/swdl/update_run.sh" "$D/final/"
   # A ready-made marker, so nobody has to create a file by hand.
   mkdir -p "$D/to uninstall, move this file up one folder"
   printf 'While a file whose name starts with UNINSTALL is in the ClusterMap folder,\r\nrunning the update from this card REMOVES the cluster map and restores the\r\noriginal state. Move this file back here (or delete it) to install again.\r\n' > "$D/to uninstall, move this file up one folder/UNINSTALL.txt"

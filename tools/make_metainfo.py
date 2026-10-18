@@ -28,10 +28,15 @@ def main():
         if b"\r" in data or any(c > 127 for c in data):
             sys.exit(f"{p}: must be LF and ASCII")
 
-    hashes = f'FileName = "finalScript.sh"\nFileSize = "{os.path.getsize(script)}"\nCheckSum = "{sha1(script)}"\n\n'
+    # Every file in final/, as the toolbox lists its final script and the
+    # script that script runs.
+    names = sorted(n for n in os.listdir(final_dir) if n.endswith(".sh"))
+    hashes = "".join(
+        f'FileName = "{n}"\nFileSize = "{os.path.getsize(os.path.join(final_dir, n))}"\n'
+        f'CheckSum = "{sha1(os.path.join(final_dir, n))}"\n\n' for n in names)
     hpath = os.path.join(final_dir, "hashes.txt")
     open(hpath, "w", newline="\n").write(hashes)
-    dir_size = os.path.getsize(script) + os.path.getsize(hpath)
+    dir_size = sum(os.path.getsize(os.path.join(final_dir, n)) for n in names) + os.path.getsize(hpath)
 
     numeric = "".join(c for c in version if c.isdigit()) or "1"
     body = f'''[common]

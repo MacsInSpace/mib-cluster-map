@@ -1,14 +1,14 @@
 #!/bin/ksh
 # Final script of the "MIB Cluster Map" software update package.
 # The unit's update process runs it once, after copying the menu screen.
-# It installs the cluster map, or removes it when a file whose name starts with
-# UNINSTALL is present in the ClusterMap folder on the card, or only collects
-# files for a compatibility check (changing nothing) when one starts with COLLECT.
-# All output goes to ClusterMap/update_result.txt on the card.
+#
+# It runs on the RCC processor, which has very few programs: only ksh
+# builtins, touch and "on" are used here, as in the MIB2 Toolbox's final
+# script. Everything else runs on the multimedia processor (MMX), where the
+# installer runs, through final/update_run.sh, which also writes
+# ClusterMap/update_result.txt on the card.
 
 echo FinalScript for HW ${1} on medium ${2}...
-# A trace in RAM even if the card is never found: Save logs copies it.
-echo "`date` FinalScript HW=${1} medium=${2}" >> /tmp/clustermap_final.txt
 
 VOLUME="${2}"
 if [ -z "$VOLUME" ] || [ ! -d "$VOLUME/ClusterMap" ]; then
@@ -18,58 +18,16 @@ if [ -z "$VOLUME" ] || [ ! -d "$VOLUME/ClusterMap" ]; then
         VOLUME=/net/mmx/fs/sdb0
     else
         echo ClusterMap folder not found on an SD card.
-        echo "ClusterMap folder not found (medium=${2})" >> /tmp/clustermap_final.txt
         touch /tmp/SWDLScript.Result
         exit 0
     fi
 fi
-# The same card as the multimedia processor sees it.
-LOCAL=`echo "$VOLUME" | sed 's|^/net/mmx||'`
+# The same card as the multimedia processor sees it (ksh, no sed).
+LOCAL=${VOLUME#/net/mmx}
 
 on -f mmx /bin/mount -uw $LOCAL
-RESULT=$VOLUME/ClusterMap/update_result.txt
-
-# Any file in the ClusterMap folder whose name starts with UNINSTALL, in any
-# letter case and with any extension (Windows hides extensions, so the file may
-# really be UNINSTALL.txt.txt). Only this folder is looked at.
-MODE=install
-for f in "$VOLUME"/ClusterMap/UNINSTALL* "$VOLUME"/ClusterMap/uninstall* "$VOLUME"/ClusterMap/Uninstall*; do
-    [ -f "$f" ] && MODE=uninstall
-done
-for f in "$VOLUME"/ClusterMap/COLLECT* "$VOLUME"/ClusterMap/collect* "$VOLUME"/ClusterMap/Collect*; do
-    [ -f "$f" ] && MODE=collect
-done
-
-if [ "$MODE" = collect ]; then
-    # Look only: the status check and the porting files, nothing installed.
-    echo "Mode: collect only (nothing on the unit is changed)" > $RESULT
-    on -f mmx /bin/sh $LOCAL/ClusterMap/GEM/status.sh >> $RESULT 2>&1
-    echo >> $RESULT
-    on -f mmx /bin/sh $LOCAL/ClusterMap/GEM/collect_for_porting.sh >> $RESULT 2>&1
-elif [ "$MODE" = uninstall ]; then
-    echo "Mode: uninstall" > $RESULT
-    on -f mmx /bin/sh $LOCAL/ClusterMap/GEM/uninstall.sh >> $RESULT 2>&1
-else
-    echo "Mode: install (HW=${1} medium=${2} card=$VOLUME)" > $RESULT
-    on -f mmx /bin/sh $LOCAL/ClusterMap/GEM/install.sh >> $RESULT 2>&1
-    if grep -q -e "CLUSTERMAP_INSTALL_OK" -e "CLUSTERMAP_TURN_BY_TURN_OK" $RESULT; then
-        # Make the green engineering menu reachable (hold MENU > Testmode), so
-        # the ClusterMap screen this update copied can be used for status,
-        # logs and uninstall. The same switch the MQB Coding MIB2 Toolbox sets
-        # when it installs. It is left on at uninstall.
-        export LD_LIBRARY_PATH=/mnt/app/root/lib-target:/eso/lib:/mnt/app/usr/lib:/mnt/app/armle/lib:/mnt/app/armle/lib/dll:/mnt/app/armle/usr/lib
-        export IPL_CONFIG_DIR=/etc/eso/production
-        on -f mmx /net/mmx/mnt/app/eso/bin/apps/pc b:0:0xC002000D 1 >> $RESULT 2>&1
-        echo "Engineering menu enabled: hold MENU > Testmode > Green Developer Menu > ClusterMap" >> $RESULT
-    elif grep -q "NOT SUPPORTED" $RESULT; then
-        # Nothing was installed. Gather what a port to this firmware needs, so
-        # the owner does not have to do anything else to help.
-        echo >> $RESULT
-        echo "Collecting files for porting instead..." >> $RESULT
-        on -f mmx /bin/sh $LOCAL/ClusterMap/GEM/collect_for_porting.sh >> $RESULT 2>&1
-    fi
-fi
-
+on -f mmx /bin/sh $LOCAL/ClusterMap/final/update_run.sh $LOCAL "${1}" "${2}"
 on -f mmx /bin/mount -ur $LOCAL
+
 echo Done.
 touch /tmp/SWDLScript.Result
