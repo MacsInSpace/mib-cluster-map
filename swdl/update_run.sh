@@ -14,6 +14,12 @@ export PATH
 CARD=$1
 PKG=$CARD/ClusterMap
 RESULT=$PKG/update_result.txt
+# A card used in several cars keeps every earlier result, numbered.
+if [ -f "$RESULT" ]; then
+    N=1
+    while [ -e "$PKG/update_result.$N.txt" ]; do N=`expr $N + 1`; done
+    mv "$RESULT" "$PKG/update_result.$N.txt"
+fi
 # A trace in RAM too, in case the card cannot be written: Save logs copies it.
 echo "update_run: HW=$2 medium=$3 card=$CARD" > /tmp/clustermap_final.txt
 
@@ -40,6 +46,7 @@ done
 
 {
     echo "Mode: $MODE (HW=$2 medium=$3 card=$CARD)"
+    grep "Current train" /net/rcc/dev/shmem/version.txt 2>/dev/null
     if [ "$MODE" = collect ]; then
         # Look only: the status check and the porting files, nothing installed.
         sh "$PKG/GEM/status.sh"

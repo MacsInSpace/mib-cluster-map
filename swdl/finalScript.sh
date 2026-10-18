@@ -34,10 +34,12 @@ esac
 # log there first, so even a failure below leaves a record on the card.
 on -f mmx /bin/mount -uw $VOLUME
 TRACE=$VOLUME/ClusterMap/final_trace.txt
+# Appended, so a card used in several cars keeps every run.
 {
+    echo "==== run"
     echo "FinalScript started: HW=${1} medium=${2} card=$VOLUME mmx-path=$LOCAL"
     echo "pwd=`pwd`"
-} > $TRACE 2>&1
+} >> $TRACE 2>&1
 on -f mmx /bin/sh $LOCAL/ClusterMap/final/update_run.sh $LOCAL "${1}" "${2}" >> $TRACE 2>&1
 echo "update_run.sh returned $?" >> $TRACE 2>&1
 on -f mmx /bin/mount -ur $VOLUME
