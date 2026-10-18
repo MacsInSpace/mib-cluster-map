@@ -27,19 +27,38 @@ other's video path.
 
 ### Display manager or direct link?
 
-The direct link is the better design. The phone's video goes to the cluster
-without being decoded and encoded again, so it uses far less processor time
-and adds less delay, and it can run faster (CarPlay Maps VC declares 40 fps).
-The Android Auto map's player uses 60–120 % of a core at 30 fps.
+**How the stock unit does it.** The cluster only ever gets video from the
+head unit. The unit draws the cluster map into a display-manager context.
+Its Tegra hardware encoder (NvMedia) turns that into H.264, which goes over
+MOST150 to the Active Info Display, and the display decodes it. The cluster's
+decoder is matched to the unit's own encoder output.
 
-The display-manager route has two advantages. The unit's own pipeline handles
-handing the cluster back to the stock map, and the same output works with
-every cluster model, with no per-cluster settings.
+**The display-manager route** (this project, and every Audi project with
+published source: luka-dev/mib2q-carplay-rgi and kamgurgul/mib2q-carplay on
+MHI2Q, aberbic's Tegra MHI2 project for CarPlay *and* Android Auto). The
+phone's video is decoded on the unit and drawn into a cluster context, and
+the stock encoder does the rest. The cluster sees the same kind of stream it
+always gets, and handing back to the stock map is the unit's job. The cost is
+decoding on the head unit. Our player does that in software (FFmpeg, 60-120 %
+of a core). aberbic's renderer uses the unit's hardware decoder
+(`libnvss_video.so`, the one `gal` uses for the centre screen). kamgurgul's
+did the same on MHI2Q and went from about 24 ms to about 3 ms per frame.
 
-Moving CarPlay onto the display manager would make it slower for no gain.
-The interesting direction is the reverse: sending the Android Auto video
-straight over MOST as well. The bridge's source is not published, so that
-would mean writing our own. It's worth trying once the two maps coexist.
+**The direct link** (omonob's CarPlay Maps VC, and harman-f/mhi2_altscreen_carplay,
+whose source is published) skips decoding and encoding on the unit. The phone's
+H.264 is repackaged as MPEG-TS and written straight to the MOST channel
+(`/dev/mlb/isoTX2`). That saves processor time, but the cluster then has to
+decode a stream it was never tuned for. On a Golf 7.5 with MU1367 and the
+12.3-inch 791 cockpit, owners report lag and coloured blocks (omonob issue
+#10). Their logs show the queue overflowing on bitrate peaks, and omonob
+blames the cluster's decoder chip. harman-f proved the direct link on the
+10-inch Skoda cockpit and warns that the 12.3-inch family is not proven.
+
+**Conclusion.** Keep the display-manager route for both phones, and add the
+hardware decoder to `stream-player`. A CarPlay capture hook with published
+source (harman-f's, also used by aberbic) could then feed the same player,
+giving one renderer for both phones with no binaries lacking source. Keeping
+CarPlay Maps VC separate also works for testing.
 
 ## Where they collided, and what changed here
 
@@ -79,8 +98,14 @@ Java sources, but **not the source of its native programs**: `core.so`,
 the two libraries. Passing on GPL binaries means also passing on their source,
 so the release zip leaves them out. `./build_local.sh` adds their
 per-firmware folders under `AAClusterMap/carplay/` only when `CARPLAY_SRC`
-points at a checkout, for private testing. Before a public combined release:
-ask omonob for the source, or get the files from their release instead.
+points at a checkout, for private testing. The source could not be found
+online or in the repository history (checked 2026-10-18). omonob sells
+paid add-ons. For a public combined release, either ask omonob for the source
+or build the CarPlay side from projects whose source is published:
+[harman-f/mhi2_altscreen_carplay](https://github.com/harman-f/mhi2_altscreen_carplay)
+(VW group MHI2, GPL-3.0) and
+[aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto](https://github.com/aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto)
+(Tegra, CarPlay and Android Auto, GPL-3.0, CarPlay core derived from harman-f).
 
 ## Car test plan (one session, both phones)
 
