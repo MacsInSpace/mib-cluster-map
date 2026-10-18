@@ -185,6 +185,8 @@ copy, so the card does not need to stay in the slot.
 | `GAL_SECONDARY_UI_THEME` | 2 (dark) | 0 follows the phone, 1 is light |
 | `GAL_DUALSCREEN_AAP_MINOR` | 7 | never, unless testing: the phone only offers the cluster display at this value |
 | `GAL_FIX_SUPPRESS_UNEXPECTED` | on | never, unless reproducing the connection loop |
+| `GAL_PLAYER_DECODER` | hw (branch `carplay`, not yet car-tested) | `sw` goes back to the v1.0.0 software decoder. With `hw`, the unit's own video decoder draws the map, which frees most of a processor core. If the hardware decoder will not open, the player uses software straight away. If it fails while decoding, the map stops, hw is switched off until the next reboot, and the next connection uses software |
+| `GAL_PLAYER_NVSS_OUTPUT` | 1 | the cluster stays black with `hw`: try 0 |
 | `GAL_DUALSCREEN_DEBUG`, `GAL_FIX_STREAM_TIMING`, `GAL_PLAYER_STATS`, `GAL_HOOK_LOG_MAX_MB` | 0, 0, 0, 1 | troubleshooting: see "Logging" below |
 
 ### Logging

@@ -109,7 +109,11 @@ What it does not do:
 
 What the update does without asking:
 
-- checks the firmware, and stops without changing anything if it is not supported;
+- checks the firmware and picks what fits it:
+  - the cluster map, where the map has a tested profile;
+  - otherwise the turn-by-turn arrows (see [Turn arrows instead](#turn-arrows-instead)),
+    where that jar is known to work, for example SEAT P4708 and P4709;
+  - otherwise nothing: it stops without changing anything and says so;
 - adds the NavActiveIgnore patch if it is missing, so the map stays up while
   the phone navigates (only on firmware where that patch is known to work);
 - switches off the turn-by-turn arrows jar if it is loaded, because the two
@@ -119,7 +123,8 @@ What the update does without asking:
   switches that menu on.
 
 It writes what it did to `AAClusterMap/update_result.txt` on the card. A good
-run ends with `AACLUSTER_INSTALL_OK`.
+run ends with `AACLUSTER_INSTALL_OK` (the map) or `AACLUSTER_TURN_BY_TURN_OK`
+(the arrows).
 
 ### The menu screen
 
@@ -166,7 +171,12 @@ instead: green menu > `AAClusterMap` > **Switch to turn-by-turn arrows
 instead**. It removes the map first. Running the install again switches back.
 
 Its author lists `MHI2_ER_VWG13_P4521` and `MHI2_ER_VWG13_K4525` as tested,
-and the menu entry refuses other firmware.
+and owners report it working on SEAT `MHI2_ER_SEG11_P4708` and `P4709`
+(issue #3). Both the menu entry and the update refuse other firmware: the jar
+replaces parts of the unit's interface, and on firmware it does not fit the
+centre screen may not start. On those SEAT trains, where the map has no
+profile yet, the update installs the arrows instead, and Uninstall takes them
+out again.
 
 ## Other firmware
 

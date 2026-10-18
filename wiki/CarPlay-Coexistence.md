@@ -60,6 +60,33 @@ source (harman-f's, also used by aberbic) could then feed the same player,
 giving one renderer for both phones with no binaries lacking source. Keeping
 CarPlay Maps VC separate also works for testing.
 
+### Step one: the hardware decoder (done, not yet car-tested)
+
+`stream-player` can now decode on the unit's own NvSS decoder
+(`GAL_PLAYER_DECODER=hw`, the default on this branch). It calls
+`libnvss_video.so` the same way `gal` does for the centre screen. The calls
+and structures were checked by disassembling the MU1367 `gal`, and they match
+aberbic's MU1438 layout. The decoder draws straight onto displayable 3, so
+there is no OpenGL and no software decode. If it will not open, the player
+uses FFmpeg as before. If it fails while decoding, it switches itself off
+until the next reboot. `sw` restores the v1.0.0 behaviour exactly.
+
+This is the part a CarPlay capture would also need, so it gets tested on its
+own first, with Android Auto.
+
+## One installer for every unit
+
+The software update and the menu install now pick what fits the unit:
+
+| Unit | What gets installed |
+|---|---|
+| A train with a cluster-map profile (VW P4521, K4525) | the cluster map |
+| A train where the turn-arrows jar is known to work (SEAT P4708, P4709) | the turn arrows |
+| Anything else, including Audi MHI2Q and MIB2 Standard | nothing, with a pointer to the right project |
+
+The CarPlay map is a separate menu entry for now, because it needs the
+cockpit size (790 or 791) and the CarPlay Maps VC files on the card.
+
 ## Where they collided, and what changed here
 
 1. **Merged Java patch lines.** CarPlay Maps VC adds its jars to the *first*
@@ -112,6 +139,13 @@ or build the CarPlay side from projects whose source is published:
 Card: `CARPLAY_SRC=../carplay-maps ./build_local.sh package`, then copy
 `dist/sdcard/` to the card.
 
+0. **Hardware decoder first, Android only.** Run the update, reboot, and
+   check the cluster map with a route for a few minutes. *Save logs to SD*.
+   The player log should show `hwdecode: NvSS decoder ready`. With
+   `GAL_PLAYER_STATS=1` it also prints `HW DEC` lines with the frame rate and
+   processor load. If the
+   cluster stays black, set `GAL_PLAYER_NVSS_OUTPUT=0`, run the update again
+   and retry. If neither works, set `GAL_PLAYER_DECODER=sw`.
 1. Run the software update from the card. This reinstalls the Android Auto map
    and copies the new menu screen with the CarPlay entries. Reboot.
 2. Green menu → AAClusterMap → *Status*. Check that the Android Auto map is
