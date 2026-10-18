@@ -698,12 +698,12 @@ static int build_secondary_sink(void *primary, void *controller)
             load_u32(entry, 4u) == config->fps) {
             memcpy(secondary_config_entry, entry, g_profile->cfg_entry_size);
             store_u32(secondary_config_entry, 16u, config->dpi);
-            store_u32(secondary_config_entry, 20u, 0u);
-            store_u32(secondary_config_entry, 24u, 0u);
+            store_u32(secondary_config_entry, 20u, config->margin_width);
+            store_u32(secondary_config_entry, 24u, config->margin_height);
             found_video_config = 1;
             gal_hook_logf("event=secondary.video_config result=success primary_index=%u resolution_enum=%u fps=%u dpi=%u margins=%ux%u",
                           index, load_u32(entry, 0u), load_u32(entry, 4u),
-                          config->dpi, 0u, 0u);
+                          config->dpi, config->margin_width, config->margin_height);
             break;
         }
     }
@@ -811,12 +811,13 @@ static int build_secondary_sink(void *primary, void *controller)
 
     /*
      * 800x480 (the only resolution the cluster takes), configured fps,
-     * zero outer margins, configured DPI, decoder depth 3 and square pixels.
+     * the configured margins, configured DPI, decoder depth 3 and square
+     * pixels.
      */
     /* Pass decoder_depth=3 for phone MediaCodec 3-frame pipelining */
     g_add_configuration(g_secondary_sink,
         VIDEO_CODEC_RESOLUTION_800_480, (int)config->fps,
-        0, 0,
+        (int)config->margin_width, (int)config->margin_height,
         (int)config->dpi, 3, (int)config->pixel_aspect_ratio_e4);
     set_video_config_ui_insets(g_secondary_sink, config);
 
@@ -855,7 +856,7 @@ static int build_secondary_sink(void *primary, void *controller)
         g_secondary_sink != g_primary_sink ? "yes" : "no",
         g_secondary_impl != g_primary_impl ? "yes" : "no",
         config->width, config->height, config->fps, config->dpi,
-        0, 0,
+        config->margin_width, config->margin_height,
         config->viewing_distance);
     if (g_secondary_registered) {
         (void)resolve_symbol("_ZN9VideoSink13setVideoFocusEib",

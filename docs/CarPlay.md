@@ -40,10 +40,8 @@ iPhone video → hook in the CarPlay program (dio_manager) → stream-player →
   source is published.
 - **Rendering:** `stream-player` reads that socket instead of Android Auto's
   and uses the same decoder and cluster switching. CarPlay, unlike Android
-  Auto, can be asked for any size: the installer reads the stock cluster map
-  window's size from the display manager (`dmdt gd`, displayable 33) and
-  asks for that, with the player's window the same size. 800×480 if it
-  cannot be read.
+  Auto, can be asked for any size, so it is asked for the cluster map
+  window's size (see [Install](Install.md#cluster-map-window)).
 - **Reference renderer:** [aberbic's Audi MHI2 project](https://github.com/aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto)
   does both phones this way on an Audi Tegra unit, with a CarPlay core derived
   from harman-f's.

@@ -44,16 +44,14 @@
  * so a perfectly decoded stream would land on a displayable nothing is
  * showing.
  *
- * Outer margins are fixed to 0x0 -- no margin.
- *
- * Margins tell the phone how much of the coded 800x480 frame the head
- * unit will crop, so it keeps its interface inside the rest. The stock VW
- * cluster reserves 400x80, leaving a 400x400 visible area at offset
- * (200, 40), and a real head unit's discovery response declares exactly
- * that. But in own mode we decode and present the frame ourselves and are
- * not cropping anything, so reserving margins would only shrink the
- * phone's usable canvas for nothing. UI placement is controlled separately
- * through UiConfig field 2/contentInsets.
+ * Margins (GAL_SECONDARY_MARGINS, default 0x0) tell the phone how much of
+ * the coded 800x480 frame the head unit will crop, so it draws only in the
+ * rest. Where the cluster map window is 800x480 (the Golf) none are needed.
+ * Where it has another shape (1010x376 on some SEAT and Skoda clusters) the
+ * installer sets margins that leave a band of that shape, and the player
+ * crops them off and scales the band to fill the window. UI placement
+ * inside the band is controlled separately through UiConfig
+ * field 2/contentInsets.
  *
  * The compiled fallback is dpi 140 and viewing_distance 700. The active
  * package config deliberately overrides DPI to the car-tested value 125.
@@ -75,7 +73,8 @@ static gal_secondary_config g_config = {
     800u, 480u, 30u, 1u, 3u, 4u, 70u, 33u, 0u, 1u,
     140u, 700u, 10000u,
     40u, 40u, 127u, 127u,
-    2u, 0u, { 0 }
+    2u, 0u, { 0 },
+    0u, 0u
 };
 static volatile int g_initialized;
 static int g_enabled;
@@ -284,6 +283,15 @@ static void load_environment(void)
     value = getenv("GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4");
     if (value != NULL)
         g_config.pixel_aspect_ratio_e4 = (unsigned)strtoul(value, NULL, 0);
+    value = getenv("GAL_SECONDARY_MARGINS");
+    if (value != NULL && value[0] != 0) {
+        unsigned w, h;
+        /* Even, and leaving at least half the frame. */
+        if (sscanf(value, "%ux%u", &w, &h) == 2 && w <= 400u && h <= 240u) {
+            g_config.margin_width = w & ~1u;
+            g_config.margin_height = h & ~1u;
+        }
+    }
     value = getenv("GAL_SECONDARY_INSETS");
     if (value != NULL && value[0] != 0) {
         unsigned t, b, l, r;

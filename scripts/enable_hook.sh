@@ -86,7 +86,7 @@ usage()
 {
     echo "Usage: $0 [--dpi NUMBER] [--debug|--no-debug]   (debug logging is off unless --debug)"
     echo "          [--no-second-sink] [--no-inject-meta] [--aap-minor N]"
-    echo "          [--cluster-input] [--margins WxH]"
+    echo "          [--cluster-input]"
     echo "          [--output MODE] [--displayable N] [--log PATH]"
     echo
     echo "  Most settings come from a config FILE, which has no entry limit:"
@@ -147,15 +147,9 @@ usage()
     echo "                    forwarding it blanks the main screen; withholding"
     echo "                    keeps the main screen and still counts frames."
     echo
-    echo "  --margins WxH     cluster margins; default 0x0, i.e. none."
-    echo "                    Margins tell the phone how much of the coded"
-    echo "                    800x480 frame the head unit will crop, so it"
-    echo "                    keeps its interface inside the rest. The stock"
-    echo "                    VW cluster reserves 400x80, leaving a 400x400"
-    echo "                    visible area at offset (200,40). own mode"
-    echo "                    presents the whole frame itself and crops"
-    echo "                    nothing, so reserving margins would only shrink"
-    echo "                    the phone's canvas for no reason."
+    echo "  The cluster map window's size is read from the display manager at"
+    echo "  install time. Where it is not 800x480, the phone is asked to leave"
+    echo "  margins so its map has that shape, and the player fills the window."
 }
 
 while [ $# -gt 0 ]; do
@@ -381,6 +375,47 @@ else
     echo "NOTE: no gal_dualscreen.conf beside this script; the hook will run on built-in defaults."
 fi
 
+# The cluster map window. The cluster's encoder expects the window it shows
+# to be this size; an 800x480 window on a cluster whose map window is, say,
+# 1010x376 arrives as stripes (SEAT P4708, issue #4). So the player opens its
+# window at the stock Kombi map window's size: Android Auto's 800x480 frame
+# is drawn into it at its own shape, and CarPlay is asked for that size
+# outright. dmdt gd prints one line per window: ID, type, "W x H", buffers,
+# name; 33 is the stock Kombi map.
+MAP_SIZE=`( cd /eso && LD_PRELOAD="$PRELOAD_WRITE_DIR/libdmdt_flush.so" \
+    LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production \
+    ./bin/apps/dmdt gd ) 2>/dev/null | awk '
+    $1 == 33 {
+        for (i = 2; i < NF; i++) if ($i == "x") { print $(i - 1) "x" $(i + 1); exit }
+    }'`
+MAP_W=`echo "$MAP_SIZE" | sed -n 's/^\([0-9][0-9]*\)x[0-9][0-9]*$/\1/p'`
+MAP_H=`echo "$MAP_SIZE" | sed -n 's/^[0-9][0-9]*x\([0-9][0-9]*\)$/\1/p'`
+if [ -n "$MAP_W" ] && [ -n "$MAP_H" ] && [ "$MAP_W" -ge 320 ] && [ "$MAP_W" -le 1920 ] && \
+   [ "$MAP_H" -ge 160 ] && [ "$MAP_H" -le 1080 ]; then
+    echo "Cluster map window: ${MAP_W}x${MAP_H}"
+else
+    MAP_W=800; MAP_H=480
+    echo "Cluster map window: not reported by the display manager; using 800x480."
+fi
+# Android Auto's frame is always 800x480: the phone is asked to leave
+# margins so the rest has the window's shape (none for an 800x480 window).
+# "|| :" because expr exits 1 when the answer is 0, and this runs under set -e.
+if [ `expr $MAP_W \* 480` -gt `expr $MAP_H \* 800` ]; then
+    MARGIN_W=0
+    MARGIN_H=`expr 480 - \( 800 \* $MAP_H + $MAP_W \) / \( 2 \* $MAP_W \) \* 2 || :`
+else
+    MARGIN_W=`expr 800 - \( 480 \* $MAP_W + $MAP_H \) / \( 2 \* $MAP_H \) \* 2 || :`
+    MARGIN_H=0
+fi
+if [ "$MARGIN_W" -gt 0 ] || [ "$MARGIN_H" -gt 0 ]; then
+    echo "Android Auto: 800x480 with ${MARGIN_W}x${MARGIN_H} margins, scaled to fill the window."
+fi
+if [ -w "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" ]; then
+    { echo; echo "# Written by the installer from the cluster map window it read."
+      echo "GAL_PLAYER_WINDOW=${MAP_W}x${MAP_H}"
+      echo "GAL_SECONDARY_MARGINS=${MARGIN_W}x${MARGIN_H}"; } >> "$PRELOAD_WRITE_DIR/gal_dualscreen.conf"
+fi
+
 # Install stream-player to /mnt/app/navigation
 # Through a new file and a rename: copying over the old player fails while it
 # runs, and would leave the old one in place.
@@ -414,24 +449,6 @@ else
         mv "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new" "$PRELOAD_WRITE_DIR/libcarplay_cluster.so" && CARPLAY_OK=1
     if [ "$CARPLAY_OK" -eq 1 ]; then
         echo "Installed the CarPlay map files to: $PRELOAD_WRITE_DIR"
-        # CarPlay may be asked for any size: use the stock Kombi map window's,
-        # which this cluster already shows. dmdt gd prints one line per
-        # window: ID, type, "W x H", buffers, name.
-        CP_SIZE=`( cd /eso && LD_PRELOAD="$PRELOAD_WRITE_DIR/libdmdt_flush.so" \
-            LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production \
-            ./bin/apps/dmdt gd ) 2>/dev/null | awk '
-            $1 == 33 {
-                for (i = 2; i < NF; i++) if ($i == "x") { print $(i - 1) "x" $(i + 1); exit }
-            }'`
-        CP_W=`echo "$CP_SIZE" | sed -n 's/^\([0-9][0-9]*\)x[0-9][0-9]*$/\1/p'`
-        CP_H=`echo "$CP_SIZE" | sed -n 's/^[0-9][0-9]*x\([0-9][0-9]*\)$/\1/p'`
-        if [ -n "$CP_W" ] && [ -n "$CP_H" ] && [ "$CP_W" -ge 320 ] && [ "$CP_W" -le 1920 ] && \
-           [ "$CP_H" -ge 160 ] && [ "$CP_H" -le 1080 ]; then
-            echo "CarPlay map size: ${CP_W}x${CP_H}, the stock cluster map window's."
-        else
-            CP_W=800; CP_H=480
-            echo "CarPlay map size: 800x480 (the display manager did not report the cluster map window)."
-        fi
     else
         rm -f "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new"
         CARPLAY_WHY="copying its files failed"
@@ -598,10 +615,10 @@ grep -q "LD_PRELOAD=$PRELOAD_SO_ALIAS" "$TEMP" || {
 # CarPlay: the same edit, on the "carplay" child (dio_manager). Built into the
 # same file because a repeated install starts again from the untouched
 # original, and the uninstall puts that original back: both phones' entries
-# always come and go together. The size is the stock cluster map window's,
-# read above; the supervisor opens the player's window at the same size.
+# always come and go together. CarPlay is asked for the cluster map
+# window's size, read above, so its stream fills the player's window.
 if [ "$CARPLAY_OK" -eq 1 ]; then
-    CP_INJECTION="\"LD_PRELOAD=$CARPLAY_PRELOAD\", \"ALTSCREEN111_WIDTH=$CP_W\", \"ALTSCREEN111_HEIGHT=$CP_H\", "
+    CP_INJECTION="\"LD_PRELOAD=$CARPLAY_PRELOAD\", \"ALTSCREEN111_WIDTH=$MAP_W\", \"ALTSCREEN111_HEIGHT=$MAP_H\", "
     CP_EXISTING=`awk '
     BEGIN { in_children=0; in_cp=0 }
     {
@@ -725,8 +742,8 @@ echo "  preload target: $PRELOAD_SO_ALIAS"
 echo "    on the internal /mnt/app partition, not the SD card -- avoids the"
 echo "    SD-card mount-timing race at GAL's boot-time launch."
 echo "  output mode: $OUTPUT (video forwarded to stream-player)"
-echo "  cluster: 800x480 @ 30 fps, DPI $DPI"
-if [ "$CARPLAY_OK" -eq 1 ]; then echo "  CarPlay map: installed, ${CP_W}x${CP_H}"; else echo "  CarPlay map: no ($CARPLAY_WHY)"; fi
+echo "  cluster: Android Auto 800x480 @ 30 fps (margins ${MARGIN_W}x${MARGIN_H}), DPI $DPI, ${MAP_W}x${MAP_H} window"
+if [ "$CARPLAY_OK" -eq 1 ]; then echo "  CarPlay map: installed, ${MAP_W}x${MAP_H}"; else echo "  CarPlay map: no ($CARPLAY_WHY)"; fi
 echo "  debug logs: $DEBUG"
 echo "  second sink: $SECOND_SINK   inject metadata: $INJECT_META"
 echo "  AAP minor version: ${AAP_MINOR:-2 (stock)}"

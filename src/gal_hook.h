@@ -30,6 +30,11 @@ typedef struct gal_secondary_config {
     unsigned ui_theme;
     unsigned ui_config_payload_len;
     unsigned char ui_config_payload[16];
+    /* Margins inside the coded 800x480 frame that the phone leaves empty,
+     * so the rest has the cluster map window's shape; the player crops
+     * them off. 0x0 where that window is 800x480. */
+    unsigned margin_width;
+    unsigned margin_height;
 } gal_secondary_config;
 
 int gal_hook_init(const gal_secondary_config *config);

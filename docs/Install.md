@@ -129,6 +129,19 @@ Uninstall puts all of it back, except that the engineering menu stays
 switched on, which is harmless. Run the status check afterwards: it should say
 the hook is not installed.
 
+## Cluster map window
+
+The cluster only shows the head unit's map window at that window's own size:
+800×480 on the Golf, 1010×376 on some SEAT and Skoda clusters. A window of
+another size arrives as coloured stripes. The installer reads the size from
+the display manager (`dmdt gd`, window 33) and opens the player's window at
+it. Android Auto's cluster video is always 800×480, so where the window has
+another shape the phone is asked to leave margins (0×182 for 1010×376) and
+the player scales the rest to fill the window. CarPlay is asked for the
+window's size. If the size cannot be read, 800×480 is used. The install
+output and the unit's copy of the settings (`GAL_PLAYER_WINDOW`,
+`GAL_SECONDARY_MARGINS`) show what was chosen.
+
 ## Settings
 
 Edit `ClusterMap/gal_dualscreen.conf` on the card, run the install again so

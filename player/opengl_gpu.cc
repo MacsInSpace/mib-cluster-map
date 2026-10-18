@@ -211,20 +211,41 @@ int windowHeight = 480;
 
 static GLfloat backgroundColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
-// Full-screen Quad Geometry (Screen dimensions: 800x480)
-static const GLfloat landscapeVertices[] = {
-    -1.0f,  1.0f, 0.0f,
-     1.0f,  1.0f, 0.0f,
-     1.0f, -1.0f, 0.0f,
-    -1.0f, -1.0f, 0.0f
-};
-
-static const GLfloat landscapeTexCoords[] = {
-    0.0f, 0.0f,
-    1.0f, 0.0f,
-    1.0f, 1.0f,
-    0.0f, 1.0f
-};
+/*
+ * The window is the cluster map window's size (GAL_PLAYER_WINDOW), which on
+ * some clusters is not 800x480 while Android Auto's frame always is. There
+ * the hook asks the phone to leave margins (GAL_SECONDARY_MARGINS) so that
+ * the rest of the frame has the window's shape; they are cropped off here
+ * and the rest fills the window. A CarPlay stream is asked for at the
+ * window's size and fills it as it is. Anything else that still differs in
+ * shape is drawn centred at its own shape, with black bars.
+ */
+static int g_marginW = 0, g_marginH = 0;
+static GLfloat fittedVertices[12];
+static GLfloat croppedTexCoords[8];
+static void fit_frame(int frameW, int frameH) {
+    float sx = 1.0f, sy = 1.0f, cu = 0.0f, cv = 0.0f;
+    int contentW = frameW, contentH = frameH;
+    if (frameW == 800 && frameH == 480 && (g_marginW > 0 || g_marginH > 0)) {
+        contentW = frameW - g_marginW;
+        contentH = frameH - g_marginH;
+        cu = (float)g_marginW / 2.0f / (float)frameW;
+        cv = (float)g_marginH / 2.0f / (float)frameH;
+    }
+    if (contentW > 0 && contentH > 0) {
+        float contentAspect = (float)contentW / (float)contentH;
+        float windowAspect = (float)windowWidth / (float)windowHeight;
+        if (contentAspect > windowAspect * 1.01f) sy = windowAspect / contentAspect;
+        else if (contentAspect < windowAspect * 0.99f) sx = contentAspect / windowAspect;
+    }
+    const GLfloat v[12] = { -sx, sy, 0.0f,  sx, sy, 0.0f,  sx, -sy, 0.0f,  -sx, -sy, 0.0f };
+    const GLfloat t[8] = { cu, cv,  1.0f - cu, cv,  1.0f - cu, 1.0f - cv,  cu, 1.0f - cv };
+    memcpy(fittedVertices, v, sizeof v);
+    memcpy(croppedTexCoords, t, sizeof t);
+    LOG("render: %dx%d frame, %dx%d after margins, in a %dx%d window, drawn %dx%d",
+        frameW, frameH, contentW, contentH, windowWidth, windowHeight,
+        (int)(sx * windowWidth + 0.5f), (int)(sy * windowHeight + 0.5f));
+}
 
 #ifdef __QNX__
 static void* g_displayInitHandle = NULL;
@@ -1122,6 +1143,19 @@ static void load_player_config() {
                 g_idleHeartbeatHz = atoi(val);
             } else if (strcmp(key, "GAL_PLAYER_DECODER") == 0) {
                 g_hwDecoder = strcmp(val, "hw") == 0;
+            } else if (strcmp(key, "GAL_PLAYER_WINDOW") == 0) {
+                int w = 0, h = 0;
+                if (sscanf(val, "%dx%d", &w, &h) == 2 &&
+                    w >= 320 && w <= 1920 && h >= 160 && h <= 1080) {
+                    windowWidth = w;
+                    windowHeight = h;
+                }
+            } else if (strcmp(key, "GAL_SECONDARY_MARGINS") == 0) {
+                int w = 0, h = 0;
+                if (sscanf(val, "%dx%d", &w, &h) == 2 && w >= 0 && w <= 400 && h >= 0 && h <= 240) {
+                    g_marginW = w & ~1;
+                    g_marginH = h & ~1;
+                }
             } else if (strcmp(key, "GAL_PLAYER_NVSS_OUTPUT") == 0) {
                 int o = atoi(val);
                 if (o == 0 || o == 1) g_nvssOutput = (unsigned)o;
@@ -1215,9 +1249,7 @@ int main(int argc, char* argv[]) {
             g_noAck = true;
 #endif
         } else if (strncmp(argv[i], "--size=", 7) == 0) {
-            /* Window size, for the CarPlay stream: the stock Kombi map
-             * window's size as the installer read it. Android Auto keeps
-             * 800x480, the only cluster size its protocol offers. */
+            /* Window size; overrides GAL_PLAYER_WINDOW. For testing. */
             int w = 0, h = 0;
             if (sscanf(argv[i] + 7, "%dx%d", &w, &h) == 2 &&
                 w >= 320 && w <= 1920 && h >= 160 && h <= 1080) {
@@ -1278,6 +1310,13 @@ int main(int argc, char* argv[]) {
      * This thread only reports statistics and waits for the end of the
      * stream; the decoder thread decodes, switches the cluster and ACKs.
      */
+    /* The hardware decoder fills the window with the frame, so it is used
+     * only when the two are the same size. */
+    if (g_hwDecoder && (windowWidth != 800 || windowHeight != 480)) {
+        LOG("hwdecode: the window is %dx%d, not Android Auto's 800x480; using software decode",
+            windowWidth, windowHeight);
+        g_hwDecoder = false;
+    }
     if (g_hwDecoder && nvss_open(windowWidth, windowHeight)) {
         ack_connect();
         pthread_t hwThread;
@@ -1501,6 +1540,7 @@ int main(int argc, char* argv[]) {
 
             int w = dispBuf->width;
             int h = dispBuf->height;
+            if (firstFrame || w != prevFbW || h != prevFbH) fit_frame(w, h);
 
             uint8_t* pY = dispBuf->pixels;
             uint8_t* pU = pY + (w * h);
@@ -1550,8 +1590,8 @@ int main(int argc, char* argv[]) {
                 glUniform1i(g_texLocU, 1);
                 glUniform1i(g_texLocV, 2);
 
-                glVertexAttribPointer(g_posAttr, 3, GL_FLOAT, GL_FALSE, 0, landscapeVertices);
-                glVertexAttribPointer(g_texAttr, 2, GL_FLOAT, GL_FALSE, 0, landscapeTexCoords);
+                glVertexAttribPointer(g_posAttr, 3, GL_FLOAT, GL_FALSE, 0, fittedVertices);
+                glVertexAttribPointer(g_texAttr, 2, GL_FLOAT, GL_FALSE, 0, croppedTexCoords);
                 glEnableVertexAttribArray(g_posAttr);
                 glEnableVertexAttribArray(g_texAttr);
 
