@@ -22,8 +22,11 @@ sh $HERE/scripts/hook_status.sh > $OUT/status.txt 2>&1
 grep -n 'Xbootclasspath' /mnt/app/eso/hmi/lsd/lsd.sh > $OUT/java_patches.txt 2>&1
 # dmdt buffers its output when it is not a terminal; the flush shim makes it
 # write before it exits (as in GEM/collect_for_porting.sh).
-( cd /eso && LD_PRELOAD="$HERE/lib/libdmdt_flush.so" LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib \
-  IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt gs ) > $OUT/dmdt_gs.txt 2>&1
+# gd lists every window with its size; 33 is the stock cluster map.
+for c in gs gd; do
+    ( cd /eso && LD_PRELOAD="$HERE/lib/libdmdt_flush.so" LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib \
+      IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt $c ) > $OUT/dmdt_$c.txt 2>&1
+done
 # CarPlay map: the supervisor, its player, and harman-f's hook state.
 mkdir -p $OUT/carplay
 cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log \

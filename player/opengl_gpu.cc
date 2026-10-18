@@ -1214,6 +1214,16 @@ int main(int argc, char* argv[]) {
 #if defined(__QNX__) || defined(__linux__)
             g_noAck = true;
 #endif
+        } else if (strncmp(argv[i], "--size=", 7) == 0) {
+            /* Window size, for the CarPlay stream: the stock Kombi map
+             * window's size as the installer read it. Android Auto keeps
+             * 800x480, the only cluster size its protocol offers. */
+            int w = 0, h = 0;
+            if (sscanf(argv[i] + 7, "%dx%d", &w, &h) == 2 &&
+                w >= 320 && w <= 1920 && h >= 160 && h <= 1080) {
+                windowWidth = w;
+                windowHeight = h;
+            }
         } else if (strcmp(argv[i], "--loop") == 0) {
             g_loopFile = true;
         } else if (strcmp(argv[i], "--overlay") == 0 || strcmp(argv[i], "--no-overlay") == 0) {

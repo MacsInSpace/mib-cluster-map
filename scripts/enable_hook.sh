@@ -382,10 +382,18 @@ else
 fi
 
 # Install stream-player to /mnt/app/navigation
+# Through a new file and a rename: copying over the old player fails while it
+# runs, and would leave the old one in place.
 if [ -x "$CARD_ROOT/stream-player" ]; then
-    cp "$CARD_ROOT/stream-player" "$APP_MOUNT/navigation/stream-player" 2>/dev/null || true
-    chmod 755 "$APP_MOUNT/navigation/stream-player" 2>/dev/null || true
-    echo "Installed stream-player to: $APP_MOUNT/navigation/stream-player"
+    PLAYER_DST="$APP_MOUNT/navigation/stream-player"
+    if cp "$CARD_ROOT/stream-player" "$PLAYER_DST.new" 2>/dev/null && \
+       [ "`wc -c < $CARD_ROOT/stream-player`" = "`wc -c < $PLAYER_DST.new`" ] && \
+       chmod 755 "$PLAYER_DST.new" && mv "$PLAYER_DST.new" "$PLAYER_DST"; then
+        echo "Installed stream-player to: $PLAYER_DST"
+    else
+        rm -f "$PLAYER_DST.new"
+        echo "WARNING: could not install stream-player to $PLAYER_DST; the previous player, if any, stays." >&2
+    fi
 fi
 
 # The CarPlay map, when this unit's CarPlay library is the one the hook knows.
@@ -406,6 +414,24 @@ else
         mv "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new" "$PRELOAD_WRITE_DIR/libcarplay_cluster.so" && CARPLAY_OK=1
     if [ "$CARPLAY_OK" -eq 1 ]; then
         echo "Installed the CarPlay map files to: $PRELOAD_WRITE_DIR"
+        # CarPlay may be asked for any size: use the stock Kombi map window's,
+        # which this cluster already shows. dmdt gd prints one line per
+        # window: ID, type, "W x H", buffers, name.
+        CP_SIZE=`( cd /eso && LD_PRELOAD="$PRELOAD_WRITE_DIR/libdmdt_flush.so" \
+            LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production \
+            ./bin/apps/dmdt gd ) 2>/dev/null | awk '
+            $1 == 33 {
+                for (i = 2; i < NF; i++) if ($i == "x") { print $(i - 1) "x" $(i + 1); exit }
+            }'`
+        CP_W=`echo "$CP_SIZE" | sed -n 's/^\([0-9][0-9]*\)x[0-9][0-9]*$/\1/p'`
+        CP_H=`echo "$CP_SIZE" | sed -n 's/^[0-9][0-9]*x\([0-9][0-9]*\)$/\1/p'`
+        if [ -n "$CP_W" ] && [ -n "$CP_H" ] && [ "$CP_W" -ge 320 ] && [ "$CP_W" -le 1920 ] && \
+           [ "$CP_H" -ge 160 ] && [ "$CP_H" -le 1080 ]; then
+            echo "CarPlay map size: ${CP_W}x${CP_H}, the stock cluster map window's."
+        else
+            CP_W=800; CP_H=480
+            echo "CarPlay map size: 800x480 (the display manager did not report the cluster map window)."
+        fi
     else
         rm -f "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new"
         CARPLAY_WHY="copying its files failed"
@@ -572,10 +598,10 @@ grep -q "LD_PRELOAD=$PRELOAD_SO_ALIAS" "$TEMP" || {
 # CarPlay: the same edit, on the "carplay" child (dio_manager). Built into the
 # same file because a repeated install starts again from the untouched
 # original, and the uninstall puts that original back: both phones' entries
-# always come and go together. 800x480 is the window the player draws, the
-# same as for Android Auto.
+# always come and go together. The size is the stock cluster map window's,
+# read above; the supervisor opens the player's window at the same size.
 if [ "$CARPLAY_OK" -eq 1 ]; then
-    CP_INJECTION="\"LD_PRELOAD=$CARPLAY_PRELOAD\", \"ALTSCREEN111_WIDTH=800\", \"ALTSCREEN111_HEIGHT=480\", "
+    CP_INJECTION="\"LD_PRELOAD=$CARPLAY_PRELOAD\", \"ALTSCREEN111_WIDTH=$CP_W\", \"ALTSCREEN111_HEIGHT=$CP_H\", "
     CP_EXISTING=`awk '
     BEGIN { in_children=0; in_cp=0 }
     {
@@ -700,7 +726,7 @@ echo "    on the internal /mnt/app partition, not the SD card -- avoids the"
 echo "    SD-card mount-timing race at GAL's boot-time launch."
 echo "  output mode: $OUTPUT (video forwarded to stream-player)"
 echo "  cluster: 800x480 @ 30 fps, DPI $DPI"
-if [ "$CARPLAY_OK" -eq 1 ]; then echo "  CarPlay map: installed"; else echo "  CarPlay map: no ($CARPLAY_WHY)"; fi
+if [ "$CARPLAY_OK" -eq 1 ]; then echo "  CarPlay map: installed, ${CP_W}x${CP_H}"; else echo "  CarPlay map: no ($CARPLAY_WHY)"; fi
 echo "  debug logs: $DEBUG"
 echo "  second sink: $SECOND_SINK   inject metadata: $INJECT_META"
 echo "  AAP minor version: ${AAP_MINOR:-2 (stock)}"

@@ -2,18 +2,21 @@
 # CarPlay map on the cluster: runs stream-player while CarPlay sends its
 # cluster video, and stops it when CarPlay stops.
 #
-#   carplay_cluster.sh <dio_manager pid>
+#   carplay_cluster.sh <dio_manager pid> [WxH]
 #
-# Started by libcarplay_launcher.so when dio_manager (CarPlay) starts; ends
+# Started by libcarplay_cluster.so when dio_manager (CarPlay) starts; ends
 # when that dio_manager does. harman-f's libaltscreen111.so, in the same
 # process, receives CarPlay's cluster stream and serves it as H.264 on
-# 127.0.0.1:19820. While it does, it writes "streaming" to its state file.
+# 127.0.0.1:19820, at the size given here. While it does, it writes
+# "streaming" to its state file.
 # The player draws that stream on the cluster exactly as it draws Android
 # Auto's, and on SIGTERM gives the cluster back to the stock map.
 PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/eso/bin:/mnt/app/eso/bin:/mnt/app/navigation
 export PATH
 
 OWNER=${1:-}
+# The size the installer asked CarPlay for: the stock cluster map window's.
+SIZE=${2:-800x480}
 PLAYER=/mnt/app/navigation/stream-player
 SOURCE=tcp://127.0.0.1:19820
 STATE=/tmp/mibr-carplay111.state
@@ -57,7 +60,7 @@ cleanup() {
 trap cleanup 0
 trap 'exit 0' 1 2 15
 
-log "started for dio_manager $OWNER"
+log "started for dio_manager $OWNER, cluster map $SIZE"
 FAILS=0
 while kill -0 "$OWNER" 2>/dev/null; do
     CUR=`cat "$STATE" 2>/dev/null`
@@ -73,7 +76,7 @@ while kill -0 "$OWNER" 2>/dev/null; do
             fi
             log "CarPlay cluster stream is up; starting player"
             echo "==== stream-player for CarPlay, `date` ====" >> "$PLAYER_LOG"
-            "$PLAYER" --no-ack "$SOURCE" >> "$PLAYER_LOG" 2>&1 &
+            "$PLAYER" --no-ack --size=$SIZE "$SOURCE" >> "$PLAYER_LOG" 2>&1 &
             PLAYER_PID=$!
         fi
     else

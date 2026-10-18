@@ -43,7 +43,10 @@ __attribute__((constructor))
 static void carplay_launcher_start(void)
 {
     char owner[24];
-    char *argv[4];
+    char size[24];
+    const char *w = getenv("ALTSCREEN111_WIDTH");
+    const char *h = getenv("ALTSCREEN111_HEIGHT");
+    char *argv[5];
     char *envp[] = {
         (char *)"PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/eso/bin:/mnt/app/eso/bin:/mnt/app/navigation",
         (char *)"LD_LIBRARY_PATH=/proc/boot:/lib:/lib/dll:/usr/lib:/mnt/app/root/lib-target:/mnt/app/usr/lib:/mnt/app/armle/lib:/mnt/app/armle/lib/dll:/mnt/app/armle/usr/lib:/eso/lib:/mnt/app/eso/lib",
@@ -62,7 +65,11 @@ static void carplay_launcher_start(void)
     argv[0] = (char *)"ksh";
     argv[1] = (char *)SUPERVISOR;
     argv[2] = owner;
-    argv[3] = NULL;
+    /* The size the installer asked CarPlay for, so the player's window
+     * matches the stream. */
+    (void)snprintf(size, sizeof size, "%sx%s", w ? w : "800", h ? h : "480");
+    argv[3] = size;
+    argv[4] = NULL;
 
     null_fd = open("/dev/null", O_RDWR);
     log_fd = open(LAUNCH_LOG, O_WRONLY | O_CREAT | O_APPEND, 0644);

@@ -10,7 +10,7 @@ if grep -q 'libgal_hook.so' "$CONFIG" 2>/dev/null; then echo "Hook: installed"; 
 if [ -f /mnt/app/eso/lib/gal_dualscreen/libgal_hook.so ]; then echo "  library: present"; else echo "  library: missing"; fi
 if [ -f /mnt/app/navigation/stream-player ]; then echo "  player: present"; else echo "  player: missing"; fi
 if grep -q 'libcarplay_cluster.so' "$CONFIG" 2>/dev/null; then
-    echo "CarPlay map: installed"
+    echo "CarPlay map: installed, `sed -n 's/.*"ALTSCREEN111_WIDTH=\([0-9]*\)", "ALTSCREEN111_HEIGHT=\([0-9]*\)".*/\1x\2/p' "$CONFIG"`"
     if [ -r /tmp/mibr-carplay111.state ]; then echo "  CarPlay cluster stream: `cat /tmp/mibr-carplay111.state`"; else echo "  CarPlay cluster stream: none yet (connect an iPhone)"; fi
 else
     a=`wc -c < /mnt/app/eso/lib/libairplay.so 2>/dev/null | sed 's/ //g'`
