@@ -1,6 +1,7 @@
 #!/bin/sh
 # Run on the head unit after a test (green menu "Save logs to SD", or over SSH).
-# Copies the hook and player logs plus system state to the SD card (run_logs/).
+# Copies the hook and player logs plus system state to the SD card, into a
+# new numbered folder each time (run_logs/1, run_logs/2, ...).
 PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/sbin:/mnt/app/armle/usr/bin:/mnt/app/armle/usr/sbin:$PATH
 export PATH
 # The folder this script sits in is the package folder; logs go beside it.
@@ -10,7 +11,9 @@ case "$HERE" in
     *) SD=/fs/sda0 ;;
 esac
 mount -uw $SD 2>/dev/null
-OUT=$HERE/run_logs
+N=1
+while [ -e "$HERE/run_logs/$N" ]; do N=`expr $N + 1`; done
+OUT=$HERE/run_logs/$N
 mkdir -p $OUT
 cp /tmp/gal_dualscreen.log /tmp/stream-player.log /tmp/gal_kombi_ready /tmp/clustermap_final.txt $OUT/ 2>/dev/null
 sloginfo > $OUT/sloginfo.txt 2>&1
@@ -34,4 +37,4 @@ cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log
 grep -n -e dio_manager -e libcarplay -e ALTSCREEN111 /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/carplay/config_lines.txt 2>&1
 sync 2>/dev/null
 ls -l $OUT
-echo "Done. Wait a few seconds, then take the SD card to the laptop."
+echo "Done: ClusterMap/run_logs/$N. Wait a few seconds, then take the SD card to the laptop."

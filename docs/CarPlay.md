@@ -85,7 +85,7 @@ ends, it stops the player, which hands the cluster back to the stock map.
 Install over SSH with `enable_hook.sh --no-carplay` to leave CarPlay alone.
 The status check says whether the CarPlay map is installed and what the
 stream is doing. **Save logs to SD** copies its logs to
-`ClusterMap/run_logs/carplay/`.
+the `carplay/` folder of each `ClusterMap/run_logs/` save.
 
 The installer skips CarPlay, and still installs the Android Auto map, when:
 

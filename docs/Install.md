@@ -158,7 +158,7 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 
 Logs are kept in RAM only (`/tmp/gal_dualscreen.log`, `/tmp/stream-player.log`)
 and lost at reboot. **Save logs to SD** copies them, with the system log, to
-`ClusterMap/run_logs/`. Read them before posting: the system log can contain
+a new numbered folder in `ClusterMap/run_logs/` each time. Read them before posting: the system log can contain
 phone names and Bluetooth addresses.
 
 ## If it does not work
