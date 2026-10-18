@@ -3,7 +3,7 @@
 
     python3 tools/make_metainfo.py <sdcard dir> <version label>
 
-Produces <sdcard>/metainfo2.txt and <sdcard>/AAClusterMap/final/hashes.txt.
+Produces <sdcard>/metainfo2.txt and <sdcard>/ClusterMap/final/hashes.txt.
 
 The format follows the MQB Coding MIB2 Toolbox, which installs itself on a
 stock unit the same way: a signed header taken unchanged from the toolbox
@@ -20,9 +20,9 @@ def main():
     card, version = sys.argv[1], sys.argv[2]
     here = os.path.dirname(os.path.abspath(__file__))
     header = open(os.path.join(here, "..", "thirdparty", "mib2-toolbox", "metainfo2_signed_header.bin"), "rb").read()
-    final_dir = os.path.join(card, "AAClusterMap", "final")
+    final_dir = os.path.join(card, "ClusterMap", "final")
     script = os.path.join(final_dir, "finalScript.sh")
-    esd = os.path.join(card, "AAClusterMap", "GEM", "aa-cluster-map.esd")
+    esd = os.path.join(card, "ClusterMap", "GEM", "cluster-map.esd")
     for p in (script, esd):
         data = open(p, "rb").read()
         if b"\r" in data or any(c > 127 for c in data):
@@ -45,34 +45,34 @@ region4 = "Japan"
 region5 = "China"
 region6 = "Taiwan"
 variant = "FM?-*-*-*-*"
-release = "Android Auto Cluster Map {version}"
+release = "MIB Cluster Map {version}"
 skipMetaCRC = "true"
 skipFileCopyCrc = "true"
 skipCheckVariant = "true"
 skipCheckRegion = "true"
-FinalScript = "./AAClusterMap/final/finalScript.sh"
+FinalScript = "./ClusterMap/final/finalScript.sh"
 FinalScriptChecksum = "{sha1(script)}"
 FinalScriptMaxTime = "30"
 FinalScriptName = "Final Script"
 
-[AAClusterMap\\final\\Dir]
+[ClusterMap\\final\\Dir]
 FileSize = "{dir_size}"
 CheckSum = "{sha1(hpath).upper()}"
 
-[AAClusterMap]
+[ClusterMap]
 VendorInfo = "MQB.Coding"
-DeviceDescription = "Android Auto Cluster Map"
-DownloadGroup = "AAClusterMap"
+DeviceDescription = "MIB Cluster Map"
+DownloadGroup = "ClusterMap"
 
-[AAClusterMap\\GEM\\0\\default\\File]
+[ClusterMap\\GEM\\0\\default\\File]
 checkUpdate = "true"
 CheckSumSize = "524288"
 CheckSum = "{sha1(esd)}"
 FileSize = "{os.path.getsize(esd)}"
 Version = "{numeric}"
-Source = "../../aa-cluster-map.esd"
-Destination = "/net/mmx/mnt/app/eso/hmi/engdefs/aa-cluster-map.esd"
-DisplayName = "Android Auto Cluster Map"
+Source = "../../cluster-map.esd"
+Destination = "/net/mmx/mnt/app/eso/hmi/engdefs/cluster-map.esd"
+DisplayName = "MIB Cluster Map"
 DeleteDestinationDirBeforeCopy = "false"
 UpdateOnlyExisting = "false"
 '''

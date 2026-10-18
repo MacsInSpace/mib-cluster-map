@@ -1,0 +1,50 @@
+###########################################################################################
+#
+# Custom Green Engineering Menu screen: phone map on the digital cluster
+# Attached to the top level of the green engineering menu, so it does not
+# depend on any other screen being installed.
+# Main -> ClusterMap
+#
+# The entries run scripts straight from the SD card in slot 1:
+#   /fs/sda0/ClusterMap/GEM/
+#
+###########################################################################################
+screen ClusterMap Main
+
+keyValue
+    value   String sys 0x00000000 0
+    label   "Phone map on the digital cluster"
+    poll    0
+
+keyValue
+    value   String sys 0x00000000 0
+    label   "SD card must be in slot 1. Reboot after install."
+    poll    0
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/status.sh"
+    label   "1. Status and compatibility check"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/install.sh"
+    label   "2. Install cluster map"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/uninstall.sh"
+    label   "Uninstall and restore original state"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/switch_to_turn_by_turn.sh"
+    label   "Switch to turn-by-turn arrows instead (no map)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/savelogs.sh"
+    label   "Save logs to SD"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/collect_for_porting.sh"
+    label   "Collect files for porting (quick)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/collect_for_porting_full.sh"
+    label   "Collect for porting, with Java image (55 MB, slow)"

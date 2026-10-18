@@ -78,41 +78,30 @@ build_player() {
 package() {
   # SD card layout. Everything of ours sits in one folder; the green menu screen
   # goes where the MQB Coding MIB2 Toolbox looks for custom screens.
-  #   AAClusterMap/                 scripts, binaries, settings, docs
+  #   ClusterMap/                 scripts, binaries, settings, docs
   #   Custom/GreenMenu/*.esd        menu screen (copied to the unit by the toolbox)
-  S="$ROOT/dist/sdcard"; D="$S/AAClusterMap"
+  S="$ROOT/dist/sdcard"; D="$S/ClusterMap"
   rm -rf "$S"; mkdir -p "$D/scripts" "$D/lib" "$D/GEM" "$D/docs" "$S/Custom/GreenMenu"
   cp "$ROOT/build/libgal_hook.so" "$ROOT/build/stream-player" "$D/"
   cp "$ROOT/build/libdmdt_flush.so" "$D/lib/"
   # The install scripts treat their own folder as the package root.
   cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh \
-     "$ROOT"/scripts/turn_by_turn.sh "$ROOT"/scripts/lsd_jar.sh "$ROOT"/scripts/carplay.sh "$D/"
-  # Optional, for testing: CarPlay Maps VC's per-firmware folders, from a
-  # checkout of github.com/omonob/MHI2-Carplay-Maps given as CARPLAY_SRC. Not
-  # in the release: its binaries are published without their source code.
-  if [ -n "${CARPLAY_SRC:-}" ]; then
-    for d in "$CARPLAY_SRC"/MU*/79*_*; do
-      [ -f "$d/run-install.sh" ] || continue
-      t="$D/carplay/$(basename "$(dirname "$d")")"; mkdir -p "$t" && cp -R "$d" "$t/"
-    done
-    cp "$CARPLAY_SRC/LICENSE" "$D/carplay/LICENSE"
-    echo "CarPlay Maps VC from $CARPLAY_SRC (`git -C "$CARPLAY_SRC" rev-parse --short HEAD 2>/dev/null`) added under carplay/"
-  fi
+     "$ROOT"/scripts/turn_by_turn.sh "$ROOT"/scripts/lsd_jar.sh "$D/"
   mkdir -p "$D/thirdparty" && cp "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAuto.jar "$D/thirdparty/" && \
      cp "$ROOT"/thirdparty/mib2-android-auto-vc/LICENSE "$D/thirdparty/VCAndroidAuto.LICENSE"
   cp "$ROOT"/thirdparty/mib2-toolbox/NavActiveIgnore.jar "$D/thirdparty/" && cp "$ROOT"/thirdparty/mib2-toolbox/LICENSE "$D/thirdparty/NavActiveIgnore.LICENSE"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" "$D/scripts/"
   cp "$ROOT"/greenmenu/GEM/*.sh "$D/GEM/"
-  cp "$ROOT/greenmenu/aa-cluster-map.esd" "$S/Custom/GreenMenu/"
+  cp "$ROOT/greenmenu/cluster-map.esd" "$S/Custom/GreenMenu/"
   # Software-update route: the same screen, copied to the unit by the update
   # itself, plus the final script that runs the installer.
-  cp "$ROOT/greenmenu/aa-cluster-map.esd" "$D/GEM/"
+  cp "$ROOT/greenmenu/cluster-map.esd" "$D/GEM/"
   mkdir -p "$D/final" && cp "$ROOT/swdl/finalScript.sh" "$D/final/"
   # A ready-made marker, so nobody has to create a file by hand.
   mkdir -p "$D/to uninstall, move this file up one folder"
-  printf 'While a file whose name starts with UNINSTALL is in the AAClusterMap folder,\r\nrunning the update from this card REMOVES the cluster map and restores the\r\noriginal state. Move this file back here (or delete it) to install again.\r\n' > "$D/to uninstall, move this file up one folder/UNINSTALL.txt"
+  printf 'While a file whose name starts with UNINSTALL is in the ClusterMap folder,\r\nrunning the update from this card REMOVES the cluster map and restores the\r\noriginal state. Move this file back here (or delete it) to install again.\r\n' > "$D/to uninstall, move this file up one folder/UNINSTALL.txt"
   mkdir -p "$D/to only check compatibility, move this file up one folder"
-  printf 'While a file whose name starts with COLLECT is in the AAClusterMap folder,\r\nrunning the update from this card INSTALLS NOTHING. It writes a compatibility\r\ncheck to update_result.txt and copies the files a port needs to porting_<train>/.\r\nOnly the menu screen file is copied to the unit. Move this file back here to install.\r\n' > "$D/to only check compatibility, move this file up one folder/COLLECT.txt"
+  printf 'While a file whose name starts with COLLECT is in the ClusterMap folder,\r\nrunning the update from this card INSTALLS NOTHING. It writes a compatibility\r\ncheck to update_result.txt and copies the files a port needs to porting_<train>/.\r\nOnly the menu screen file is copied to the unit. Move this file back here to install.\r\n' > "$D/to only check compatibility, move this file up one folder/COLLECT.txt"
   cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
   cp "$ROOT"/wiki/Quick-Start.md "$ROOT"/wiki/Install-Guide.md "$ROOT"/wiki/Supported-Units.md "$ROOT"/wiki/Firmware-Support-Matrix.md "$ROOT"/wiki/Navigation-Status-Messages.md "$ROOT"/wiki/Cluster-Zoom-Findings.md "$D/docs/"
   cp "$ROOT/LICENSE" "$D/LICENSE"
@@ -122,9 +111,9 @@ package() {
   (cd "$D" && shasum -a 256 libgal_hook.so stream-player lib/libdmdt_flush.so > SHA256SUMS.txt)
   python3 "$ROOT/tools/make_metainfo.py" "$S" "${RELEASE_VERSION:-$BUILD_ID}"
   VER=${RELEASE_VERSION:-$BUILD_ID}
-  Z="$ROOT/dist/AAClusterMap_MHI2_$VER.zip"
+  Z="$ROOT/dist/mib-cluster-map_$VER.zip"
   rm -f "$ROOT"/dist/*.zip "$ROOT"/dist/*.sha256
-  (cd "$S" && zip -qr -X "$Z" AAClusterMap Custom metainfo2.txt -x '*.DS_Store' -x '._*')
+  (cd "$S" && zip -qr -X "$Z" ClusterMap Custom metainfo2.txt -x '*.DS_Store' -x '._*')
   (cd "$ROOT/dist" && shasum -a 256 "$(basename "$Z")" > "$(basename "$Z").sha256")
   echo "Packaged: $S"; echo "Archive:  $Z"
   (cd "$S" && find . -type f | sort)

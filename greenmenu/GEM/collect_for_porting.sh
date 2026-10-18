@@ -1,8 +1,8 @@
 #!/bin/sh
 # Copies the files needed to port this project to another firmware onto the
 # SD card. Read-only on the unit; works on any firmware, installed or not.
-. /fs/sda0/AAClusterMap/GEM/common.sh 2>/dev/null || . `dirname "$0"`/common.sh
-echo "Android Auto cluster map: collect files for porting"
+. /fs/sda0/ClusterMap/GEM/common.sh 2>/dev/null || . `dirname "$0"`/common.sh
+echo "Phone map on the digital cluster: collect files for porting"
 echo "Firmware train: $TRAIN"
 NAME=`echo "$TRAIN" | sed 's/[^A-Za-z0-9_.-]/_/g'`
 [ -n "$NAME" ] || NAME=unknown
@@ -56,7 +56,7 @@ grep -n "bootclasspath/p" /mnt/app/eso/hmi/lsd/lsd.sh >> "$INFO" 2>&1
 sync 2>/dev/null
 
 echo
-echo "AACLUSTER_COLLECT_OK"
+echo "CLUSTERMAP_COLLECT_OK"
 echo "Saved to: $OUT"
 echo "These are Volkswagen/Harman firmware files. Do not post them publicly."
 echo "See docs/Supported-Units.md for what to do with them."

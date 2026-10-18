@@ -11,10 +11,10 @@ SUPPORTED_TRAIN="$SUPPORTED_TRAINS"
 
 PKG=
 for v in /fs/sda0 /fs/sdb0 /net/mmx/fs/sda0 /net/mmx/fs/sdb0; do
-    if [ -f "$v/AAClusterMap/enable_hook.sh" ]; then PKG="$v/AAClusterMap"; VOLUME="$v"; break; fi
+    if [ -f "$v/ClusterMap/enable_hook.sh" ]; then PKG="$v/ClusterMap"; VOLUME="$v"; break; fi
 done
 if [ -z "$PKG" ]; then
-    echo "AAClusterMap folder not found on the SD card."
+    echo "ClusterMap folder not found on the SD card."
     exit 0
 fi
 mount -uw "$VOLUME" 2>/dev/null
