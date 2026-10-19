@@ -22,7 +22,7 @@ PIDFILE=/tmp/carplay_cluster.pid
 PLAYER_LOG=/tmp/stream-player-carplay.log
 PLAYER_PID=
 
-log() { echo "carplay_cluster `date +%H:%M:%S` $*"; }
+log() { echo "carplay_cluster $*"; }
 
 [ -n "$OWNER" ] || { log "no dio_manager pid given"; exit 2; }
 [ -x "$PLAYER" ] || { log "no player at $PLAYER"; exit 3; }
@@ -73,7 +73,7 @@ while kill -0 "$OWNER" 2>/dev/null; do
                 sleep 2
             fi
             log "CarPlay cluster stream is up; starting player"
-            echo "==== stream-player for CarPlay, `date` ====" >> "$PLAYER_LOG"
+            echo "==== stream-player for CarPlay ====" >> "$PLAYER_LOG"
             "$PLAYER" --no-ack "$SOURCE" >> "$PLAYER_LOG" 2>&1 &
             PLAYER_PID=$!
         fi
