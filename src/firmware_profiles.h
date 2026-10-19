@@ -74,6 +74,19 @@ static const gal_profile k_profiles[] = {
         0x80u, 0x84u, 40u,
         0x34u, 0x58u, 59u
     },
+    /*
+     * SEAT MIB2.5 High, MU1447. Car-tested by lito69 with a 1010x376 cluster
+     * window (issue #4): trial selected, secondary sink registered, map drawn.
+     * The handler offsets are P4521's, which worked unchanged.
+     */
+    {
+        "MHI2_ER_SEG11_P4708", 1,
+        0x00237f68u, 0x00231e00u, 0x00231d10u,
+        0x001d9650u, 0xe92d4ff0u, 0xf0u,
+        0x94u, 0xc4u,
+        0x80u, 0x84u, 40u,
+        0x34u, 0x58u, 59u
+    },
 };
 
 #define GAL_PROFILE_COUNT (sizeof(k_profiles) / sizeof(k_profiles[0]))
