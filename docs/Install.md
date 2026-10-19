@@ -152,7 +152,7 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 | Setting | Shipped | Change it when |
 |---|---|---|
 | `GAL_SECONDARY_DPI` | 125 | map text and turn card too big (lower) or too small (higher) |
-| `GAL_SECONDARY_INSETS`, `GAL_SECONDARY_UI_CONFIG_HEX` | 40,40,127,127 | map controls hide behind the dials. The hex value overrides the insets: change both or delete the hex line |
+| `GAL_SECONDARY_INSETS` | 40,40,127,127 | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. One Golf owner prefers 53,47,127,127 |
 | `GAL_SECONDARY_UI_THEME` | 2 (dark) | 0 follows the phone, 1 is light |
 | `GAL_PLAYER_DECODER` | sw | `sw` is the tested software decoder. `hw` uses the unit's own video decoder and frees most of a processor core. If it will not open, the player uses software; if it fails while decoding, it stays off until the next reboot. **Not yet car-tested** |
 | `GAL_PLAYER_NVSS_OUTPUT` | 1 | the cluster stays black with `hw`: try 0 (uncomment the line first) |
