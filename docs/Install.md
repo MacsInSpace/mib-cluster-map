@@ -31,7 +31,8 @@ way back into the unit if the centre screen ever fails to start.
    (SD card)
    ├── ClusterMap/      installer, programs, settings
    ├── Custom/          the menu screen, for route 2 via the toolbox
-   └── metainfo2.txt    makes the card a software update
+   ├── metainfo2.txt    makes the card a software update
+   └── _Swdlautorun.txt off; rename to start the update without the menu (below)
    ```
 3. Put it in **SD slot 1**, with slot 2 empty.
 

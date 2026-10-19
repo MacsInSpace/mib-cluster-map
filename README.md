@@ -36,7 +36,8 @@ VW map.
    (SD card)
    ├── ClusterMap/
    ├── Custom/
-   └── metainfo2.txt
+   ├── metainfo2.txt
+   └── _Swdlautorun.txt
    ```
 
    Put it in **SD slot 1**, with the other slot empty.
