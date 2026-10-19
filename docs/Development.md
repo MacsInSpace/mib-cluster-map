@@ -128,9 +128,9 @@ can read ARM disassembly.
    window 33, context 70, display 4. The player has these fixed today; a unit
    with different values needs them made configurable.
 3. **Trial without a rebuild:** put the `GAL_PROFILE_TRIAL=` line in
-   `ClusterMap/gal_dualscreen.conf` and install over SSH with
-   `enable_hook.sh --debug` (the menu installer refuses unknown firmware on
-   purpose). A trial is used only if its fingerprints match the running `gal`,
+   `ClusterMap/gal_dualscreen.conf` and install from the green menu, the
+   software update or SSH. The installer accepts an untested train only when
+   a trial line names it. A trial is used only if its fingerprints match the running `gal`,
    and the hook checks the constructor's first instruction before each use.
    In the log: `firmware.trial result=selected`, then
    `secondary.video_config result=success`, `secondary.register result=success`
