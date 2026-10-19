@@ -7,7 +7,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 |---|---|---|
 | Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521` and `K4525`, SEAT `MHI2_ER_SEG11_P4708` |
 | Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
-| Apple CarPlay | The Apple Maps or Google Maps map, live | **Built, not yet car-tested**: see [CarPlay](docs/CarPlay.md) |
+| Apple CarPlay | The Apple Maps or Google Maps map, live | **First car run**: on the dash of a Golf R (`P4512`); fitting it between the dials is under test. See [CarPlay](docs/CarPlay.md) |
 
 It installs from an SD card as a software update. No toolbox, laptop or
 command line is needed. The installer checks the unit and installs what fits
@@ -42,10 +42,16 @@ VW map.
    Put it in **SD slot 1**, with the other slot empty.
 2. **Run the update.** Engine running or a charger connected. Hold **MENU**
    until the service screen appears, then `Software updates/versions` >
-   `Update` > the SD card > **`MIB Cluster Map`**. Let it finish, then hold
-   the power button for ten seconds to reboot.
+   `Update` > the SD card > **`MIB Cluster Map`**. Let it finish (a
+   "Version back documentation" screen at the end is normal: press
+   `Cancel`), then hold the power button for ten seconds to reboot. Audi:
+   the update menu is **BACK + upper-left** button and needs developer mode
+   switched on in the head unit (5F); an untested autorun file is on the card
+   for cars where the menu is hard to reach (see the
+   [Install guide](docs/Install.md#route-1-software-update)).
 3. **Use it.** Plug in the phone, start a map, and switch the cluster to its
-   map view with the steering wheel buttons.
+   map view with the steering wheel buttons. iPhone: once after installing,
+   **Forget This Car** in its CarPlay settings and plug it in again.
 
 The update writes what it did to `ClusterMap/update_result.txt` on the card.
 It also adds a **ClusterMap** screen to the green engineering menu (hold MENU >
@@ -64,10 +70,11 @@ up into `ClusterMap`, and run the same update again.
 
 | Head unit | Firmware train starts | Today |
 |---|---|---|
-| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367). `P4512` (Golf R) on trial. Others wanted |
-| SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` (1010×376 cluster window). **Arrows** on `P4708`, `P4709`. P4709 map wanted |
+| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367). `P4512` (Golf R): installs with a trial line, CarPlay map shown, Android Auto map not yet tried. Others wanted |
+| SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` (1010×376 cluster window). **Arrows** on `P4708`, `P4709`. `P4709` map: trial line published, car test wanted |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | Wanted |
 | VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | Wanted |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | Wanted: an RS3 (software 1168) is next. The update needs developer mode (see Install) |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies |
 
@@ -82,17 +89,19 @@ collects what is needed to add your unit. See
 
 ## Status
 
-Experimental. Developed on one VW Golf 7.5. The Android Auto map runs at
-about 30 frames per second, with and without a route, and comes back by
-itself after the phone is unplugged and plugged in again.
+Experimental. Developed on a VW Golf 7.5 (`P4521`) and tested on a SEAT
+(`P4708`) and a Golf R (`P4512`). The Android Auto map runs at about 30 frames
+per second, with and without a route, and comes back by itself after the
+phone is unplugged and plugged in again.
 
 | Part | State |
 |---|---|
-| Android Auto map, installer and uninstaller over SSH | Tested on a car |
-| Software update and green menu routes | Built and simulated; first car runs pending |
-| Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Built; first car test under way |
-| CarPlay map | Built and simulated; first iPhone test pending |
+| Android Auto map, installer and uninstaller over SSH | Tested on cars (Golf `P4521`, SEAT `P4708`) |
+| Software update and green menu routes | Tested on cars (Golf `P4521`, Golf R `P4512`) |
+| Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Fails on the car and falls back to software decoding; under investigation |
+| CarPlay map | Shown on a car (Golf R, iPhone over USB) after a firewall fix; layout between the dials under test |
 | Long drives, reverse camera, waking from sleep | Little testing |
+| Autorun install without the service menu (`Swdlautorun.txt`) | Built, untested |
 
 Not possible so far: zooming the cluster map from the steering wheel
 ([why](docs/Development.md#zoom)), and showing the arrows and the map
@@ -129,6 +138,10 @@ addresses.
   and **aberbic** ([Audi MHI2 AltScreen](https://github.com/aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto)):
   the open CarPlay cluster work the CarPlay map builds on. harman-f's hook is
   included from source under GPL-3.0.
+- **Mr-MIBonk** ([M.I.B.](https://github.com/Mr-MIBonk/M.I.B._More-Incredible-Bash)):
+  the `Swdlautorun.txt` trigger for installing without the service menu.
+- **lito69**, **tulio150** and **DaniFR3**: car tests and porting files for
+  the SEAT and the settings.
 - **kamgurgul**, **wasimlhr** and **luka-dev**: the MHI2Q projects whose notes
   led to the connection-loop fix, and the open QNX toolchain.
 - **FFmpeg**: H.264 decoding, statically linked, LGPL v2.1 or later.

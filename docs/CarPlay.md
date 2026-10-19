@@ -29,8 +29,9 @@ iPhone video → hook in the CarPlay program (dio_manager) → stream-player →
   already uses, so no program file is patched.
 - **It fits these units exactly.** The CarPlay library it was written and
   car-tested against (`libairplay.so`, SHA-256 `193a4fd9…46b5`, Skoda MU1440)
-  is byte-identical on VW MU1367 (`P4521`, `K4525`) and, by harman-f's
-  survey, SEAT MU1447. The installer installs CarPlay only when the unit's
+  is byte-identical on VW MU1367 (`P4521`, `K4525`), on the Golf R's `P4512`
+  (where the installer accepted it and the map reached the dash) and, by
+  harman-f's survey, SEAT MU1447. The installer installs CarPlay only when the unit's
   `libairplay.so` is that build (703688 bytes); on any other it installs the
   Android Auto map alone. The hook also checks the functions it attaches to
   and switches itself off if they differ.
@@ -95,6 +96,11 @@ installer writes it to `/mnt/app/root/mibr-carplay111-safearea.conf` from
 `GAL_SECONDARY_INSETS`, the same setting that keeps the Android Auto map
 clear of the dials, scaled to the window (800x480 with the default insets:
 546x400 at 127,40).
+
+An iPhone that knew the car before the install keeps its old idea of the car
+and never asks for the cluster stream (Golf R). Once after installing: on the
+iPhone, `Settings` > `General` > `CarPlay` > the car > **Forget This Car**,
+then plug it in again.
 
 When an iPhone connects, the unit starts `dio_manager`, the library loads,
 and the launcher starts `carplay_cluster.sh`. That script watches the hook's

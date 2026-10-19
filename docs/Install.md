@@ -134,6 +134,8 @@ while the phone sends it.
 | `/mnt/app/navigation/stream-player` | the video player |
 | `/mnt/app/eso/hmi/lsd/lsd.sh` | Java patch lines: NavActiveIgnore added if missing, the turn-arrows jar's line removed (map) or added (arrows). Previous file kept as `lsd.sh.before_<jar>` |
 | `/mnt/app/eso/hmi/engdefs/cluster-map.esd` | the menu screen |
+| `/mnt/system/etc/pf*.conf` | CarPlay map only: one firewall rule letting the iPhone's cluster video (TCP 6031) in on its USB CarPlay link, marked `# clustermap carplay map`; originals kept as `.clustermap.original` |
+| `/mnt/app/root/mibr-carplay111-safearea.conf` | CarPlay map only: the part of the window clear of the dials, from `GAL_SECONDARY_INSETS` |
 
 Uninstall puts all of it back, except that the engineering menu stays
 switched on, which is harmless. Run the status check afterwards: it should say
