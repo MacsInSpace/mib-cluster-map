@@ -47,6 +47,14 @@ way back into the unit if the centre screen ever fails to start.
    restarts once more.
 4. Back at the home screen, hold the power button for ten seconds to reboot.
 
+**Without the service menu (untested; for cars where it is hard to reach,
+such as an Audi without developer mode):** rename `_Swdlautorun.txt`, at the
+top of the card, to `Swdlautorun.txt` and insert the card. Units that honour
+it start this update by themselves within about a minute (the trigger M.I.B.
+uses). The update renames the file back, so it does not start again after the
+restart. If nothing happens within two minutes, the unit does not honour it:
+use the menu.
+
 What it does, without asking:
 
 - copies the ClusterMap screen to the green menu and switches that menu on;

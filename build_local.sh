@@ -114,6 +114,9 @@ package() {
   printf 'While a file whose name starts with UNINSTALL is in the ClusterMap folder,\r\nrunning the update from this card REMOVES the cluster map and restores the\r\noriginal state. Move this file back here (or delete it) to install again.\r\n' > "$D/to uninstall, move this file up one folder/UNINSTALL.txt"
   mkdir -p "$D/to only check compatibility, move this file up one folder"
   printf 'While a file whose name starts with COLLECT is in the ClusterMap folder,\r\nrunning the update from this card INSTALLS NOTHING. It writes a compatibility\r\ncheck to update_result.txt and copies the files a port needs to porting_<train>/.\r\nOnly the menu screen file is copied to the unit. Move this file back here to install.\r\n' > "$D/to only check compatibility, move this file up one folder/COLLECT.txt"
+  # Empty, as in M.I.B.: renamed to Swdlautorun.txt, the unit starts this
+  # update by itself when the card goes in (no service menu). Off by default.
+  : > "$S/_Swdlautorun.txt"
   cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
   cp "$ROOT/README.md" "$ROOT/docs/Install.md" "$D/docs/"
   cp "$ROOT/LICENSE" "$D/LICENSE"
@@ -125,7 +128,7 @@ package() {
   VER=${RELEASE_VERSION:-$BUILD_ID}
   Z="$ROOT/dist/mib-cluster-map_$VER.zip"
   rm -f "$ROOT"/dist/*.zip "$ROOT"/dist/*.sha256
-  (cd "$S" && zip -qr -X "$Z" ClusterMap Custom metainfo2.txt -x '*.DS_Store' -x '._*')
+  (cd "$S" && zip -qr -X "$Z" ClusterMap Custom metainfo2.txt _Swdlautorun.txt -x '*.DS_Store' -x '._*')
   (cd "$ROOT/dist" && shasum -a 256 "$(basename "$Z")" > "$(basename "$Z").sha256")
   echo "Packaged: $S"; echo "Archive:  $Z"
   (cd "$S" && find . -type f | sort)

@@ -20,6 +20,11 @@ if [ -f "$RESULT" ]; then
     while [ -e "$PKG/update_result.$N.txt" ]; do N=`expr $N + 1`; done
     mv "$RESULT" "$PKG/update_result.$N.txt"
 fi
+# Started by the autorun file? Switch it off again, so the update does not
+# start once more when the unit restarts with the card still in.
+if [ -f "$CARD/Swdlautorun.txt" ] && mv "$CARD/Swdlautorun.txt" "$CARD/_Swdlautorun.txt"; then
+    AUTORUN_NOTE="Autorun: Swdlautorun.txt renamed back to _Swdlautorun.txt (off)."
+fi
 # A trace in RAM too, in case the card cannot be written: Save logs copies it.
 echo "update_run: HW=$2 medium=$3 card=$CARD" > /tmp/clustermap_final.txt
 
@@ -46,6 +51,7 @@ done
 
 {
     echo "Mode: $MODE (HW=$2 medium=$3 card=$CARD)"
+    [ -z "${AUTORUN_NOTE:-}" ] || echo "$AUTORUN_NOTE"
     grep "Current train" /net/rcc/dev/shmem/version.txt 2>/dev/null
     if [ "$MODE" = collect ]; then
         # Look only: the status check and the porting files, nothing installed.
