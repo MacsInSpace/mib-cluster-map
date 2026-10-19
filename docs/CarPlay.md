@@ -90,6 +90,12 @@ keeps each file as `pf*.conf.clustermap.original`; the uninstall removes
 only the marked line, so rules other tools added (such as the MIB2
 Toolbox's SSH rule) stay.
 
+The iPhone keeps the car and its instruction card inside a safe area. The
+installer writes it to `/mnt/app/root/mibr-carplay111-safearea.conf` from
+`GAL_SECONDARY_INSETS`, the same setting that keeps the Android Auto map
+clear of the dials, scaled to the window (800x480 with the default insets:
+546x400 at 127,40).
+
 When an iPhone connects, the unit starts `dio_manager`, the library loads,
 and the launcher starts `carplay_cluster.sh`. That script watches the hook's
 state file (`/tmp/mibr-carplay111.state`): while it says `streaming` it runs
@@ -116,7 +122,7 @@ The installer skips CarPlay, and still installs the Android Auto map, when:
 | harman-f's hook built from source, with its notice | Done, no warnings |
 | `stream-player` input from the CarPlay socket | Done (`--no-ack`) |
 | Installer: `dio_manager` entry, library check, uninstall | Done; simulated against this unit's configuration |
-| Car test with an iPhone | Golf R (P4512): hook loads, the phone sets up the cluster stream after "Forget This Car", but its video was blocked by the unit firewall; rule added, retest under way |
+| Car test with an iPhone | Golf R (P4512): hook loads, the phone sets up the cluster stream after "Forget This Car", its video was blocked by the unit firewall until the rule above; with it, the map shows on the dash. Safe area added after the card and car sat under the dials |
 
 ## Testing
 

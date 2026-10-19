@@ -456,6 +456,34 @@ else
 fi
 [ "$CARPLAY_OK" -eq 1 ] || echo "CarPlay map: not installed, $CARPLAY_WHY."
 
+# CarPlay's safe area: the part of the window the dials do not cover, where
+# the iPhone keeps the car and its instruction card. The same
+# GAL_SECONDARY_INSETS (top,bottom,left,right) Android Auto uses, which are
+# in its 800x480 frame after margins, scaled to the window. harman-f's hook
+# reads it when the iPhone connects. Without it the whole window counts as
+# visible (Golf R: card and car under the dials).
+CARPLAY_SAFEAREA=$APP_MOUNT/root/mibr-carplay111-safearea.conf
+if [ "$CARPLAY_OK" -eq 1 ]; then
+    INSETS=`sed -n 's/^GAL_SECONDARY_INSETS=\([0-9]*\),\([0-9]*\),\([0-9]*\),\([0-9]*\)[ 	]*$/\1 \2 \3 \4/p' \
+        "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+    set -- ${INSETS:-40 40 127 127}
+    SAFE_Y=`expr $1 \* $MAP_H / \( 480 - $MARGIN_H \) || :`
+    SAFE_B=`expr $2 \* $MAP_H / \( 480 - $MARGIN_H \) || :`
+    SAFE_X=`expr $3 \* $MAP_W / \( 800 - $MARGIN_W \) || :`
+    SAFE_R=`expr $4 \* $MAP_W / \( 800 - $MARGIN_W \) || :`
+    SAFE_W=`expr $MAP_W - $SAFE_X - $SAFE_R || :`
+    SAFE_H=`expr $MAP_H - $SAFE_Y - $SAFE_B || :`
+    if [ "$SAFE_W" -ge 160 ] && [ "$SAFE_H" -ge 120 ] &&
+       printf 'x=%s\ny=%s\nw=%s\nh=%s\n' $SAFE_X $SAFE_Y $SAFE_W $SAFE_H > "$CARPLAY_SAFEAREA"; then
+        echo "CarPlay map: safe area ${SAFE_W}x${SAFE_H} at ${SAFE_X},${SAFE_Y} (from the insets)"
+    else
+        rm -f "$CARPLAY_SAFEAREA"
+        echo "CarPlay map: insets leave too little of the window; using all of it"
+    fi
+else
+    rm -f "$CARPLAY_SAFEAREA" 2>/dev/null || true
+fi
+
 mount -ur "$APP_MOUNT" 2>/dev/null || true
 APP_WRITABLE=0
 echo "Installed preload target: $PRELOAD_SO_ALIAS"

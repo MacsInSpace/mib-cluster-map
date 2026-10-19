@@ -11,7 +11,8 @@
 # While it does, it writes "streaming" to its state file.
 # The player draws that stream on the cluster exactly as it draws Android
 # Auto's, and on SIGTERM gives the cluster back to the stock map.
-PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/eso/bin:/mnt/app/eso/bin:/mnt/app/navigation
+# expr is in /mnt/app/armle/usr/bin on this unit (Golf R log: "expr: cannot execute").
+PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/eso/bin:/mnt/app/eso/bin:/mnt/app/navigation:/mnt/app/armle/bin:/mnt/app/armle/usr/bin
 export PATH
 
 OWNER=${1:-}
