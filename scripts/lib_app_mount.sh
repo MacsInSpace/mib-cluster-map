@@ -39,3 +39,41 @@ app_mount_finish()
         fi
     fi
 }
+
+# The CarPlay map's firewall rule. The iPhone sends the cluster video to
+# TCP 6031 (harman-f's stream 111 receiver), but the unit's packet filter
+# drops every port on carplay0 (the iPhone's USB link) that is not in its
+# CarPlay list, and 6031 is not (car-verified on a Golf R: the phone set up
+# the stream and never connected). One pass rule for that port on carplay0
+# only is added after the stock CarPlay line, in each /mnt/system/etc/pf*.conf
+# (the unit picks one by connection type), as the MIB2 Toolbox does for SSH.
+# Marked, so removal takes out only our line; read at the next boot.
+# Both need $SYSTEM_MOUNT writable.
+CARPLAY_PF_MARK="# clustermap carplay map"
+CARPLAY_PF_RULE="pass in quick on carplay0 proto tcp from any to any port 6031 allow-opts $CARPLAY_PF_MARK"
+
+carplay_pf_close()
+{
+    for PF in /mnt/system/etc/pf*.conf; do
+        [ -f "$PF" ] && grep -q "$CARPLAY_PF_MARK" "$PF" || continue
+        cp -p "$PF" "$PF.clustermap-new" &&
+            grep -v "$CARPLAY_PF_MARK" "$PF" > "$PF.clustermap-new" &&
+            mv "$PF.clustermap-new" "$PF" && echo "Firewall: CarPlay map port closed in $PF"
+    done
+}
+
+carplay_pf_open()
+{
+    carplay_pf_close >/dev/null
+    for PF in /mnt/system/etc/pf*.conf; do
+        [ -f "$PF" ] && grep -q '^pass in quick on carplay0 proto tcp ' "$PF" || continue
+        [ -f "$PF.clustermap.original" ] || cp -p "$PF" "$PF.clustermap.original"
+        # Started as a copy so the file keeps its owner and mode.
+        cp -p "$PF" "$PF.clustermap-new" && awk -v rule="$CARPLAY_PF_RULE" '
+            { print }
+            !done && /^pass in quick on carplay0 proto tcp / { print rule; done=1 }
+        ' "$PF" > "$PF.clustermap-new" && grep -q "$CARPLAY_PF_MARK" "$PF.clustermap-new" &&
+            mv "$PF.clustermap-new" "$PF" && echo "Firewall: CarPlay map port 6031 opened on carplay0 in $PF" ||
+            { rm -f "$PF.clustermap-new"; echo "Firewall: could not edit $PF; the CarPlay map may get no video"; }
+    done
+}

@@ -76,6 +76,20 @@ ALTSCREEN111_WIDTH=<cluster map width>
 ALTSCREEN111_HEIGHT=<cluster map height>
 ```
 
+The iPhone sends the cluster video to TCP port 6031, which the unit's
+firewall blocks: it allows only the stock CarPlay ports on `carplay0`, the
+iPhone's USB link. The installer adds one rule after the stock CarPlay line
+in each `/mnt/system/etc/pf*.conf`, read at the next boot:
+
+```text
+pass in quick on carplay0 proto tcp from any to any port 6031 allow-opts # clustermap carplay map
+```
+
+It opens nothing on Wi-Fi, mobile data or the debug port. The first install
+keeps each file as `pf*.conf.clustermap.original`; the uninstall removes
+only the marked line, so rules other tools added (such as the MIB2
+Toolbox's SSH rule) stay.
+
 When an iPhone connects, the unit starts `dio_manager`, the library loads,
 and the launcher starts `carplay_cluster.sh`. That script watches the hook's
 state file (`/tmp/mibr-carplay111.state`): while it says `streaming` it runs
@@ -102,7 +116,7 @@ The installer skips CarPlay, and still installs the Android Auto map, when:
 | harman-f's hook built from source, with its notice | Done, no warnings |
 | `stream-player` input from the CarPlay socket | Done (`--no-ack`) |
 | Installer: `dio_manager` entry, library check, uninstall | Done; simulated against this unit's configuration |
-| Car test with an iPhone | To do |
+| Car test with an iPhone | Golf R (P4512): hook loads, the phone sets up the cluster stream after "Forget This Car", but its video was blocked by the unit firewall; rule added, retest under way |
 
 ## Testing
 

@@ -730,6 +730,7 @@ LD_LIBRARY_PATH="$VALIDATOR_LD_LIBRARY_PATH" "$JSONLINT" --file "$TARGET_CONFIG"
     exit 1
 }
 rm -f "$TEMP"
+if [ "$CARPLAY_OK" -eq 1 ]; then carplay_pf_open; else carplay_pf_close; fi
 sync
 mount -ur "$SYSTEM_MOUNT" 2>/dev/null || true
 SYSTEM_WRITABLE=0

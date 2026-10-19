@@ -88,6 +88,7 @@ mv "$SYSTEM_TEMP" "$TARGET_CONFIG" || {
     exit 1
 }
 SYSTEM_TEMP=
+carplay_pf_close
 
 # Track whether the route restore actually happened. These are
 # best-effort by design (the config restore above is the part that
