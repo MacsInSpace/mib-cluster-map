@@ -47,6 +47,15 @@ train_supported()
         SUPPORT_NOTE="UNTESTED firmware, but its Android Auto files match the tested ones in size"
         return 0
     fi
+    # A trial profile for this train in the settings file (as find_profile.py
+    # prints it): installed for testing. The hook checks the real addresses
+    # when it loads and does nothing if they differ.
+    p=`sed -n 's/^GAL_PROFILE_TRIAL=\([^:]*\):.*/\1/p' "$PKG/gal_dualscreen.conf" 2>/dev/null | head -1`
+    if [ -n "$p" ]; then
+        case "$TRAIN" in
+            *${p}*) SUPPORT_NOTE="UNTESTED firmware, with the trial profile $p from gal_dualscreen.conf"; return 0 ;;
+        esac
+    fi
     SUPPORT_NOTE="different Android Auto files (gal $g, receiver $r bytes)"
     return 1
 }
