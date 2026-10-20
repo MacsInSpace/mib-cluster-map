@@ -15,7 +15,7 @@ N=1
 while [ -e "$HERE/run_logs/$N" ]; do N=`expr $N + 1`; done
 OUT=$HERE/run_logs/$N
 mkdir -p $OUT
-cp /tmp/gal_dualscreen.log /tmp/stream-player.log /tmp/gal_kombi_ready /tmp/clustermap_final.txt $OUT/ 2>/dev/null
+cp /tmp/gal_dualscreen.log /tmp/stream-player.log /tmp/gal_kombi_ready /tmp/clustermap_final.txt /tmp/VCAndroidAuto.log $OUT/ 2>/dev/null
 sloginfo > $OUT/sloginfo.txt 2>&1
 pidin ar > $OUT/pidin_ar.txt 2>&1
 ls -l /mnt/ota /mnt/ota/* /var/dumps /tmp > $OUT/dumps_listing.txt 2>&1
