@@ -87,6 +87,18 @@ static const gal_profile k_profiles[] = {
         0x80u, 0x84u, 40u,
         0x34u, 0x58u, 59u
     },
+    /*
+     * SEAT MIB2.5 High, MU1447. Car-tested by DaniFR3 with its trial line
+     * (issue #4); handler offsets as P4521.
+     */
+    {
+        "MHI2_ER_SEG11_P4709", 1,
+        0x00238570u, 0x00232408u, 0x00232318u,
+        0x001d9ac0u, 0xe92d4ff0u, 0xf0u,
+        0x94u, 0xc4u,
+        0x80u, 0x84u, 40u,
+        0x34u, 0x58u, 59u
+    },
 };
 
 #define GAL_PROFILE_COUNT (sizeof(k_profiles) / sizeof(k_profiles[0]))

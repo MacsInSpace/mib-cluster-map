@@ -6,7 +6,7 @@ export PATH
 # Matched as substrings, so re-releases such as MHI2_ER_VWG13_P4521_2 count;
 # the hook still checks the real addresses when it loads. K4525 runs the
 # P4521 profile unchanged (two owners, issue #5).
-SUPPORTED_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SEG11_P4708"
+SUPPORTED_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SEG11_P4708 MHI2_ER_SEG11_P4709"
 SUPPORTED_TRAIN="$SUPPORTED_TRAINS"
 
 PKG=

@@ -5,7 +5,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 
 | Phone | On the cluster | State |
 |---|---|---|
-| Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521` and `K4525`, SEAT `MHI2_ER_SEG11_P4708` |
+| Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521` and `K4525`, SEAT `MHI2_ER_SEG11_P4708` and `P4709` |
 | Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
 | Apple CarPlay | The Apple Maps or Google Maps map, live | **First car run**: on the dash of a Golf R (`P4512`); fitting it between the dials is under test. See [CarPlay](docs/CarPlay.md) |
 
@@ -72,7 +72,7 @@ up into `ClusterMap`, and run the same update again.
 | Head unit | Firmware train starts | Today |
 |---|---|---|
 | VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367). `P4512` (Golf R): installs with a trial line, CarPlay map shown, Android Auto map not yet tried. Others wanted |
-| SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` (1010×376 cluster window). **Arrows** on `P4708`, `P4709`. `P4709` map: trial line published, car test wanted |
+| SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` and `P4709` (1010×376 cluster window). **Arrows** on both |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | Wanted |
 | VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | Wanted |
 | Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | Wanted: an RS3 (software 1168) is next. The update needs developer mode (see Install) |
