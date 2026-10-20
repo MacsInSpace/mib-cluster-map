@@ -90,8 +90,8 @@ collects what is needed to add your unit. See
 
 ## Status
 
-Experimental. Developed on a VW Golf 7.5 (`P4521`) and tested on a SEAT
-(`P4708`) and a Golf R (`P4512`). The Android Auto map runs at about 30 frames
+Experimental. Developed on a VW Golf 7.5 (`P4521`) and tested on two SEATs
+(`P4708`, `P4709`) and a Golf R (`P4512`). The Android Auto map runs at about 30 frames
 per second, with and without a route, and comes back by itself after the
 phone is unplugged and plugged in again.
 
