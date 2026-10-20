@@ -1,7 +1,7 @@
 #!/bin/sh
 # Add or remove ONE Java patch line in the interface start-up script (lsd.sh).
 #
-#   lsd_jar.sh add    <Name.jar> [source file]   copy the jar if missing, add its line
+#   lsd_jar.sh add    <Name.jar> [source file]   copy the jar if missing or different, add its line
 #   lsd_jar.sh remove <Name.jar>                 take its line out (the jar file stays)
 #   lsd_jar.sh loaded <Name.jar>                 exit 0 if it is on a patch line
 #
@@ -105,16 +105,19 @@ case "$ACTION" in
         echo "Removed the $NAME entry. Previous file: $LSD.before_$TAG"
         ;;
     add)
-        if loaded; then echo "$NAME is already loaded; nothing to add."; exit 0; fi
-        if [ ! -r "$JAR" ]; then
-            [ -n "$SRC" ] && [ -r "$SRC" ] || { echo "Missing $JAR and no source file to copy" >&2; exit 1; }
+        # Copy the jar when it is missing, or replace it when the bundled one
+        # differs (a newer build). cmp is not on the unit, so compare sizes.
+        if [ -n "$SRC" ] && [ -r "$SRC" ] && { [ ! -r "$JAR" ] || [ "`wc -c < "$SRC"`" != "`wc -c < "$JAR"`" ]; }; then
             mount -uw $APP; WRITABLE=1
             mkdir -p "$LSD_DIR/jars"
             cp "$SRC" "$JAR.new"
             [ "`wc -c < "$SRC"`" = "`wc -c < "$JAR.new"`" ] || { rm -f "$JAR.new"; echo "Jar copy failed" >&2; exit 1; }
+            if [ -r "$JAR" ]; then cp -p "$JAR" "$JAR.before_update"; echo "Replacing $NAME (previous copy: $JAR.before_update)"; fi
             mv "$JAR.new" "$JAR"
             echo "Copied $NAME to $LSD_DIR/jars/"
         fi
+        [ -r "$JAR" ] || { echo "Missing $JAR and no source file to copy" >&2; exit 1; }
+        if loaded; then echo "$NAME is already loaded; nothing to add."; exit 0; fi
         BEFORE=`wc -l < "$LSD"`
         [ "`grep -c '^\$J9 ' "$LSD"`" -ge 1 ] || { echo "No Java launch line found in $LSD; not changed" >&2; exit 1; }
         mount -uw $APP; WRITABLE=1
