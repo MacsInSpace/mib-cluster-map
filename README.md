@@ -47,8 +47,8 @@ VW map.
    "Version back documentation" screen at the end is normal: press
    `Cancel`), then hold the power button for ten seconds to reboot. Audi:
    the update menu is **BACK + upper-left** button and needs developer mode
-   switched on in the head unit (5F); an untested autorun file is on the card
-   for cars where the menu is hard to reach (see the
+   switched on in the head unit (5F). An autorun file on the card starts the
+   update without the menu: tested on a VW, untested on Audi (see the
    [Install guide](docs/Install.md#route-1-software-update)).
 3. **Use it.** Plug in the phone, start a map, and switch the cluster to its
    map view with the steering wheel buttons. iPhone: once after installing,
@@ -102,7 +102,7 @@ phone is unplugged and plugged in again.
 | Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Fails on the car and falls back to software decoding; under investigation |
 | CarPlay map | Shown on a car (Golf R, iPhone over USB) after a firewall fix; layout between the dials under test |
 | Long drives, reverse camera, waking from sleep | Little testing |
-| Autorun install without the service menu (`Swdlautorun.txt`) | Built, untested |
+| Autorun install without the service menu (`Swdlautorun.txt`) | Tested on a car (Golf `P4521`); Audi untested |
 
 Not possible so far: zooming the cluster map from the steering wheel
 ([why](docs/Development.md#zoom)), and showing the arrows and the map

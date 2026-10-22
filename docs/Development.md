@@ -148,8 +148,9 @@ unit's interface and has to be rebuilt against that firmware's `lsd.jxe`
 [our fork](https://github.com/MacsInSpace/mib2-android-auto-vc) of
 [adi961's project](https://github.com/adi961/mib2-android-auto-vc), which
 adi961 no longer maintains. Its README lists our changes; the bundled jar is
-the fork's release, built against `P4521` and also working on the other
-`TBT_TRAINS` in `common.sh`. Keep the unit's `lsd.jxe` out of git: it is
+the fork's release, built against `P4521` and car-tested there. adi961's
+builds worked on the other `TBT_TRAINS` in `common.sh`; the fork's changes
+still need a test on those. Keep the unit's `lsd.jxe` out of git: it is
 firmware.
 
 ## Building
