@@ -6,7 +6,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 | Phone | On the cluster | State |
 |---|---|---|
 | Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521` and `K4525`, SEAT `MHI2_ER_SEG11_P4708` and `P4709` |
-| Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
+| Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc), [our fork](https://github.com/MacsInSpace/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
 | Apple CarPlay | The Apple Maps or Google Maps map, live | **First car run**: on the dash of a Golf R (`P4512`); fitting it between the dials is under test. See [CarPlay](docs/CarPlay.md) |
 
 It installs from an SD card as a software update. No toolbox, laptop or
@@ -133,8 +133,9 @@ addresses.
 - **jilleb**, **olli991** and contributors: the MQB Coding MIB2 Toolbox. Its
   `NavActiveIgnore.jar` (contributed by andrewleech) and the signed header of
   its update metadata are bundled unmodified under `thirdparty/` (MIT).
-- **adi961**: mib2-android-auto-vc. Its 0.1.4 jar is bundled unmodified under
-  `thirdparty/` (MIT) as the arrows mode.
+- **adi961**: mib2-android-auto-vc, the turn-arrows jar. Bundled under
+  `thirdparty/` (MIT) as the arrows mode, built from
+  [our maintained fork](https://github.com/MacsInSpace/mib2-android-auto-vc).
 - **harman-f** ([mhi2_altscreen_carplay](https://github.com/harman-f/mhi2_altscreen_carplay))
   and **aberbic** ([Audi MHI2 AltScreen](https://github.com/aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto)):
   the open CarPlay cluster work the CarPlay map builds on. harman-f's hook is
