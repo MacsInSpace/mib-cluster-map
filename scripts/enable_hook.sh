@@ -374,6 +374,13 @@ if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
 else
     echo "NOTE: no gal_dualscreen.conf beside this script; the hook will run on built-in defaults."
 fi
+# CLUSTERMAP_KEEP_ARROWS=1: keep the turn-arrows jar with the map, adding it
+# when missing. On SEAT the two work together; on VW the map goes blank when
+# a route starts.
+WITH_ARROWS=0
+if [ "`sed -n 's/^CLUSTERMAP_KEEP_ARROWS=\([01]\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`" = 1 ]; then
+    WITH_ARROWS=1; KEEP_TBT=1
+fi
 
 # The cluster map window. The cluster's encoder expects the window it shows
 # to be this size; an 800x480 window on a cluster whose map window is, say,
@@ -829,10 +836,29 @@ else
             echo "         Customization > Navigation > Ignore navigation-active status." >&2
         fi
     fi
+    TBT_OK=0
+    for t in `sed -n 's/^TBT_TRAINS="\(.*\)"/\1/p' "$CARD_ROOT/GEM/common.sh" 2>/dev/null`; do
+        case "$TRAIN" in *${t}*) TBT_OK=1 ;; esac
+    done
+    if [ "$WITH_ARROWS" -eq 1 ] && ! sh "$CARD_ROOT/lsd_jar.sh" loaded VCAndroidAuto.jar; then
+        if [ "$TBT_OK" -eq 1 ]; then
+            echo "Java check: adding VCAndroidAuto.jar beside the map (CLUSTERMAP_KEEP_ARROWS=1)."
+            if sh "$CARD_ROOT/lsd_jar.sh" add VCAndroidAuto.jar "$CARD_ROOT/thirdparty/VCAndroidAuto.jar"; then
+                mount -uw /mnt/app 2>/dev/null && { : > /mnt/app/eso/hmi/lsd/.aacluster_tbt_added; mount -ur /mnt/app 2>/dev/null || true; }
+            else
+                echo "WARNING: could not add VCAndroidAuto.jar; lsd.sh is unchanged." >&2
+            fi
+        else
+            echo "WARNING: CLUSTERMAP_KEEP_ARROWS=1 ignored: the arrows jar is not known to" >&2
+            echo "         work on firmware $TRAIN." >&2
+        fi
+    fi
     if sh "$CARD_ROOT/lsd_jar.sh" loaded VCAndroidAuto.jar; then
         if [ "$KEEP_TBT" -eq 1 ]; then
-            echo "Java check: VCAndroidAuto.jar is loaded and was kept (--keep-turn-by-turn)."
-            echo "            Expect the cluster map to fail when a route starts."
+            echo "Java check: VCAndroidAuto.jar is loaded and was kept with the map."
+            case "$TRAIN" in
+                *_VWG*) echo "            On VW, expect the cluster map to go blank when a route starts." ;;
+            esac
         elif sh "$CARD_ROOT/turn_by_turn.sh" remove; then
             :
         else
