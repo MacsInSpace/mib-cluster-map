@@ -163,7 +163,7 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 | Setting | Shipped | Change it when |
 |---|---|---|
 | `GAL_SECONDARY_DPI` | 125 | map text and turn card too big (lower) or too small (higher) |
-| `GAL_SECONDARY_INSETS` | 40,40,127,127 | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. Golf owners: DPI 160 with 53,73,127,127 shows the Google Maps header and the Waze arrival bar. SEAT owners settled on DPI 140 with 105,127,127,127 |
+| `GAL_SECONDARY_INSETS` | 40,40,127,127 | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. Golf owners are still testing (#8): DPI 140 to 160 with about 53,73,127,127. SEAT owners settled on DPI 140 with 105,127,127,127 |
 | `GAL_SECONDARY_UI_THEME` | 2 (dark) | 0 lets Google Maps switch between day and night (Waze stays dark), 1 is light |
 | `CLUSTERMAP_KEEP_ARROWS` | 0 | 1 keeps the turn-arrows jar with the map (adds it if missing): map, arrows and music together on SEAT. Not on VW: the map goes blank when a route starts |
 | `GAL_PLAYER_DECODER` | sw | `sw` is the tested software decoder. `hw` uses the unit's own video decoder and frees most of a processor core. If it will not open, the player uses software; if it fails while decoding, it stays off until the next reboot. **Not yet car-tested** |
