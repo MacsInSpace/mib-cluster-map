@@ -32,6 +32,15 @@ for c in gs gd; do
     ( cd /eso && LD_PRELOAD="$HERE/lib/libdmdt_flush.so" LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib \
       IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt $c ) > $OUT/dmdt_$c.txt 2>&1
 done
+# The cockpit display (context 70, window 33) only appears in 'gs' while the
+# cockpit is in map view. Say so in the file, so a capture taken in another
+# view is not read as a unit that cannot show a map.
+if grep -q 'context id: 70' $OUT/dmdt_gs.txt 2>/dev/null; then
+    echo "NOTE: the cockpit display (context 70) is registered." >> $OUT/dmdt_gs.txt
+else
+    echo "NOTE: no cockpit display (context 70) at this moment. That is normal" >> $OUT/dmdt_gs.txt
+    echo "unless the cockpit was in map view when these logs were saved." >> $OUT/dmdt_gs.txt
+fi
 # CarPlay map: the supervisor, its player, and harman-f's hook state.
 mkdir -p $OUT/carplay
 cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log \
