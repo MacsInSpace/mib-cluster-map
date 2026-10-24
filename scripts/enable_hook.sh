@@ -480,8 +480,9 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
     SAFE_R=`expr $4 \* $MAP_W / \( 800 - $MARGIN_W \) || :`
     SAFE_W=`expr $MAP_W - $SAFE_X - $SAFE_R || :`
     SAFE_H=`expr $MAP_H - $SAFE_Y - $SAFE_B || :`
+    # echo, not printf: some units have no printf binary
     if [ "$SAFE_W" -ge 160 ] && [ "$SAFE_H" -ge 120 ] &&
-       printf 'x=%s\ny=%s\nw=%s\nh=%s\n' $SAFE_X $SAFE_Y $SAFE_W $SAFE_H > "$CARPLAY_SAFEAREA"; then
+       { echo "x=$SAFE_X"; echo "y=$SAFE_Y"; echo "w=$SAFE_W"; echo "h=$SAFE_H"; } > "$CARPLAY_SAFEAREA"; then
         echo "CarPlay map: safe area ${SAFE_W}x${SAFE_H} at ${SAFE_X},${SAFE_Y} (from the insets)"
     else
         rm -f "$CARPLAY_SAFEAREA"
