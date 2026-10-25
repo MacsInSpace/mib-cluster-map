@@ -28,25 +28,25 @@ take()   # take <source file> : copy one file and record its size
 # The Android Auto program and its receiver library: what the hook attaches to.
 take /mnt/app/eso/bin/apps/gal
 
-# The receiver library is not always in the same place: on the tested units it
-# is at both /mnt/app/eso/lib and /eso/lib. Try the known paths, then look for
-# it, so "missing" means it really is not on the unit.
+# The receiver library is not always in the same place or under the same name:
+# receiver_path in common.sh holds both lists. The find afterwards catches a
+# name nobody has seen yet -- note the glob has no .so suffix, so it also
+# matches libautoreceiver_qnx.so.1.
 take_receiver()
 {
-    for p in /mnt/app/eso/lib/libautoreceiver.so /eso/lib/libautoreceiver.so \
-             /mnt/app/armle/lib/libautoreceiver.so /mnt/app/usr/lib/libautoreceiver.so \
-             /mnt/app/root/lib-target/libautoreceiver.so; do
-        if [ -r "$p" ]; then take "$p"; return; fi
-    done
-    found=`find /mnt/app/eso/lib /eso/lib /mnt/app/armle/lib /mnt/app/usr/lib \
-                /mnt/app/root/lib-target -name 'libautoreceiver*.so' 2>/dev/null | head -1`
+    found=`receiver_path`
     if [ -n "$found" ]; then take "$found"; return; fi
-    say "missing libautoreceiver.so (looked in the usual library folders)"
+    found=`find $RECEIVER_DIRS -name 'libautoreceiver*' 2>/dev/null | head -1`
+    if [ -n "$found" ]; then take "$found"; return; fi
+    say "missing the receiver library: looked for $RECEIVER_NAMES in the usual folders"
     # Say what the Android Auto program itself asks for, so a unit that names
-    # the library differently can still be ported.
-    needs=`grep -a -o 'lib[A-Za-z0-9_-]*\.so[.0-9]*' /mnt/app/eso/bin/apps/gal 2>/dev/null \
-           | sort -u | tr '\n' ' '`
-    [ -n "$needs" ] && say "gal asks for: $needs"
+    # the library differently can still be ported. Joined with the shell, not
+    # with tr: some units have no tr binary (issue #28).
+    needs=
+    for n in `grep -a -o 'lib[A-Za-z0-9_-]*\.so[.0-9]*' /mnt/app/eso/bin/apps/gal 2>/dev/null | sort -u`; do
+        needs="$needs $n"
+    done
+    [ -n "$needs" ] && say "gal asks for:$needs"
 }
 take_receiver
 # Configuration the installer edits or reads.

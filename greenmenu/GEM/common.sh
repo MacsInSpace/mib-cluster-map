@@ -34,6 +34,24 @@ done
 GAL_SIZE=1269211
 RECEIVER_SIZE=1067402
 SUPPORT_NOTE=
+# The Android Auto receiver library, which the hook attaches to and every
+# profile is measured against. MIB2.5 High units call it libautoreceiver.so
+# and keep it in /mnt/app/eso/lib, with a second copy at /eso/lib. The older
+# VWG11 generation links libautoreceiver_qnx.so.1 beside libaoa-lite instead
+# (issue #28: Vladimir's K3342 gal names it in its DT_NEEDED), so a unit that
+# has no libautoreceiver.so has not necessarily no receiver. Look for every
+# known name before concluding that.
+RECEIVER_NAMES="libautoreceiver.so libautoreceiver_qnx.so.1"
+RECEIVER_DIRS="/mnt/app/eso/lib /eso/lib /mnt/app/armle/lib /mnt/app/usr/lib /mnt/app/root/lib-target"
+receiver_path()
+{
+    for d in $RECEIVER_DIRS; do
+        for n in $RECEIVER_NAMES; do
+            if [ -r "$d/$n" ]; then echo "$d/$n"; return 0; fi
+        done
+    done
+    return 1
+}
 train_supported()
 {
     for t in $SUPPORTED_TRAINS; do
@@ -42,7 +60,8 @@ train_supported()
         esac
     done
     g=`wc -c < /mnt/app/eso/bin/apps/gal 2>/dev/null | sed 's/ //g'`
-    r=`wc -c < /mnt/app/eso/lib/libautoreceiver.so 2>/dev/null | sed 's/ //g'`
+    RECEIVER_FOUND=`receiver_path`
+    r=`wc -c < "$RECEIVER_FOUND" 2>/dev/null | sed 's/ //g'`
     if [ "$g" = "$GAL_SIZE" ] && [ "$r" = "$RECEIVER_SIZE" ]; then
         SUPPORT_NOTE="UNTESTED firmware, but its Android Auto files match the tested ones in size"
         return 0
@@ -56,7 +75,11 @@ train_supported()
             *${p}*) SUPPORT_NOTE="UNTESTED firmware, with the trial profile $p from gal_dualscreen.conf"; return 0 ;;
         esac
     fi
-    SUPPORT_NOTE="different Android Auto files (gal $g, receiver $r bytes)"
+    if [ -z "$RECEIVER_FOUND" ]; then
+        SUPPORT_NOTE="no Android Auto receiver library found (gal $g bytes)"
+    else
+        SUPPORT_NOTE="different Android Auto files (gal $g, `echo "$RECEIVER_FOUND" | sed 's|.*/||'` $r bytes)"
+    fi
     return 1
 }
 
