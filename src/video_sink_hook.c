@@ -2227,13 +2227,21 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
          g_channel_last_id[channel] == 0x8007u)) {
         static unsigned logged[2];
         unsigned slot = g_channel_last_id[channel] == 0x8006u ? 0u : 1u;
-        if (logged[slot] < 3u) {
+        if (logged[slot] < 6u) {
             unsigned nb = 0u;
             const unsigned char *m = (const unsigned char *)iobuffer_bytes(buffer, &nb);
-            char hex[2 * 96 + 1];
+            /*
+             * Whole message, not a preview: 0x8006 runs to about 140 bytes
+             * and the road name sits well into it, so the 48-byte habit used
+             * elsewhere in this file would cut off the only field that
+             * identifies the rest. 256 bytes is 512 hex characters, which
+             * still fits hook_vlog's 768-byte message buffer with the
+             * prefix, and `bytes=` says whether anything was left out.
+             */
+            char hex[2 * 256 + 1];
             if (m != NULL) {
                 ++logged[slot];
-                hex_preview(m, nb < 96u ? nb : 96u, hex, sizeof hex);
+                hex_preview(m, nb < 256u ? nb : 256u, hex, sizeof hex);
                 gal_hook_logf("event=aap.nav_msg channel=%u msg_id=0x%04x bytes=%u n=%u hex=%s",
                               (unsigned)channel, g_channel_last_id[channel],
                               nb, logged[slot], hex);
