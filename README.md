@@ -5,7 +5,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 
 | Phone | On the cluster | State |
 |---|---|---|
-| Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521` and `K4525`, SEAT `MHI2_ER_SEG11_P4708` and `P4709` |
+| Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521` and `K4525`, SEAT `MHI2_ER_SEG11_P4708` and `P4709`; Skoda `MHI2_ER_SKG13_P4526` and Golf R `P4512` with a trial line |
 | Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc), [our fork](https://github.com/MacsInSpace/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
 | Apple CarPlay | The Apple Maps or Google Maps map, live | **First car run**: on the dash of a Golf R (`P4512`); fitting it between the dials is under test. See [CarPlay](docs/CarPlay.md) |
 
@@ -71,11 +71,11 @@ up into `ClusterMap`, and run the same update again.
 
 | Head unit | Firmware train starts | Today |
 |---|---|---|
-| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367). `P4512` (Golf R): installs with a trial line, CarPlay map shown, Android Auto map not yet tried. Others wanted |
+| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367), both road-tested. `P4512` (Golf R) and US `P3662`: install with a trial line. Others wanted |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` and `P4709` (1010×376 cluster window). **Arrows** on both |
-| Skoda with the Harman unit | `MHI2_ER_SKG13_` | Wanted |
-| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | Wanted |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | Wanted: an RS3 (software 1168) is next. The update needs developer mode (see Install) |
+| Skoda with the Harman unit | `MHI2_ER_SKG13_` | **Map** on `P4526` with a trial line (first car run); ask for the line |
+| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | Unlikely: `K3342` has no `libautoreceiver.so`, which the map hooks. Reports welcome |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | Unproven: `K3346` (A4 B9) has no `libautoreceiver.so`, which the map hooks. An RS3 (software 1168) is still to be tried. The update needs developer mode (see Install) |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies |
 
@@ -91,7 +91,8 @@ collects what is needed to add your unit. See
 ## Status
 
 Experimental. Developed on a VW Golf 7.5 (`P4521`) and tested on a Tiguan (`P4521`),
-two SEATs (`P4708`, `P4709`) and a Golf R (`P4512`). The Android Auto map runs at about 30 frames
+a Passat and an Arteon (`K4525`), two SEATs (`P4708`, `P4709`), a Skoda (`P4526`)
+and a Golf R (`P4512`). The Android Auto map runs at about 30 frames
 per second, with and without a route, and comes back by itself after the
 phone is unplugged and plugged in again.
 
@@ -101,12 +102,14 @@ phone is unplugged and plugged in again.
 | Software update and green menu routes | Tested on cars (Golf `P4521`, Golf R `P4512`) |
 | Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Fails on the car and falls back to software decoding; under investigation |
 | CarPlay map | Shown on a car (Golf R, iPhone over USB) after a firewall fix; layout between the dials under test |
-| Long drives, reverse camera, waking from sleep | Little testing |
+| Long drives, reverse camera, waking from sleep | Road-tested on `K4525`; otherwise little testing |
 | Autorun install without the service menu (`Swdlautorun.txt`) | Tested on a car (Golf `P4521`); Audi untested |
 
-Not possible so far: zooming the cluster map from the steering wheel
-([why](docs/Development.md#zoom)), and showing the arrows and the map
-together.
+Showing the arrows and the map together works on SEAT with
+`CLUSTERMAP_KEEP_ARROWS=1`, but not on VW, where the map goes blank when a
+route starts. Not possible so far: zooming the cluster map from the steering
+wheel ([why](docs/Development.md#zoom)), and switching between the phone's map
+and the car's map from the steering wheel.
 
 ## Documentation
 

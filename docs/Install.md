@@ -163,12 +163,30 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 | Setting | Shipped | Change it when |
 |---|---|---|
 | `GAL_SECONDARY_DPI` | 125 | map text and turn card too big (lower) or too small (higher) |
-| `GAL_SECONDARY_INSETS` | 40,40,127,127 | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. Golf owners are still testing (#8): DPI 140 to 160 with about 53,73,127,127. SEAT owners settled on DPI 140 with 105,127,127,127 |
+| `GAL_SECONDARY_INSETS` | 40,40,127,127 | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. See the settings owners have settled on, below |
 | `GAL_SECONDARY_UI_THEME` | 2 (dark) | 0 lets Google Maps switch between day and night (Waze stays dark), 1 is light |
 | `CLUSTERMAP_KEEP_ARROWS` | 0 | 1 keeps the turn-arrows jar with the map (adds it if missing): map, arrows and music together on SEAT. Not on VW: the map goes blank when a route starts |
 | `GAL_PLAYER_DECODER` | sw | `sw` is the tested software decoder. `hw` uses the unit's own video decoder and frees most of a processor core. If it will not open, the player uses software; if it fails while decoding, it stays off until the next reboot. **Not yet car-tested** |
 | `GAL_PLAYER_NVSS_OUTPUT` | 1 | the cluster stays black with `hw`: try 0 (uncomment the line first) |
 | `GAL_DUALSCREEN_DEBUG`, `GAL_FIX_STREAM_TIMING`, `GAL_PLAYER_STATS`, `GAL_HOOK_LOG_MAX_MB` | 0, 0, 0, 1 | full trace for a bug report: 0, 1, 1, 10, then install over SSH with `enable_hook.sh --debug` |
+
+### Settings owners have settled on
+
+The dials differ between cars, so these are starting points rather than
+recommendations. All are `GAL_SECONDARY_DPI` with `GAL_SECONDARY_INSETS` as
+top, bottom, left, right.
+
+| Cluster | DPI | Insets | From |
+|---|---|---|---|
+| SEAT 1010×376 (`P4708`, `P4709`) | 140 | `105,127,127,127` | SEAT owners, #4 |
+| SEAT, for Waze | 110 | `105,127,127,127` | DaniFR3, #4 |
+| VW 12.3 in Passat B8 (`K4525`) | 145 | `56,73,127,127` | d4nt387, #8 |
+| VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
+| VW Golf (`P4521`) | 140–160 | about `53,73,127,127` | tvarszegi1, #8, still testing |
+
+Lower DPI makes the map and its text smaller, so more of the map shows; below
+about DPI 140 Google Maps changes from two overlay cards to one in the middle.
+Waze picks its own colours and ignores the day setting.
 
 Logs are kept in RAM only (`/tmp/gal_dualscreen.log`, `/tmp/stream-player.log`)
 and lost at reboot. **Save logs to SD** copies them, with the system log, to
