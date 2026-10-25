@@ -403,6 +403,11 @@ if [ -n "$MAP_W" ] && [ -n "$MAP_H" ] && [ "$MAP_W" -ge 320 ] && [ "$MAP_W" -le 
 else
     MAP_W=800; MAP_H=480
     echo "Cluster map window: not reported by the display manager; using 800x480."
+    echo "  The stock map window is only listed once the cockpit has shown its"
+    echo "  own map. If your cockpit map is not 800x480, the picture can arrive"
+    echo "  as stripes or the wrong shape. To get the right size: put the"
+    echo "  cockpit in map view with the car's own navigation, then run this"
+    echo "  install again."
 fi
 # Android Auto's frame is always 800x480: the phone is asked to leave
 # margins so the rest has the window's shape (none for an 800x480 window).
