@@ -182,10 +182,15 @@ top, bottom, left, right.
 | SEAT, for Waze | 110 | `105,127,127,127` | DaniFR3, #4 |
 | VW 12.3 in Passat B8 (`K4525`) | 145 | `56,73,127,127` | d4nt387, #8 |
 | VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
+| Skoda 1010×376 (`P4526`) | 125 | `40,127,127,127` | raskrivuska, #15 |
+| VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 |
 | VW Golf (`P4521`) | 140–160 | about `53,73,127,127` | tvarszegi1, #8, still testing |
 
 Lower DPI makes the map and its text smaller, so more of the map shows; below
 about DPI 140 Google Maps changes from two overlay cards to one in the middle.
+Google Maps also drops its arrival-time card when the space left to it is too
+short, and DPI is the lever: the one setting anyone has shown with the card
+visible on a 12.3 in cluster is 138 with a bottom inset of 82 (#20, #27).
 Waze picks its own colours and ignores the day setting.
 
 Logs are kept in RAM only (`/tmp/gal_dualscreen.log`, `/tmp/stream-player.log`)

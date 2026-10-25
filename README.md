@@ -73,9 +73,9 @@ up into `ClusterMap`, and run the same update again.
 |---|---|---|
 | VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367), both road-tested. `P4512` (Golf R) and US `P3662`: install with a trial line. Others wanted |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` and `P4709` (1010×376 cluster window). **Arrows** on both |
-| Skoda with the Harman unit | `MHI2_ER_SKG13_` | **Map** on `P4526` with a trial line (first car run); ask for the line |
-| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | Unknown: on `K3342` the collector did not find `libautoreceiver.so`, which the map hooks, but it only looked in one folder. Being rechecked (#28) |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | Unknown: same as above on `K3346` (A4 B9), being rechecked (#14). An RS3 (software 1168) is still to be tried. The update needs developer mode (see Install) |
+| Skoda with the Harman unit | `MHI2_ER_SKG13_` | **Map** on `P4526`, car-confirmed (#15). Others wanted |
+| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | Unknown, but no longer ruled out: this generation links `libautoreceiver_qnx.so.1` beside `libaoa-lite`, not the `libautoreceiver.so` the map hooks today (#28, #33). A different receiver generation, so a profile may not map. Files wanted |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | Unknown: `K3346` (A4 B9) still to be rechecked for the receiver name above (#14). An RS3 (software 1168) is still to be tried. The update needs developer mode (see Install) |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies |
 

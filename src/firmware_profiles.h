@@ -99,6 +99,21 @@ static const gal_profile k_profiles[] = {
         0x80u, 0x84u, 40u,
         0x34u, 0x58u, 59u
     },
+    /*
+     * Skoda MIB2.5 High, MU1440. Car-tested by raskrivuska with its trial
+     * line (issue #15): the profile verified, the player decoded the phone's
+     * picture and the cockpit switched, with the map readable at DPI 125 and
+     * insets 40,127,127,127. Its receiver library is byte-identical to
+     * P4521's, so every verified layout applies; handler offsets as P4521.
+     */
+    {
+        "MHI2_ER_SKG13_P4526", 1,
+        0x002385c0u, 0x00232458u, 0x00232368u,
+        0x001d9ac0u, 0xe92d4ff0u, 0xf0u,
+        0x94u, 0xc4u,
+        0x80u, 0x84u, 40u,
+        0x34u, 0x58u, 59u
+    },
 };
 
 #define GAL_PROFILE_COUNT (sizeof(k_profiles) / sizeof(k_profiles[0]))

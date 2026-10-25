@@ -2206,6 +2206,40 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
             gal_hook_logf("event=main.input.binding channel=%u bytes=%u request=%s", (unsigned)channel, nb, hex);
         }
     }
+    /*
+     * The navigation messages the unit throws away (issue #4).
+     *
+     * At the protocol version we claim (GAL_DUALSCREEN_AAP_MINOR, 1.7 by
+     * default, needed before the phone will accept a second display) Google
+     * Maps sends its newer navigation pair on the NavigationStatus service:
+     * 0x8006 carries the road name, 0x8007 the distance and time. This
+     * receiver was built against 1.2, knows only the older 0x8004/0x8005,
+     * and answers -253 -- so the pictogram never updates while the map is
+     * installed, and the arrows only work with the map uninstalled.
+     *
+     * Translating the new pair into the old one has to start from the real
+     * bytes, which no capture has ever carried. Log the first few of each,
+     * then go quiet: these are small messages but they repeat for the whole
+     * of a route, and the log lives in RAM.
+     */
+    if (strstr(g_service_class[channel], "NavigationStatus") != NULL &&
+        (g_channel_last_id[channel] == 0x8006u ||
+         g_channel_last_id[channel] == 0x8007u)) {
+        static unsigned logged[2];
+        unsigned slot = g_channel_last_id[channel] == 0x8006u ? 0u : 1u;
+        if (logged[slot] < 3u) {
+            unsigned nb = 0u;
+            const unsigned char *m = (const unsigned char *)iobuffer_bytes(buffer, &nb);
+            char hex[2 * 96 + 1];
+            if (m != NULL) {
+                ++logged[slot];
+                hex_preview(m, nb < 96u ? nb : 96u, hex, sizeof hex);
+                gal_hook_logf("event=aap.nav_msg channel=%u msg_id=0x%04x bytes=%u n=%u hex=%s",
+                              (unsigned)channel, g_channel_last_id[channel],
+                              nb, logged[slot], hex);
+            }
+        }
+    }
     if (count == 1ul) {
         const gal_secondary_config *config = gal_hook_config();
         const char *role = "other";

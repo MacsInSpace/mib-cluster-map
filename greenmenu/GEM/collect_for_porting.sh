@@ -36,8 +36,25 @@ take_receiver()
 {
     found=`receiver_path`
     if [ -n "$found" ]; then take "$found"; return; fi
-    found=`find $RECEIVER_DIRS -name 'libautoreceiver*' 2>/dev/null | head -1`
-    if [ -n "$found" ]; then take "$found"; return; fi
+    # Nothing under a known name in a known folder. Look for anything named
+    # like the receiver and COPY whatever turns up, rather than only saying
+    # what is missing: on the VWG11 generation the name itself was the
+    # discovery, and a file on the card is worth more than a line in a log.
+    # One copy per distinct filename, since the tested units carry the same
+    # library at two paths. /net is left out on purpose: it is the other QNX
+    # node over QNET and walking it is slow.
+    names=
+    for f in `find $RECEIVER_DIRS /mnt/app /mnt/system /eso /lib /usr/lib \
+                   -name 'libautoreceive*' 2>/dev/null`; do
+        b=`echo "$f" | sed 's|.*/||'`
+        case " $names " in *" $b "*) continue ;; esac
+        names="$names $b"
+        take "$f"
+    done
+    if [ -n "$names" ]; then
+        say "receiver library found under another name:$names"
+        return
+    fi
     say "missing the receiver library: looked for $RECEIVER_NAMES in the usual folders"
     # Say what the Android Auto program itself asks for, so a unit that names
     # the library differently can still be ported. Joined with the shell, not
