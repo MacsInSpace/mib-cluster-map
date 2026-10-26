@@ -249,8 +249,16 @@ owner willing to test.
 
 1. Run the update (route 1). On a unit it does not support, it installs
    nothing and copies the files into `ClusterMap/porting_<train>/`, about
-   2.5 MB. Or use the `COLLECT` marker, or the green menu's **Collect files
+   3.2 MB. Or use the `COLLECT` marker, or the green menu's **Collect files
    for porting**.
+
+   It copies the two phone libraries under whatever names the unit carries
+   them: the Android Auto receiver (`libautoreceiver.so`, or
+   `libautoreceiver_qnx.so.1` on the VWG11 generation) and the CarPlay
+   library (`libairplay.so`). If neither known name is there it searches the
+   unit and copies what it finds, because a differently named library is the
+   usual reason a unit looks unportable when it is not (#28). `info.txt`
+   records which names were found.
 2. Open an issue with your car, the firmware train, and `info.txt` from that
    folder.
 3. **Do not post the other files.** They are Volkswagen and Harman software,

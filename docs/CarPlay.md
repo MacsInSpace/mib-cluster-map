@@ -35,6 +35,11 @@ iPhone video → hook in the CarPlay program (dio_manager) → stream-player →
   `libairplay.so` is that build (703688 bytes); on any other it installs the
   Android Auto map alone. The hook also checks the functions it attaches to
   and switches itself off if they differ.
+- **Getting your build looked at.** **Collect files for porting** copies
+  `libairplay.so` onto the card beside the Android Auto files, under whatever
+  name the unit carries, so a CarPlay port can be checked without a second
+  round trip. Email the `porting_*` folder; it holds Volkswagen/Harman
+  binaries and should not be posted publicly.
 - **Trying it on another build.** `CLUSTERMAP_CARPLAY_TRIAL=<size>` in
   `gal_dualscreen.conf` lets the installer accept a stated `libairplay.so`
   size; the message it prints when it refuses gives the number to use. This

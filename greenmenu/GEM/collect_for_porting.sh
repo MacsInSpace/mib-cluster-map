@@ -28,34 +28,38 @@ take()   # take <source file> : copy one file and record its size
 # The Android Auto program and its receiver library: what the hook attaches to.
 take /mnt/app/eso/bin/apps/gal
 
-# The receiver library is not always in the same place or under the same name:
-# receiver_path in common.sh holds both lists. The find afterwards catches a
-# name nobody has seen yet -- note the glob has no .so suffix, so it also
-# matches libautoreceiver_qnx.so.1.
-take_receiver()
+# A library this project attaches to, under whatever name this unit carries.
+# The known names come first (lib_path in common.sh); if none of them is
+# there, look for anything matching the glob and COPY what turns up rather
+# than only reporting it. On the VWG11 generation the name itself was the
+# discovery (issue #28), and a file on the card is worth more than a line in
+# a log. One copy per distinct filename, since the tested units carry the
+# same library at two paths. The glob deliberately has no .so suffix, so it
+# matches libautoreceiver_qnx.so.1 as well. /net is left out on purpose: it
+# is the other QNX node over QNET and walking it is slow.
+#
+# Returns 1 when nothing was found, so the caller can explain its own case.
+take_lib()   # take_lib <label> <glob> <known name>...
 {
-    found=`receiver_path`
-    if [ -n "$found" ]; then take "$found"; return; fi
-    # Nothing under a known name in a known folder. Look for anything named
-    # like the receiver and COPY whatever turns up, rather than only saying
-    # what is missing: on the VWG11 generation the name itself was the
-    # discovery, and a file on the card is worth more than a line in a log.
-    # One copy per distinct filename, since the tested units carry the same
-    # library at two paths. /net is left out on purpose: it is the other QNX
-    # node over QNET and walking it is slow.
+    what=$1; glob=$2; shift 2
+    found=`lib_path "$@"`
+    if [ -n "$found" ]; then take "$found"; return 0; fi
     names=
-    for f in `find $RECEIVER_DIRS /mnt/app /mnt/system /eso /lib /usr/lib \
-                   -name 'libautoreceive*' 2>/dev/null`; do
+    for f in `find $LIB_DIRS /mnt/app /mnt/system /eso /lib /usr/lib \
+                   -name "$glob" 2>/dev/null`; do
         b=`echo "$f" | sed 's|.*/||'`
         case " $names " in *" $b "*) continue ;; esac
         names="$names $b"
         take "$f"
     done
     if [ -n "$names" ]; then
-        say "receiver library found under another name:$names"
-        return
+        say "$what found under another name:$names"
+        return 0
     fi
-    say "missing the receiver library: looked for $RECEIVER_NAMES in the usual folders"
+    return 1
+}
+if ! take_lib 'the Android Auto receiver' 'libautoreceive*' $RECEIVER_NAMES; then
+    say "missing the Android Auto receiver: looked for $RECEIVER_NAMES in the usual folders"
     # Say what the Android Auto program itself asks for, so a unit that names
     # the library differently can still be ported. Joined with the shell, not
     # with tr: some units have no tr binary (issue #28).
@@ -64,8 +68,12 @@ take_receiver()
         needs="$needs $n"
     done
     [ -n "$needs" ] && say "gal asks for:$needs"
-}
-take_receiver
+fi
+# The CarPlay library, for a CarPlay port. Its absence is not a problem for
+# the Android Auto map, so it is only noted.
+if ! take_lib 'the CarPlay library' 'libairplay*' $AIRPLAY_NAMES; then
+    say "missing libairplay.so (CarPlay library): CarPlay cannot be ported from this collection"
+fi
 # Configuration the installer edits or reads.
 take /mnt/system/etc/eso/production/smartphone_integrator.json
 take /mnt/system/etc/eso/production/gal.json

@@ -34,24 +34,33 @@ done
 GAL_SIZE=1269211
 RECEIVER_SIZE=1067402
 SUPPORT_NOTE=
-# The Android Auto receiver library, which the hook attaches to and every
-# profile is measured against. MIB2.5 High units call it libautoreceiver.so
-# and keep it in /mnt/app/eso/lib, with a second copy at /eso/lib. The older
-# VWG11 generation links libautoreceiver_qnx.so.1 beside libaoa-lite instead
-# (issue #28: Vladimir's K3342 gal names it in its DT_NEEDED), so a unit that
-# has no libautoreceiver.so has not necessarily no receiver. Look for every
-# known name before concluding that.
+# The two phone libraries this project attaches to, and where units keep them.
+#
+# Android Auto: MIB2.5 High units call it libautoreceiver.so and keep it in
+# /mnt/app/eso/lib, with a second copy at /eso/lib. The older VWG11
+# generation links libautoreceiver_qnx.so.1 beside libaoa-lite instead
+# (issue #28: Vladimir's K3342 gal names it in its DT_NEEDED), so a unit with
+# no libautoreceiver.so has not necessarily no receiver.
+#
+# CarPlay: libairplay.so, which the CarPlay hook attaches to by exported
+# symbol name. Collected for the same reason as the receiver -- it is what a
+# port has to be checked against, and asking for it afterwards costs a round
+# trip (issue #10, US P3662, whose build differs from the tested one).
+LIB_DIRS="/mnt/app/eso/lib /eso/lib /mnt/app/armle/lib /mnt/app/usr/lib /mnt/app/root/lib-target"
 RECEIVER_NAMES="libautoreceiver.so libautoreceiver_qnx.so.1"
-RECEIVER_DIRS="/mnt/app/eso/lib /eso/lib /mnt/app/armle/lib /mnt/app/usr/lib /mnt/app/root/lib-target"
-receiver_path()
+AIRPLAY_NAMES="libairplay.so"
+# First readable file among the names given, in the library folders.
+lib_path()
 {
-    for d in $RECEIVER_DIRS; do
-        for n in $RECEIVER_NAMES; do
+    for d in $LIB_DIRS; do
+        for n in "$@"; do
             if [ -r "$d/$n" ]; then echo "$d/$n"; return 0; fi
         done
     done
     return 1
 }
+receiver_path() { lib_path $RECEIVER_NAMES; }
+airplay_path()  { lib_path $AIRPLAY_NAMES; }
 train_supported()
 {
     for t in $SUPPORTED_TRAINS; do

@@ -44,6 +44,8 @@ CARPLAY=1
 # a unit whose libairplay.so has this size (SHA-256 193a4fd9...46b5 on MU1440
 # and MU1367). The hook also checks the function prologues itself and leaves
 # CarPlay stock on a mismatch.
+# Resolved below over the same folders the collector uses: a unit that keeps
+# it only at /eso/lib would otherwise be reported as having no CarPlay at all.
 AIRPLAY_LIB=/mnt/app/eso/lib/libairplay.so
 AIRPLAY_SIZE=703688
 CARPLAY_PRELOAD=/mnt/app/eso/lib/gal_dualscreen/libcarplay_cluster.so
@@ -394,6 +396,9 @@ fi
 # #10 (US P3662, whose CarPlay library is a different build).
 AIRPLAY_TRIAL=`sed -n 's/^CLUSTERMAP_CARPLAY_TRIAL=\([0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+for d in /mnt/app/eso/lib /eso/lib /mnt/app/armle/lib /mnt/app/usr/lib /mnt/app/root/lib-target; do
+    if [ -r "$d/libairplay.so" ]; then AIRPLAY_LIB="$d/libairplay.so"; break; fi
+done
 AIRPLAY_NOW=`wc -c < $AIRPLAY_LIB 2>/dev/null | sed 's/ //g'`
 AIRPLAY_ALLOWED=0
 [ "$AIRPLAY_NOW" = "$AIRPLAY_SIZE" ] && AIRPLAY_ALLOWED=1
