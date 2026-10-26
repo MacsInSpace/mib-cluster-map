@@ -71,7 +71,8 @@ up into `ClusterMap`, and run the same update again.
 
 Yours. Issues and comments in any language are welcome, and several cars now
 working were debugged with people writing in their own. Logs and photos need
-no translation at all.
+no translation at all. The same in nine languages:
+[#36](https://github.com/MacsInSpace/mib-cluster-map/issues/36).
 
 ## Will it work on my car?
 
