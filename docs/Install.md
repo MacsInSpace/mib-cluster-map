@@ -183,7 +183,7 @@ top, bottom, left, right.
 | VW 12.3 in Passat B8 (`K4525`) | 145 | `56,73,127,127` | d4nt387, #8 |
 | VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
 | Skoda 1010×376 (`P4526`) | 125 | `40,127,127,127` | raskrivuska, #15 |
-| VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 |
+| VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
 | VW Golf (`P4521`) | 140–160 | about `53,73,127,127` | tvarszegi1, #8, still testing |
 
 Lower DPI makes the map and its text smaller, so more of the map shows; below
@@ -203,6 +203,7 @@ phone names and Bluetooth addresses.
 | What you see | What to do |
 |---|---|
 | The car's own map, or "no map" | Check the cluster is in map view. Unplug the phone, wait ten seconds, plug it in |
+| A wireless adapter connects, then drops every few seconds | In the adapter's own app: automatic standby **off**, VAG crash fix **off** (that fix is for VAG *Technisat* units, not Harman), adapter firmware up to date (#12, #35) |
 | The phone keeps disconnecting | Save logs, uninstall, reboot, open an issue |
 | The map appears, then goes blank when a route starts | Run the install again: something re-enabled the turn-arrows jar |
 | Black cluster with `GAL_PLAYER_DECODER=hw` | `GAL_PLAYER_NVSS_OUTPUT=0`, or back to `sw` |
