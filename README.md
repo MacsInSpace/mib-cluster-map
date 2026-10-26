@@ -67,6 +67,13 @@ state**, then reboot. Or, without the menu: on a computer, move
 `UNINSTALL.txt` from the folder `to uninstall, move this file up one folder`
 up into `ClusterMap`, and run the same update again.
 
+## Which language should I write in?
+
+Yours. Issues and comments in any language are welcome, and several cars now
+working were debugged with people writing in their own. Logs and photos need
+no translation at all. See
+[#36](https://github.com/MacsInSpace/mib-cluster-map/issues/36).
+
 ## Will it work on my car?
 
 | Head unit | Firmware train starts | Today |
