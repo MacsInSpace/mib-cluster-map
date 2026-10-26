@@ -381,6 +381,23 @@ WITH_ARROWS=0
 if [ "`sed -n 's/^CLUSTERMAP_KEEP_ARROWS=\([01]\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`" = 1 ]; then
     WITH_ARROWS=1; KEEP_TBT=1
 fi
+# CLUSTERMAP_CARPLAY_TRIAL=<size in bytes>: install the CarPlay map on a unit
+# whose libairplay.so is a different build from the one the hook was written
+# against, for testing. This is the CarPlay equivalent of GAL_PROFILE_TRIAL.
+#
+# It is a weaker gate than it looks, in the safe direction: the hook attaches
+# by exported symbol name (AirPlayReceiverSessionStart and nine others), not
+# by address, and it compares the first eight bytes of every function it
+# trampolines before touching it -- "prologue mismatch" in its log, and
+# CarPlay stays stock. So a stated size allows an attempt that the hook can
+# still refuse, rather than a blind patch of an unknown binary. Asked for in
+# #10 (US P3662, whose CarPlay library is a different build).
+AIRPLAY_TRIAL=`sed -n 's/^CLUSTERMAP_CARPLAY_TRIAL=\([0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+AIRPLAY_NOW=`wc -c < $AIRPLAY_LIB 2>/dev/null | sed 's/ //g'`
+AIRPLAY_ALLOWED=0
+[ "$AIRPLAY_NOW" = "$AIRPLAY_SIZE" ] && AIRPLAY_ALLOWED=1
+[ -n "$AIRPLAY_TRIAL" ] && [ "$AIRPLAY_NOW" = "$AIRPLAY_TRIAL" ] && AIRPLAY_ALLOWED=1
 
 # The cluster map window. The cluster's encoder expects the window it shows
 # to be this size; an 800x480 window on a cluster whose map window is, say,
@@ -449,8 +466,14 @@ if [ "$CARPLAY" -eq 0 ]; then
     CARPLAY_WHY="not requested (--no-carplay)"
 elif [ ! -r "$CARD_ROOT/carplay/libcarplay_cluster.so" ] || [ ! -r "$CARD_ROOT/carplay/carplay_cluster.sh" ]; then
     CARPLAY_WHY="its files are not in this package"
-elif [ "`wc -c < $AIRPLAY_LIB 2>/dev/null | sed 's/ //g'`" != "$AIRPLAY_SIZE" ]; then
-    CARPLAY_WHY="this unit's CarPlay library is a different build (`wc -c < $AIRPLAY_LIB 2>/dev/null | sed 's/ //g'` bytes)"
+elif [ "$AIRPLAY_ALLOWED" -ne 1 ]; then
+    if [ -z "$AIRPLAY_NOW" ]; then
+        CARPLAY_WHY="this unit has no $AIRPLAY_LIB"
+    elif [ -n "$AIRPLAY_TRIAL" ]; then
+        CARPLAY_WHY="this unit's CarPlay library is a different build ($AIRPLAY_NOW bytes), and CLUSTERMAP_CARPLAY_TRIAL says $AIRPLAY_TRIAL"
+    else
+        CARPLAY_WHY="this unit's CarPlay library is a different build ($AIRPLAY_NOW bytes); CLUSTERMAP_CARPLAY_TRIAL=$AIRPLAY_NOW would allow an attempt"
+    fi
 elif [ -d "$APP_MOUNT/carplaymaps" ] || grep -q carplaymaps "$APP_MOUNT/eso/bin/apps/dio_manager" 2>/dev/null; then
     CARPLAY_WHY="CarPlay Maps VC is installed; uninstall it first to use this one"
 else
@@ -461,6 +484,12 @@ else
         mv "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new" "$PRELOAD_WRITE_DIR/libcarplay_cluster.so" && CARPLAY_OK=1
     if [ "$CARPLAY_OK" -eq 1 ]; then
         echo "Installed the CarPlay map files to: $PRELOAD_WRITE_DIR"
+        if [ "$AIRPLAY_NOW" != "$AIRPLAY_SIZE" ]; then
+            echo "CarPlay map: UNTESTED CarPlay library ($AIRPLAY_NOW bytes), allowed by"
+            echo "             CLUSTERMAP_CARPLAY_TRIAL. The hook checks the functions it"
+            echo "             attaches to and leaves CarPlay stock if they differ; look for"
+            echo "             'missing symbol' or 'prologue mismatch' in carplay/altscreen111.log."
+        fi
     else
         rm -f "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new"
         CARPLAY_WHY="copying its files failed"

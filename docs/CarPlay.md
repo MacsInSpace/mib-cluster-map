@@ -35,6 +35,17 @@ iPhone video → hook in the CarPlay program (dio_manager) → stream-player →
   `libairplay.so` is that build (703688 bytes); on any other it installs the
   Android Auto map alone. The hook also checks the functions it attaches to
   and switches itself off if they differ.
+- **Trying it on another build.** `CLUSTERMAP_CARPLAY_TRIAL=<size>` in
+  `gal_dualscreen.conf` lets the installer accept a stated `libairplay.so`
+  size; the message it prints when it refuses gives the number to use. This
+  is weaker than it sounds, in the safe direction: the hook attaches by
+  exported symbol name (`AirPlayReceiverSessionStart` and nine others), not
+  by address, and compares the first eight bytes of every function it
+  trampolines, so it refuses a build that does not fit on its own. After a
+  trial install, read `carplay/altscreen111.log` from **Save logs to SD**:
+  `missing symbol <name>` means that build does not export what the hook
+  needs, `prologue mismatch` means the function is not the shape it patches,
+  and neither leaves CarPlay altered. Asked for in #10 (US `P3662`).
 - **Source, not binary:** the hook is built here from harman-f's published
   development source (`thirdparty/mhi2_altscreen_carplay/`, provenance in its
   `PROVENANCE.md`), not from their car-tested binary, for which no exact
