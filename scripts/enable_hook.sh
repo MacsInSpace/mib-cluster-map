@@ -822,7 +822,20 @@ echo "  cluster: Android Auto 800x480 @ 30 fps (margins ${MARGIN_W}x${MARGIN_H})
 if [ "$CARPLAY_OK" -eq 1 ]; then echo "  CarPlay map: installed, ${MAP_W}x${MAP_H}"; else echo "  CarPlay map: no ($CARPLAY_WHY)"; fi
 echo "  debug logs: $DEBUG"
 echo "  second sink: $SECOND_SINK   inject metadata: $INJECT_META"
-echo "  AAP minor version: ${AAP_MINOR:-2 (stock)}"
+# The hook reads GAL_DUALSCREEN_AAP_MINOR from its own copy of the settings at
+# run time, so --aap-minor is not the only source. Without the flag this line
+# used to say "2 (stock)" while the hook was in fact using the file's value --
+# which sent two testers (#19, #37) chasing a protocol version they were not
+# running. Report what will actually be used.
+AAP_MINOR_CONF=`sed -n 's/^GAL_DUALSCREEN_AAP_MINOR=\([0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+if [ -n "$AAP_MINOR" ]; then
+    echo "  AAP minor version: $AAP_MINOR (--aap-minor)"
+elif [ -n "$AAP_MINOR_CONF" ]; then
+    echo "  AAP minor version: $AAP_MINOR_CONF (from gal_dualscreen.conf)"
+else
+    echo "  AAP minor version: 2 (stock)"
+fi
 echo "  stream forwarding: $STREAM"
 echo "  cluster input service: $CLUSTER_INPUT"
 echo "  hook log: $HOOK_LOG_PATH"
