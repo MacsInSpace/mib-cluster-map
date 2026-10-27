@@ -855,7 +855,17 @@ NAVIGNORE_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_navignore_added
 # P4526: two Skoda owners applied this same jar from the MIB2 Toolbox (it is
 # bundled here unmodified) and both reported the map staying up with a route,
 # with no effect on the centre screen -- #15.
-NAVIGNORE_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SKG13_P4526"
+# P4512, US P3662, P4709: owners applied the toolbox's copy by hand, and the
+# logs they sent show it loaded. Those logs were saved from the green menu,
+# which only runs once the centre screen has started -- so the patch fits.
+NAVIGNORE_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SKG13_P4526 MHI2_ER_VWG13_P4512 MHI2_US_VWG13_P3662 MHI2_ER_SEG11_P4709"
+# CLUSTERMAP_ADD_NAVIGNORE=1 in gal_dualscreen.conf: add it on any other
+# firmware too, when the owner asks. It is the same jar the toolbox applies,
+# but done here it gets lsd.sh.before_* backups and is removed again by
+# uninstall. Off by default: on a firmware it does not fit, the centre screen
+# may not start (see docs/Install.md, Safety and recovery).
+NAVIGNORE_ASKED=`sed -n 's/^CLUSTERMAP_ADD_NAVIGNORE=\([01]\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 TRAIN=unknown
 for f in /net/rcc/dev/shmem/version.txt /dev/shmem/version.txt; do
     if [ -r "$f" ]; then
@@ -877,9 +887,13 @@ else
         echo "            The cluster will drop its map when the phone navigates."
     else
         NAV_OK=0
+        NAV_WHY="firmware $TRAIN"
         for t in $NAVIGNORE_TRAINS; do case "$TRAIN" in *${t}*) NAV_OK=1 ;; esac; done
+        if [ "$NAV_OK" -eq 0 ] && [ "$NAVIGNORE_ASKED" = 1 ]; then
+            NAV_OK=1; NAV_WHY="asked for by CLUSTERMAP_ADD_NAVIGNORE=1 on untested firmware $TRAIN"
+        fi
         if [ "$NAV_OK" -eq 1 ]; then
-            echo "Java check: NavActiveIgnore is not loaded; adding it (firmware $TRAIN)."
+            echo "Java check: NavActiveIgnore is not loaded; adding it ($NAV_WHY)."
             if sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$CARD_ROOT/thirdparty/NavActiveIgnore.jar"; then
                 mount -uw /mnt/app 2>/dev/null && { : > "$NAVIGNORE_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
             else
@@ -889,10 +903,12 @@ else
         else
             echo "WARNING: NavActiveIgnore is NOT loaded, and it is not added automatically" >&2
             echo "         on firmware $TRAIN. Without it the cluster drops the map as" >&2
-            echo "         soon as the phone starts a route. Apply it from the toolbox:" >&2
-            echo "         Customization > Navigation > Ignore navigation-active status." >&2
-            echo "         It edits the script that starts the centre screen, so keep a" >&2
-            echo "         copy first: cp $LSD_SH $LSD_SH.myback" >&2
+            echo "         soon as the phone starts a route. To have this installer add" >&2
+            echo "         it, put CLUSTERMAP_ADD_NAVIGNORE=1 in gal_dualscreen.conf and" >&2
+            echo "         install again; or apply it from the toolbox: Customization >" >&2
+            echo "         Navigation > Ignore navigation-active status. It edits the script" >&2
+            echo "         that starts the centre screen: check SSH works first, and keep a" >&2
+            echo "         copy: cp $LSD_SH $LSD_SH.myback" >&2
         fi
     fi
     TBT_OK=0

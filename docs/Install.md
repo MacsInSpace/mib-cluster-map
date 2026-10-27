@@ -133,7 +133,7 @@ while the phone sends it.
 | `/mnt/system/etc/eso/production/smartphone_integrator.json` | adds the hook to the Android Auto program's start-up, and the CarPlay hook to CarPlay's where the unit's CarPlay library fits; original kept as `.gal-dualscreen.original` and in `ClusterMap/backups/` on the card |
 | `/mnt/app/eso/lib/gal_dualscreen/` | the hooks, a helper library, the CarPlay supervisor script, a copy of the settings |
 | `/mnt/app/navigation/stream-player` | the video player |
-| `/mnt/app/eso/hmi/lsd/lsd.sh` | Java patch lines: NavActiveIgnore added if missing, the turn-arrows jar's line removed (map) or added (arrows). Previous file kept as `lsd.sh.before_<jar>` |
+| `/mnt/app/eso/hmi/lsd/lsd.sh` | Java patch lines: NavActiveIgnore added if missing (on the trains above, or anywhere with `CLUSTERMAP_ADD_NAVIGNORE=1`), the turn-arrows jar's line removed (map) or added (arrows). Previous file kept as `lsd.sh.before_<jar>` |
 | `/mnt/app/eso/hmi/engdefs/cluster-map.esd` | the menu screen |
 | `/mnt/system/etc/pf*.conf` | CarPlay map only: one firewall rule letting the iPhone's cluster video (TCP 6031) in on its USB CarPlay link, marked `# clustermap carplay map`; originals kept as `.clustermap.original` |
 | `/mnt/app/root/mibr-carplay111-safearea.conf` | CarPlay map only: the part of the window clear of the dials, from `GAL_SECONDARY_INSETS` |
@@ -166,6 +166,7 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 | `GAL_SECONDARY_INSETS` | 40,40,127,127 | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. See the settings owners have settled on, below |
 | `GAL_SECONDARY_UI_THEME` | 2 (dark) | 0 lets Google Maps switch between day and night (Waze stays dark), 1 is light |
 | `CLUSTERMAP_KEEP_ARROWS` | 0 | 1 keeps the turn-arrows jar with the map (adds it if missing): map, arrows and music together on SEAT. Not on VW: the map goes blank when a route starts |
+| `CLUSTERMAP_ADD_NAVIGNORE` | 0 | the map goes as soon as a route starts, on firmware where the installer does not add `NavActiveIgnore` by itself. 1 adds it, with a backup, and uninstall removes it. It edits the script that starts the centre screen, so check SSH works first |
 | `CLUSTERMAP_CARPLAY_TRIAL` | unset | the installer refuses the CarPlay map because this unit's `libairplay.so` is a different build. Put the size it prints here to allow the attempt; the hook still checks every symbol it patches and leaves CarPlay stock if they do not fit. See [CarPlay](CarPlay.md) |
 | `GAL_PLAYER_DECODER` | sw | `sw` is the tested software decoder. `hw` uses the unit's own video decoder and frees most of a processor core. If it will not open, the player uses software; if it fails while decoding, it stays off until the next reboot. **Not yet car-tested** |
 | `GAL_PLAYER_NVSS_OUTPUT` | 1 | the cluster stays black with `hw`: try 0 (uncomment the line first) |
@@ -206,7 +207,7 @@ phone names and Bluetooth addresses.
 | The car's own map, or "no map" | Check the cluster is in map view. Unplug the phone, wait ten seconds, plug it in |
 | A wireless adapter connects, then drops every few seconds | In the adapter's own app: automatic standby **off**, VAG crash fix **off** (that fix is for VAG *Technisat* units, not Harman), adapter firmware up to date (#12, #35) |
 | The phone keeps disconnecting | Save logs, uninstall, reboot, open an issue |
-| The map appears, then goes blank when a route starts, or the cluster says "navigation on mobile device is active" | `NavActiveIgnore` is not loaded. The installer adds it on `P4521`, `K4525` and `P4526`; on any other firmware apply it from the MIB2 Toolbox (**Customization > Navigation > Ignore navigation-active status**) and install again. Copy `lsd.sh` first — see [Safety and recovery](#safety-and-recovery) |
+| The map appears, then goes blank when a route starts, or the cluster says "navigation on mobile device is active" | `NavActiveIgnore` is not loaded. The installer adds it on `P4521`, `K4525`, `P4512`, US `P3662`, Skoda `P4526` and SEAT `P4709`. On any other firmware set `CLUSTERMAP_ADD_NAVIGNORE=1` and install again, or apply it from the MIB2 Toolbox (**Customization > Navigation > Ignore navigation-active status**). Check SSH works first — see [Safety and recovery](#safety-and-recovery) |
 | The map appears, then goes blank when a route starts, with `NavActiveIgnore` loaded | Run the install again: something re-enabled the turn-arrows jar |
 | Black cluster with `GAL_PLAYER_DECODER=hw` | `GAL_PLAYER_NVSS_OUTPUT=0`, or back to `sw` |
 | The centre screen stays black after a reboot | See below |
