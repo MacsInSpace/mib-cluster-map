@@ -888,8 +888,11 @@ else
             fi
         else
             echo "WARNING: NavActiveIgnore is NOT loaded, and it is not added automatically" >&2
-            echo "         on firmware $TRAIN. Apply it from the toolbox:" >&2
+            echo "         on firmware $TRAIN. Without it the cluster drops the map as" >&2
+            echo "         soon as the phone starts a route. Apply it from the toolbox:" >&2
             echo "         Customization > Navigation > Ignore navigation-active status." >&2
+            echo "         It edits the script that starts the centre screen, so keep a" >&2
+            echo "         copy first: cp $LSD_SH $LSD_SH.myback" >&2
         fi
     fi
     TBT_OK=0

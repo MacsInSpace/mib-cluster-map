@@ -5,7 +5,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 
 | Phone | On the cluster | State |
 |---|---|---|
-| Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521` and `K4525`, SEAT `MHI2_ER_SEG11_P4708` and `P4709`; Skoda `MHI2_ER_SKG13_P4526` and Golf R `P4512` with a trial line |
+| Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521` and `K4525`, SEAT `MHI2_ER_SEG11_P4708` and `P4709`, Skoda `MHI2_ER_SKG13_P4526`; Golf R `P4512` and US `P3662` with a trial line |
 | Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc), [our fork](https://github.com/MacsInSpace/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
 | Apple CarPlay | The Apple Maps or Google Maps map, live | **First car run**: on the dash of a Golf R (`P4512`); fitting it between the dials is under test. See [CarPlay](docs/CarPlay.md) |
 
