@@ -11,8 +11,9 @@ What it derives, and how far to trust it:
   * the hidden constructor and its size  found by the shape of its one call
                                          site: a PROPOSAL, check the listing
   * the two controller offsets           read from that call site: a proposal
-  * the handler table offsets            NOT derived; P4521's values are printed
-                                         and must be checked by hand
+  * the handler table offsets            read from the constructor's copy of the
+                                         configuration table: a proposal
+  * the renderer settings block           NOT derived; P4521's values are printed
   * the receiver library                 compared with the P4521 symbol layout
 
 Nothing printed here is safe to ship until someone has read the disassembly it
@@ -54,6 +55,14 @@ RECEIVER = {
     "_ZTV20ProtocolEndpointBase": 0x1030a8,
 }
 P4521_RECEIVER_SHA = "b04cb5cf3b8c9a003d2008844ff1434b6763a8e864b037251fafb65ce3a000c8"
+# The older receiver (VWG11, libautoreceiver_qnx.so.1) has the five-int form;
+# the hook takes either, and then adds its fields on the wire (receiver_layout
+# in src/video_sink_hook.c).
+ALTERNATIVES = {
+    "_ZN9VideoSink25addSupportedConfigurationEiiiiiii":
+        "_ZN9VideoSink25addSupportedConfigurationEiiiii",
+}
+VWG11_RECEIVER_SHA = "c4b06d695649dd80dea5033e0ad02c39dbec512826a9d725e606b84219d14c30"
 
 
 def sha(path):
@@ -95,6 +104,43 @@ def find_ctor(g):
                                         cfg=r1[1], creator=r3[1], listing=ins[i:k + 1]))
                     break
     return out
+
+
+def find_table(g, ctor):
+    """The constructor copies the configuration table into the handler's
+    {count, data, capacity}: it takes its address, clears the three words and
+    hands it to the copy routine.
+
+        add  REG, r4, #X        ; &handler->table (r4 = this)
+        str  rZ, [r4, #X]       ; } cleared, in any order
+        str  rZ, [r4, #X+4]     ; }
+        str  rZ, [r4, #X+8]     ; }
+        mov  r0, REG            ; then passed to the copy
+        ...
+        add  A, B, B, lsl #2    ; count * 5
+        lsl  A, A, #3           ;       * 8 = 40 bytes per entry
+
+    Returns (count_off, data_off, entry_size); None for what was not found."""
+    ins = [l.split(None, 2) for l in g.dis(ctor, 0x300)]
+    ins = [(a[1], a[2].split(";")[0].strip() if len(a) > 2 else "") for a in ins if len(a) >= 2]
+    stores = set()
+    for m, o in ins:
+        mm = re.match(r"\w+, \[r4, #(0x[0-9a-f]+)\]$", o) if m == "str" else None
+        if mm: stores.add(int(mm.group(1), 16))
+    count = entry = None
+    for m, o in ins:
+        mm = re.match(r"(\w+), r4, #(0x[0-9a-f]+)$", o) if m == "add" else None
+        if not mm: continue
+        x = int(mm.group(2), 16)
+        if {x, x + 4, x + 8} <= stores and ("mov", f"r0, {mm.group(1)}") in ins:
+            count = x
+            break
+    for k, (m, o) in enumerate(ins):
+        a = re.match(r"(\w+), (\w+), \2, lsl #2$", o) if m == "add" else None
+        if a and any(n == "lsl" and q == f"{a.group(1)}, {a.group(1)}, #3" for n, q in ins[k + 1:k + 4]):
+            entry = 40
+            break
+    return (count, None if count is None else count + 4, entry)
 
 
 def main():
@@ -145,7 +191,13 @@ def main():
     if same:
         print("identical file to the P4521 receiver: every verified layout applies.")
     else:
-        missing = [n for n in RECEIVER if n not in rn]
+        missing = [n for n in RECEIVER if n not in rn and ALTERNATIVES.get(n) not in rn]
+        for n, alt in ALTERNATIVES.items():
+            if n not in rn and alt in rn:
+                print(f"   older form {alt} instead of {n}:\n"
+                      "   the VWG11-generation receiver, which the hook handles (receiver_layout)")
+        if sha(recv_path) == VWG11_RECEIVER_SHA:
+            print("   byte-identical to VWG11 K3342's libautoreceiver_qnx.so.1, whose layouts are checked")
         moved = [(n, rn[n]) for n in RECEIVER if n in rn and rn[n] != RECEIVER[n]]
         print(f"different file. symbols missing: {len(missing)}, at a different offset: {len(moved)} of {len(RECEIVER)}")
         for n in missing: print(f"   MISSING {n}")
@@ -154,18 +206,29 @@ def main():
               "object layouts in docs/Development.md ('Adding a firmware') still hold: re-check each row.")
         if missing: print("STOP: a missing symbol means the hook cannot work with this receiver.")
 
+    h_count, h_data, entry = find_table(g, c["ctor"])
+    if h_count is None or entry is None:
+        print("\nWARNING: the handler table was not found in the constructor; P4521's offsets are\n"
+              "         printed below and must be checked by hand.")
+    table_note = "read from the constructor: verify" if h_count is not None and entry else \
+                 "NOT derived: copied from P4521, verify"
+    h_count = 0x80 if h_count is None else h_count
+    h_data = 0x84 if h_data is None else h_data
+    entry = 40 if entry is None else entry
+    print(f"\nhandler table: count at +{h_count:#x}, entries at +{h_data:#x}, {entry} bytes each")
+
     print("\n--- proposed entry for k_profiles[] in src/firmware_profiles.h  (car_tested = 0)")
     print(f"""    {{
         "{name}", 0,
         {addr['controller_slot']:#010x}u, {addr['impl_vtable']:#010x}u, {addr['cbhandler_vtable']:#010x}u,
         {c['ctor']:#010x}u, {c['first']:#010x}u, {c['size']:#x}u,
         {c['cfg']:#x}u, {c['creator']:#x}u,
-        0x80u, 0x84u, 40u,          /* NOT derived: copied from P4521, verify */
+        {h_count:#x}u, {h_data:#x}u, {entry}u,          /* {table_note} */
         0x34u, 0x58u, 59u           /* NOT derived: copied from P4521, verify */
     }},""")
     print("\n--- or, to try it without rebuilding, one line in gal_dualscreen.conf")
     print(f"GAL_PROFILE_TRIAL={name}:{addr['controller_slot']:x}:{addr['impl_vtable']:x}:{addr['cbhandler_vtable']:x}:"
-          f"{c['ctor']:x}:{c['first']:x}:{c['size']:x}:{c['cfg']:x}:{c['creator']:x}:80:84:28")
+          f"{c['ctor']:x}:{c['first']:x}:{c['size']:x}:{c['cfg']:x}:{c['creator']:x}:{h_count:x}:{h_data:x}:{entry:x}")
     print("\nNext: docs/Development.md, section 'Adding a firmware'.")
     return 0
 

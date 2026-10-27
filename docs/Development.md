@@ -120,9 +120,18 @@ can read ARM disassembly.
    |---|---|
    | `ctor`, `handler_size` | `operator new(size)` then the constructor, which stores vtable pointers inside `_ZTVN3gal25CVideoSinkCallbackHandlerE` (five on P4521) |
    | `ctl_config_off`, `ctl_creator_off` | the 2nd and 4th call arguments are `controller + offset`: the configuration source and the renderer-creator pointer |
-   | `h_cfg_count_off`, `h_cfg_data_off`, `cfg_entry_size` | the handler's entry count and array of entries starting with resolution and frame rate (not derived by the tool) |
+   | `h_cfg_count_off`, `h_cfg_data_off`, `cfg_entry_size` | the handler's entry count and array of entries starting with resolution and frame rate. The tool reads them from the constructor's copy of the table (`add REG, r4, #X`, the three words at X cleared, `mov r0, REG`); they differ between generations: +0x80/+0x84 on P4521, +0x78/+0x7c on VWG11 |
    | `settings_first`, `settings_last`, `stock_displayable` | the renderer settings block copied into the handler; the stock window id (59 on VW) may be in it (not derived) |
-   | the receiver library | if not byte-identical to P4521's (`b04cb5cf…`), re-check the hook's object offsets in it: endpoint open flag/channel (+4/+5), router (+8), service id (+12), the VideoSink vtable slots, sink session (+0x18), codec (+0x14), max unacked (+0x1c), configuration vector (+0x40/+0x44, 8-byte entries), `VideoConfiguration` size 0x48 |
+   | the receiver library | if not byte-identical to P4521's (`b04cb5cf…`) or VWG11 K3342's `libautoreceiver_qnx.so.1` (`c4b06d69…`), re-check the hook's object offsets in it: endpoint open flag/channel (+4/+5), router (+8), service id (+12), the VideoSink vtable slots, sink session (+0x18), codec (+0x14), max unacked (+0x1c), configuration vector (+0x40/+0x44, 8-byte entries), and the message offsets in `receiver_layout` (`src/video_sink_hook.c`) |
+
+   The hook knows two receiver generations. P4521's protobuf messages have an
+   unknown-field string at +0x08, and the hook writes the fields gal's schema
+   lacks (display id and type, UiConfig, the cluster input service) into it.
+   VWG11's older receiver has a five-argument `addSupportedConfiguration` and
+   no unknown-field strings, so the hook adds the same bytes to the encoded
+   service discovery response in `MessageRouter::queueOutgoing` instead; the
+   log line is `discovery.rewrite`. A receiver that has the seven-argument
+   function is treated as P4521's, the five-argument one as VWG11's.
 
    Also compare the cluster values in `info.txt` with P4521's: stock map
    window 33, context 70, display 4. The player has these fixed today; a unit

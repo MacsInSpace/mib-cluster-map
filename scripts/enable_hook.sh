@@ -640,12 +640,17 @@ INJECTION="\"LD_PRELOAD=$PRELOAD_SO_ALIAS\", \"GAL_DUALSCREEN_ENABLE=1\", \"GAL_
 # worth more than one extra option.
 INJECTED_COUNT=`echo "$INJECTION" | awk -F'", ' '{print NF-1}'`
 EXISTING_COUNT=`awk '
-BEGIN { in_children=0; in_gal=0 }
+BEGIN { in_children=0; in_gal=0; in_envs=0; line="" }
 {
     if ($0 ~ /"children"[ 	]*:/) in_children=1
     if (in_children && !in_gal && $0 ~ /^[ 	]*"gal"[ 	]*:/) in_gal=1
-    if (in_gal && $0 ~ /^[ 	]*"envs"[ 	]*:\[/) {
-        line=$0; sub(/^[^\[]*\[/, "", line); sub(/\].*$/, "", line)
+    # The array is on one line on the Golf, one entry per line on VWG11:
+    # gather it up to the closing bracket either way.
+    if (in_gal && !in_envs && $0 ~ /^[ 	]*"envs"[ 	]*:\[/) {
+        in_envs=1; line=$0; sub(/^[^\[]*\[/, "", line)
+    } else if (in_envs) line=line $0
+    if (in_envs && line ~ /\]/) {
+        sub(/\].*$/, "", line)
         n=split(line, parts, /"[ 	]*,[ 	]*"/)
         if (line ~ /^[ 	]*$/) n=0
         print n; exit

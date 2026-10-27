@@ -75,6 +75,10 @@ typedef void (*route_message_fn)(void *, unsigned char, const void *);
 
 static register_service_fn g_register_service;
 static add_configuration_fn g_add_configuration;
+/* VWG11's older receiver has the five-int form: resolution, fps, margins
+ * and density, without decoder depth or pixel aspect. */
+typedef void (*add_configuration5_fn)(void *, int, int, int, int, int);
+static add_configuration5_fn g_add_configuration5;
 static add_discovery_fn g_add_discovery;
 static handle_setup_fn g_handle_setup;
 static handle_media_configuration_fn g_handle_media_configuration;
@@ -224,22 +228,79 @@ static void *resolve_symbol(const char *name, void **slot)
     return *slot;
 }
 
+/*
+ * The two Android Auto receiver libraries the hook knows.
+ *
+ * P4521's libautoreceiver.so (and every train byte-identical to it) builds
+ * its protobuf messages with an unknown-field string at +0x08, and that is
+ * where the hook writes the fields GAL's schema lacks: the display id and
+ * type, the cluster's UiConfig, the cluster input service.
+ *
+ * VWG11's older libautoreceiver_qnx.so.1 has no such string. Its messages
+ * hold only their known fields -- MediaSinkService::SerializeWithCachedSizes
+ * at 0x8c578 writes fields 1-5 and returns, VideoConfiguration's at 0x8d67c
+ * fields 1-5 -- so there is nowhere in the objects to put anything. On that
+ * receiver the same bytes are added to the encoded ServiceDiscoveryResponse
+ * on its way out instead (rewrite_discovery_response). The VideoSink and
+ * MessageRouter layouts are the same in both; the other message offsets the
+ * hook reads moved, and are kept here.
+ */
+typedef struct {
+    const char *name;
+    int legacy;              /* no unknown-field strings: rewrite on the wire */
+    unsigned focus_has_bits; /* VideoFocusRequestNotification has-bits */
+    unsigned focus_mode;     /*   field 2, mode */
+    unsigned focus_reason;   /*   field 3, reason */
+    unsigned open_service;   /* ChannelOpenRequest service id, a byte */
+} receiver_layout;
+static const receiver_layout k_receiver_p4521 = { "p4521", 0, 0x20u, 0x2cu, 0x30u, 0x2cu };
+/* 0x8c458 VideoFocusRequestNotification::SerializeWithCachedSizes, 0x8a01c
+ * ChannelOpenRequest's, 0x64f78 handleChannelOpenReq's ldrb [r2, #0xc]. */
+static const receiver_layout k_receiver_vwg11 = { "vwg11_qnx", 1, 0x14u, 0x0cu, 0x10u, 0x0cu };
+static const receiver_layout *g_receiver = &k_receiver_p4521;
+
 static int resolve_runtime(void)
 {
+    static int logged;
+
     (void)resolve_symbol("_ZN11GalReceiver15registerServiceEP20ProtocolEndpointBase",
                          (void **)&g_register_service);
     (void)resolve_symbol("_ZN9VideoSink25addSupportedConfigurationEiiiiiii",
                          (void **)&g_add_configuration);
+    if (g_add_configuration == NULL) {
+        (void)resolve_symbol("_ZN9VideoSink25addSupportedConfigurationEiiiii",
+                             (void **)&g_add_configuration5);
+        if (g_add_configuration5 != NULL) g_receiver = &k_receiver_vwg11;
+    }
     (void)resolve_symbol("_ZN9VideoSink16addDiscoveryInfoEP24ServiceDiscoveryResponse",
                          (void **)&g_add_discovery);
-    if (g_register_service == NULL || g_add_configuration == NULL ||
+    if (g_register_service == NULL ||
+        (g_add_configuration == NULL && g_add_configuration5 == NULL) ||
         g_add_discovery == NULL) {
-        gal_hook_logf("event=abi.resolve result=failed register=%p add_config=%p discovery=%p",
+        gal_hook_logf("event=abi.resolve result=failed register=%p add_config=%p add_config5=%p discovery=%p",
                       (void *)g_register_service, (void *)g_add_configuration,
-                      (void *)g_add_discovery);
+                      (void *)g_add_configuration5, (void *)g_add_discovery);
         return -1;
     }
+    if (!logged) {
+        logged = 1;
+        gal_hook_logf("event=abi.receiver layout=%s display_fields=%s",
+                      g_receiver->name,
+                      g_receiver->legacy ? "wire_rewrite" : "unknown_field_strings");
+    }
     return 0;
+}
+
+static void add_configuration(void *sink, int resolution, int fps,
+                              int width_margin, int height_margin, int density,
+                              int decoder_depth, int pixel_aspect_ratio_e4)
+{
+    if (g_add_configuration != NULL)
+        g_add_configuration(sink, resolution, fps, width_margin, height_margin,
+                            density, decoder_depth, pixel_aspect_ratio_e4);
+    else if (g_add_configuration5 != NULL)
+        g_add_configuration5(sink, resolution, fps, width_margin, height_margin,
+                             density);
 }
 
 static const gal_profile *g_profile;
@@ -815,11 +876,14 @@ static int build_secondary_sink(void *primary, void *controller)
      * pixels.
      */
     /* Pass decoder_depth=3 for phone MediaCodec 3-frame pipelining */
-    g_add_configuration(g_secondary_sink,
+    add_configuration(g_secondary_sink,
         VIDEO_CODEC_RESOLUTION_800_480, (int)config->fps,
         (int)config->margin_width, (int)config->margin_height,
         (int)config->dpi, 3, (int)config->pixel_aspect_ratio_e4);
-    set_video_config_ui_insets(g_secondary_sink, config);
+    /* The older receiver's VideoConfiguration has no unknown-field string
+     * and no viewing distance: these go in on the wire instead. */
+    if (!g_receiver->legacy)
+        set_video_config_ui_insets(g_secondary_sink, config);
 
     /*
      * State the result of that call rather than assuming it. This is the
@@ -1100,7 +1164,7 @@ static void set_media_sink_unknown_fields(void *media_sink, int secondary)
  * phone will grant a cluster video stream at all; if it does, the
  * endpoint has to be built for real.
  */
-static void append_cluster_input_service(void *response)
+static unsigned build_cluster_input_entry(unsigned char entry[16])
 {
     /*
      * Channel id at index 3 is filled in from the secondary video sink's
@@ -1114,26 +1178,22 @@ static void append_cluster_input_service(void *response)
      * the routing table, discoverable only as traffic arriving at the
      * wrong endpoint.
      */
-    unsigned entry_len = 14u;
-    unsigned char entry[16] = {
+    static const unsigned char stock[14] = {
         0x0au, 0x0cu,
             0x08u, 0x41u,
             0x22u, 0x08u,
                 0x0au, 0x04u, 0x17u, 0x80u, 0x80u, 0x04u,
                 0x28u, 0x01u
     };
+    unsigned entry_len = 14u;
     unsigned input_service_id = (g_secondary_service_id + 1u) & 0xffu;
-    unsigned char *object = (unsigned char *)response;
-    unsigned capacity;
-    unsigned length;
-    unsigned i;
 
-    if (response == NULL) return;
+    memcpy(entry, stock, sizeof stock);
     if (g_secondary_service_id == 0u || input_service_id == 0u ||
         input_service_id >= 0xffu) {
         gal_hook_logf("event=cluster.input result=failed reason=no_service_id secondary=%u",
                       g_secondary_service_id);
-        return;
+        return 0u;
     }
     entry[3] = (unsigned char)input_service_id;
     {
@@ -1177,6 +1237,22 @@ static void append_cluster_input_service(void *response)
             }
         }
     }
+    return entry_len;
+}
+
+static void append_cluster_input_service(void *response)
+{
+    unsigned char entry[16];
+    unsigned entry_len;
+    unsigned input_service_id = (g_secondary_service_id + 1u) & 0xffu;
+    unsigned char *object = (unsigned char *)response;
+    unsigned capacity;
+    unsigned length;
+    unsigned i;
+
+    if (response == NULL) return;
+    entry_len = build_cluster_input_entry(entry);
+    if (entry_len == 0u) return;
     capacity = load_u32(response, 0x1cu);
     length = load_u32(response, 0x18u);
     /*
@@ -1209,6 +1285,272 @@ static void append_cluster_input_service(void *response)
                   entry_len);
 }
 
+/* ---------------- Older receiver: display fields on the wire ---------------- */
+
+/*
+ * On VWG11's receiver (see receiver_layout) the fields the hook adds cannot
+ * live in the protobuf objects, so they are added to the encoded
+ * ServiceDiscoveryResponse instead, as it passes MessageRouter::queueOutgoing.
+ * The bytes are the ones the object path writes on P4521:
+ *
+ *   MediaSinkService of the cluster sink   30 <display id> 38 01
+ *     its first VideoConfiguration         30 03 (decoder depth),
+ *                                          38 <viewing distance>,
+ *                                          40 <pixel aspect>, 5a <UiConfig>
+ *   MediaSinkService of the main sink      30 00 38 00
+ *   each InputSourceService                28 00
+ *   after the services                     the cluster InputSourceService
+ *
+ * A response that does not parse is sent unchanged.
+ */
+typedef struct {
+    unsigned char *p;
+    unsigned len;
+    unsigned cap;
+    int overflow;
+} pb_out;
+
+static void pb_put(pb_out *o, const void *data, unsigned n)
+{
+    if (o->overflow || n > o->cap - o->len) { o->overflow = 1; return; }
+    memcpy(o->p + o->len, data, n);
+    o->len += n;
+}
+
+static void pb_put_varint(pb_out *o, uint32_t value)
+{
+    unsigned char tmp[5];
+    pb_put(o, tmp, (unsigned)encode_varint(tmp, value));
+}
+
+static void pb_put_bytes_field(pb_out *o, unsigned field, const unsigned char *data, unsigned n)
+{
+    pb_put_varint(o, (uint32_t)((field << 3) | 2u));
+    pb_put_varint(o, n);
+    pb_put(o, data, n);
+}
+
+static int pb_get_varint(const unsigned char *p, unsigned n, unsigned *pos, uint32_t *out)
+{
+    uint32_t value = 0u;
+    unsigned shift = 0u;
+
+    while (*pos < n && shift < 35u) {
+        unsigned char b = p[(*pos)++];
+        value |= (uint32_t)(b & 0x7fu) << shift;
+        if ((b & 0x80u) == 0u) { *out = value; return 0; }
+        shift += 7u;
+    }
+    return -1;
+}
+
+/* One field: number, wire type, its varint value or its bytes, and where it
+ * ends. Returns -1 for anything that is not well-formed. */
+typedef struct {
+    unsigned field;
+    unsigned wire;
+    uint32_t value;
+    const unsigned char *data;
+    unsigned data_len;
+    unsigned start;
+    unsigned end;
+} pb_field;
+
+static int pb_next(const unsigned char *p, unsigned n, unsigned *pos, pb_field *f)
+{
+    uint32_t key;
+
+    f->start = *pos;
+    if (pb_get_varint(p, n, pos, &key) != 0) return -1;
+    f->field = key >> 3;
+    f->wire = key & 7u;
+    f->data = NULL;
+    f->data_len = 0u;
+    switch (f->wire) {
+    case 0u:
+        if (pb_get_varint(p, n, pos, &f->value) != 0) return -1;
+        break;
+    case 1u:
+        if (n - *pos < 8u) return -1;
+        *pos += 8u;
+        break;
+    case 2u:
+        if (pb_get_varint(p, n, pos, &f->value) != 0 || f->value > n - *pos) return -1;
+        f->data = p + *pos;
+        f->data_len = f->value;
+        *pos += f->value;
+        break;
+    case 5u:
+        if (n - *pos < 4u) return -1;
+        *pos += 4u;
+        break;
+    default:
+        return -1;
+    }
+    f->end = *pos;
+    return 0;
+}
+
+typedef struct {
+    unsigned primary_tagged;
+    unsigned secondary_tagged;
+    unsigned vconf_extended;
+    unsigned inputs_tagged;
+} discovery_rewrite_stats;
+
+static int rewrite_media_sink(const unsigned char *m, unsigned n, int secondary,
+                              pb_out *out, discovery_rewrite_stats *stats)
+{
+    const gal_secondary_config *config = gal_hook_config();
+    unsigned pos = 0u;
+    int vconf_done = 0;
+    pb_field f;
+
+    while (pos < n) {
+        if (pb_next(m, n, &pos, &f) != 0) return -1;
+        if (secondary && !vconf_done && f.field == 4u && f.wire == 2u) {
+            unsigned char vconf[160];
+            unsigned char ui[24];
+            size_t ui_len;
+            pb_out v = { vconf, 0u, sizeof vconf, 0 };
+
+            vconf_done = 1;
+            pb_put(&v, f.data, f.data_len);
+            pb_put_varint(&v, 0x30u); pb_put_varint(&v, 3u);
+            if (config->viewing_distance > 0u) {
+                pb_put_varint(&v, 0x38u); pb_put_varint(&v, config->viewing_distance);
+            }
+            if (config->pixel_aspect_ratio_e4 > 0u) {
+                pb_put_varint(&v, 0x40u); pb_put_varint(&v, config->pixel_aspect_ratio_e4);
+            }
+            if (config->ui_config_payload_len > 0u &&
+                config->ui_config_payload_len <= sizeof config->ui_config_payload) {
+                pb_put(&v, config->ui_config_payload, config->ui_config_payload_len);
+            } else {
+                ui_len = build_insets_payload(ui, sizeof ui, config->insets_top,
+                                              config->insets_bottom, config->insets_left,
+                                              config->insets_right, config->ui_theme);
+                pb_put(&v, ui, (unsigned)ui_len);
+            }
+            if (v.overflow) return -1;
+            pb_put_bytes_field(out, 4u, vconf, v.len);
+            stats->vconf_extended++;
+        } else {
+            pb_put(out, m + f.start, f.end - f.start);
+        }
+    }
+    pb_put_varint(out, 0x30u);
+    pb_put_varint(out, secondary ? config->display_id : 0u);
+    pb_put_varint(out, 0x38u);
+    pb_put_varint(out, secondary ? 1u : 0u);
+    if (secondary) stats->secondary_tagged++;
+    else stats->primary_tagged++;
+    return 0;
+}
+
+static int rewrite_service(const unsigned char *svc, unsigned n, pb_out *out,
+                           discovery_rewrite_stats *stats)
+{
+    unsigned primary_id = g_primary_sink != NULL ? endpoint_service_id(g_primary_sink) : 0xffu;
+    unsigned id = 0xffu;
+    unsigned pos = 0u;
+    pb_field f;
+
+    while (pos < n) {
+        if (pb_next(svc, n, &pos, &f) != 0) return -1;
+        if (f.field == 1u && f.wire == 0u) id = f.value;
+    }
+    pos = 0u;
+    while (pos < n) {
+        (void)pb_next(svc, n, &pos, &f);
+        if (f.field == 3u && f.wire == 2u &&
+            ((g_secondary_registered && id == g_secondary_service_id) || id == primary_id)) {
+            unsigned char *tmp = malloc(f.data_len + 192u);
+            pb_out m;
+            int rc;
+
+            if (tmp == NULL) return -1;
+            m.p = tmp; m.len = 0u; m.cap = f.data_len + 192u; m.overflow = 0;
+            rc = rewrite_media_sink(f.data, f.data_len, id != primary_id, &m, stats);
+            if (rc == 0 && !m.overflow) pb_put_bytes_field(out, 3u, tmp, m.len);
+            free(tmp);
+            if (rc != 0 || m.overflow) return -1;
+        } else if (f.field == 4u && f.wire == 2u && gal_hook_main_input_id_enabled()) {
+            /* GAL's own input services, the main screen's: display id 0.
+             * See set_input_service_display_id for why it must be said. */
+            pb_put_varint(out, 0x22u);
+            pb_put_varint(out, f.data_len + 2u);
+            pb_put(out, f.data, f.data_len);
+            pb_put_varint(out, 0x28u);
+            pb_put_varint(out, 0u);
+            stats->inputs_tagged++;
+        } else {
+            pb_put(out, svc + f.start, f.end - f.start);
+        }
+    }
+    return 0;
+}
+
+/* Returns a malloc'd copy of the message with the fields added, or NULL to
+ * send the original. `msg` starts with the two-byte message id. */
+static unsigned char *rewrite_discovery_response(const unsigned char *msg, unsigned len,
+                                                 unsigned *out_len)
+{
+    discovery_rewrite_stats stats = { 0u, 0u, 0u, 0u };
+    const unsigned char *body = msg + 2;
+    unsigned n = len - 2u;
+    unsigned pos = 0u;
+    unsigned char entry[16];
+    unsigned entry_len = 0u;
+    pb_out out;
+    pb_field f;
+
+    out.cap = len + 512u;
+    out.p = malloc(out.cap);
+    out.len = 0u;
+    out.overflow = 0;
+    if (out.p == NULL) return NULL;
+    pb_put(&out, msg, 2u);
+    while (pos < n) {
+        if (pb_next(body, n, &pos, &f) != 0) goto unparsed;
+        if (f.field == 1u && f.wire == 2u) {
+            unsigned char *tmp = malloc(f.data_len + 256u);
+            pb_out sv;
+            int rc;
+
+            if (tmp == NULL) goto unparsed;
+            sv.p = tmp; sv.len = 0u; sv.cap = f.data_len + 256u; sv.overflow = 0;
+            rc = rewrite_service(f.data, f.data_len, &sv, &stats);
+            if (rc == 0 && !sv.overflow) pb_put_bytes_field(&out, 1u, tmp, sv.len);
+            free(tmp);
+            if (rc != 0 || sv.overflow) goto unparsed;
+        } else {
+            pb_put(&out, body + f.start, f.end - f.start);
+        }
+    }
+    /* Only beside the cluster's video service, as on P4521. */
+    if (stats.secondary_tagged > 0u && gal_hook_cluster_input_enabled()) {
+        entry_len = build_cluster_input_entry(entry);
+        pb_put(&out, entry, entry_len);
+    }
+    if (out.overflow) goto unparsed;
+    gal_hook_logf("event=discovery.rewrite result=success bytes=%u->%u primary=%u secondary=%u secondary_service=%u vconf=%u main_inputs=%u cluster_input=%s",
+                  len, out.len, stats.primary_tagged, stats.secondary_tagged,
+                  g_secondary_service_id, stats.vconf_extended, stats.inputs_tagged,
+                  entry_len > 0u ? "added" : "no");
+    if (g_secondary_registered && stats.secondary_tagged == 0u)
+        gal_hook_logf("event=discovery.rewrite result=warning reason=secondary_service_not_found service=%u",
+                      g_secondary_service_id);
+    *out_len = out.len;
+    return out.p;
+
+unparsed:
+    gal_hook_logf("event=discovery.rewrite result=failed reason=%s bytes=%u at=%u action=sent_unchanged",
+                  out.overflow ? "overflow" : "unparsed", len, pos);
+    free(out.p);
+    return NULL;
+}
+
 /* VideoSink::addDiscoveryInfo(ServiceDiscoveryResponse*) */
 void _ZN9VideoSink16addDiscoveryInfoEP24ServiceDiscoveryResponse(
     void *sink, void *response)
@@ -1222,6 +1564,9 @@ void _ZN9VideoSink16addDiscoveryInfoEP24ServiceDiscoveryResponse(
     g_add_discovery(sink, response);
     if (!gal_hook_is_enabled() ||
         (sink != g_primary_sink && sink != g_secondary_sink)) return;
+    /* Nothing in the older receiver's objects to write into; see
+     * rewrite_discovery_response. */
+    if (g_receiver->legacy) return;
     count = load_u32(response, 0x2cu);
     if (count == 0u) {
         gal_hook_log("event=discovery.metadata result=failed reason=no_service");
@@ -1295,6 +1640,7 @@ void _ZN11InputSource16addDiscoveryInfoEP24ServiceDiscoveryResponse(
     g_input_add_discovery(input_source, response);
 
     if (!gal_hook_is_enabled() || !gal_hook_inject_meta_enabled()) return;
+    if (g_receiver->legacy) return;
     if (!gal_hook_main_input_id_enabled()) {
         gal_hook_log("event=discovery.input_meta result=skipped reason=disabled");
         return;
@@ -1420,10 +1766,10 @@ int _ZN9VideoSink23handleVideoFocusRequestERK29VideoFocusRequestNotification(
     if (sink != g_secondary_sink || !g_secondary_registered || request == NULL)
         return g_handle_video_focus_request(sink, request);
 
-    has_bits = load_u32(request, 0x20u);
-    mode = (int)load_u32(request, 0x2cu);
+    has_bits = load_u32(request, g_receiver->focus_has_bits);
+    mode = (int)load_u32(request, g_receiver->focus_mode);
     reason = (has_bits & 0x4u) != 0u ?
-        (int)load_u32(request, 0x30u) : 0;
+        (int)load_u32(request, g_receiver->focus_reason) : 0;
 
     (void)resolve_symbol("_ZN9VideoSink13setVideoFocusEib",
                          (void **)&g_set_video_focus);
@@ -2397,6 +2743,36 @@ typedef void (*queue_outgoing_fn)(void *, unsigned char, void *, unsigned);
 static queue_outgoing_fn g_queue_outgoing;
 #define INJECT_PATH "/tmp/gal_inject"
 
+/*
+ * MessageRouter::queueOutgoing(this, channel, data, len)
+ *
+ * Only for the older receiver: Controller::sendServiceDiscoveryResponse
+ * serialises the response (marshallProto, message id 6) and hands it here
+ * through the PLT (0x5cf48 in libautoreceiver_qnx.so.1), then frees its own
+ * buffer -- queueOutgoing copies it into frames. So the rewritten copy is
+ * passed on and freed here. Every other message goes straight through.
+ */
+void _ZN13MessageRouter13queueOutgoingEhPvj(void *router, unsigned char channel,
+                                            void *data, unsigned len)
+{
+    const unsigned char *m = (const unsigned char *)data;
+    unsigned char *rewritten = NULL;
+    unsigned rewritten_len = 0u;
+
+    (void)resolve_symbol("_ZN13MessageRouter13queueOutgoingEhPvj", (void **)&g_queue_outgoing);
+    if (g_queue_outgoing == NULL) return;
+    if (g_receiver->legacy && channel == 0u && m != NULL && len > 2u &&
+        m[0] == 0u && m[1] == 6u &&
+        gal_hook_is_enabled() && gal_hook_inject_meta_enabled())
+        rewritten = rewrite_discovery_response(m, len, &rewritten_len);
+    if (rewritten != NULL) {
+        g_queue_outgoing(router, channel, rewritten, rewritten_len);
+        free(rewritten);
+        return;
+    }
+    g_queue_outgoing(router, channel, data, len);
+}
+
 static void hex_preview(const unsigned char *p, unsigned n, char *out, size_t out_len)
 {
     unsigned i;
@@ -2555,6 +2931,22 @@ static void cluster_input_message(void *router, unsigned char channel, const voi
     }
 }
 
+/* The older receiver's form; it is how the primary sink announces itself
+ * there, exactly as the seven-int one does on P4521. */
+void _ZN9VideoSink25addSupportedConfigurationEiiiii(
+    void *sink, int resolution, int fps, int width_margin, int height_margin,
+    int density)
+{
+    (void)resolve_symbol("_ZN9VideoSink25addSupportedConfigurationEiiiii",
+                         (void **)&g_add_configuration5);
+    if (g_add_configuration5 == NULL) return;
+    if (sink != NULL && sink != g_secondary_sink) g_pending_primary_sink = sink;
+    gal_hook_debugf("event=video.config.add role=%s sink=%p resolution_enum=%d fps=%d margins=%dx%d dpi=%d form=5",
+                    sink == g_secondary_sink ? "secondary" : "primary",
+                    sink, resolution, fps, width_margin, height_margin, density);
+    g_add_configuration5(sink, resolution, fps, width_margin, height_margin, density);
+}
+
 /* Diagnostic only: log stock/secondary VideoConfiguration registrations. */
 void _ZN9VideoSink25addSupportedConfigurationEiiiiiii(
     void *sink, int resolution, int fps, int width_margin, int height_margin,
@@ -2684,7 +3076,7 @@ int _ZN13MessageRouter20handleChannelOpenReqEhRK18ChannelOpenRequest(
     (void)resolve_symbol(
         "_ZN13MessageRouter20handleChannelOpenReqEhRK18ChannelOpenRequest",
         (void **)&g_handle_channel_open);
-    service = request == NULL ? 0xffu : load_u8(request, 0x2cu);
+    service = request == NULL ? 0xffu : load_u8(request, g_receiver->open_service);
     if (g_handle_channel_open == NULL) {
         gal_hook_logf("event=aap.channel.open result=unresolved channel=%u service=%u",
                       (unsigned)channel, service);
