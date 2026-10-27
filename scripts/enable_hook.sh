@@ -417,11 +417,21 @@ MAP_SIZE=`( cd /eso && LD_PRELOAD="$PRELOAD_WRITE_DIR/libdmdt_flush.so" \
     $1 == 33 {
         for (i = 2; i < NF; i++) if ($i == "x") { print $(i - 1) "x" $(i + 1); exit }
     }'`
+# A GAL_PLAYER_WINDOW line in the card's settings is used only when the
+# display manager does not list the window (#19: a SEAT that never reported
+# its 1010x376, with its own map on the cockpit at every install).
+MAP_SET=`sed -n 's/^GAL_PLAYER_WINDOW=\([0-9]*x[0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+MAP_FROM="display manager"
+if [ -z "$MAP_SIZE" ] && [ -n "$MAP_SET" ]; then
+    MAP_SIZE=$MAP_SET
+    MAP_FROM="GAL_PLAYER_WINDOW in gal_dualscreen.conf"
+fi
 MAP_W=`echo "$MAP_SIZE" | sed -n 's/^\([0-9][0-9]*\)x[0-9][0-9]*$/\1/p'`
 MAP_H=`echo "$MAP_SIZE" | sed -n 's/^[0-9][0-9]*x\([0-9][0-9]*\)$/\1/p'`
 if [ -n "$MAP_W" ] && [ -n "$MAP_H" ] && [ "$MAP_W" -ge 320 ] && [ "$MAP_W" -le 1920 ] && \
    [ "$MAP_H" -ge 160 ] && [ "$MAP_H" -le 1080 ]; then
-    echo "Cluster map window: ${MAP_W}x${MAP_H}"
+    echo "Cluster map window: ${MAP_W}x${MAP_H} (from the $MAP_FROM)"
 else
     MAP_W=800; MAP_H=480
     echo "Cluster map window: not reported by the display manager; using 800x480."
@@ -429,7 +439,8 @@ else
     echo "  own map. If your cockpit map is not 800x480, the picture can arrive"
     echo "  as stripes or the wrong shape. To get the right size: put the"
     echo "  cockpit in map view with the car's own navigation, then run this"
-    echo "  install again."
+    echo "  install again. If it still is not listed, set the size yourself in"
+    echo "  gal_dualscreen.conf, e.g. GAL_PLAYER_WINDOW=1010x376 on SEAT and Skoda."
 fi
 # Android Auto's frame is always 800x480: the phone is asked to leave
 # margins so the rest has the window's shape (none for an 800x480 window).

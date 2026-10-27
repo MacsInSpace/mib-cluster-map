@@ -7,7 +7,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 |---|---|---|
 | Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521` and `K4525`, SEAT `MHI2_ER_SEG11_P4708` and `P4709`, Skoda `MHI2_ER_SKG13_P4526`; Golf R `P4512` and US `P3662` with a trial line |
 | Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc), [our fork](https://github.com/MacsInSpace/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
-| Apple CarPlay | The Apple Maps or Google Maps map, live | **First car run**: on the dash of a Golf R (`P4512`); fitting it between the dials is under test. See [CarPlay](docs/CarPlay.md) |
+| Apple CarPlay | The Apple Maps or Google Maps map, live | **Working** on a Golf R (`P4512`), a SEAT (`P4709`) and a Golf (`K4525`). It can switch back to the car's own map while driving, under investigation (#19, #43). See [CarPlay](docs/CarPlay.md) |
 
 It installs from an SD card as a software update. No toolbox, laptop or
 command line is needed. The installer checks the unit and installs what fits
@@ -81,7 +81,8 @@ no translation at all. The same in nine languages:
 | VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367), both road-tested. `P4512` (Golf R) and US `P3662`: install with a trial line. Others wanted |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` and `P4709` (1010×376 cluster window). **Arrows** on both |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | **Map** on `P4526`, car-confirmed (#15). Others wanted |
-| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | Unknown, but no longer ruled out: this generation links `libautoreceiver_qnx.so.1` beside `libaoa-lite`, not the `libautoreceiver.so` the map hooks today (#28, #33). A different receiver generation, so a profile may not map. Files wanted |
+| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | **Trial** on `K3342` with a trial line (#28): from v1.1.1-beta9 the hook supports this generation's older Android Auto receiver (`libautoreceiver_qnx.so.1`). Not yet car-tested. `P3301` (#33) and `S2125` (#39) wanted |
+| VW Discover Pro, Japan | `MHI2_JP_VW48x_` | **Trial** on `P0953` with a trial line (#37), being tested |
 | Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | Unknown: `K3346` (A4 B9) still to be rechecked for the receiver name above (#14). An RS3 (software 1168) is still to be tried. The update needs developer mode (see Install) |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies |
@@ -113,8 +114,10 @@ phone is unplugged and plugged in again.
 | Autorun install without the service menu (`Swdlautorun.txt`) | Tested on a car (Golf `P4521`); Audi untested |
 
 Showing the arrows and the map together works on SEAT with
-`CLUSTERMAP_KEEP_ARROWS=1`, but not on VW, where the map goes blank when a
-route starts. Not possible so far: zooming the cluster map from the steering
+`CLUSTERMAP_KEEP_ARROWS=1`. On VW the map has gone blank when a route starts;
+one Tiguan (`K4525`) reports both working on beta8 (#44), being checked. The
+turn pictograms need `GAL_DUALSCREEN_AAP_MINOR` at 5 or lower, the shipped
+value from v1.1.1-beta9 (#4). Not possible so far: zooming the cluster map from the steering
 wheel ([why](docs/Development.md#zoom)), and switching between the phone's map
 and the car's map from the steering wheel.
 

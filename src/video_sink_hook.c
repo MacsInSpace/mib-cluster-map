@@ -2555,8 +2555,8 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
     /*
      * The navigation messages the unit throws away (issue #4).
      *
-     * At the protocol version we claim (GAL_DUALSCREEN_AAP_MINOR, 1.7 by
-     * default, needed before the phone will accept a second display) Google
+     * From protocol version 1.6 (GAL_DUALSCREEN_AAP_MINOR=6 or higher; the
+     * shipped settings claim 1.5 for this reason) Google
      * Maps sends its newer navigation pair on the NavigationStatus service:
      * 0x8006 carries the road name, 0x8007 the distance and time. This
      * receiver was built against 1.2, knows only the older 0x8004/0x8005,

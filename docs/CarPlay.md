@@ -1,6 +1,6 @@
 # CarPlay map
 
-**State: built, not yet tested on a car. Not in any release yet.**
+**State: in the releases. Working on a Golf R (`P4512`), a SEAT (`P4709`, #19) and a Golf (`K4525`, #43). Open: on the SEAT and the Golf it can switch back to the car's own map while driving (#19, #43).**
 
 The goal is one package that puts the phone's map on the cluster for both
 phone types. Only one phone projects at a time, so the two only have to share
@@ -144,7 +144,7 @@ The installer skips CarPlay, and still installs the Android Auto map, when:
 | harman-f's hook built from source, with its notice | Done, no warnings |
 | `stream-player` input from the CarPlay socket | Done (`--no-ack`) |
 | Installer: `dio_manager` entry, library check, uninstall | Done; simulated against this unit's configuration |
-| Car test with an iPhone | Golf R (P4512): hook loads, the phone sets up the cluster stream after "Forget This Car", its video was blocked by the unit firewall until the rule above; with it, the map shows on the dash. Safe area added after the card and car sat under the dials |
+| Car test with an iPhone | Golf R (P4512): hook loads, the phone sets up the cluster stream after "Forget This Car", its video was blocked by the unit firewall until the rule above; with it, the map shows on the dash. Safe area added after the card and car sat under the dials. Then SEAT `P4709` (1010×376 window, #19) and Golf `K4525` (#43): map shown; it can switch back to the car's map while driving, logs with the time of the switch wanted |
 
 ## Testing
 

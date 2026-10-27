@@ -151,7 +151,9 @@ the display manager (`dmdt gd`, window 33) and opens the player's window at
 it. Android Auto's cluster video is always 800×480, so where the window has
 another shape the phone is asked to leave margins (0×182 for 1010×376) and
 the player scales the rest to fill the window. CarPlay is asked for the
-window's size. If the size cannot be read, 800×480 is used. The install
+window's size. If the size cannot be read, the card's `GAL_PLAYER_WINDOW`
+is used when set (for example `GAL_PLAYER_WINDOW=1010x376`), otherwise
+800×480. The install
 output and the unit's copy of the settings (`GAL_PLAYER_WINDOW`,
 `GAL_SECONDARY_MARGINS`) show what was chosen.
 
@@ -165,7 +167,9 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 | `GAL_SECONDARY_DPI` | 125 | map text and turn card too big (lower) or too small (higher) |
 | `GAL_SECONDARY_INSETS` | 40,40,127,127 | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. See the settings owners have settled on, below |
 | `GAL_SECONDARY_UI_THEME` | 2 (dark) | 0 lets Google Maps switch between day and night (Waze stays dark), 1 is light |
-| `CLUSTERMAP_KEEP_ARROWS` | 0 | 1 keeps the turn-arrows jar with the map (adds it if missing): map, arrows and music together on SEAT. Not on VW: the map goes blank when a route starts |
+| `GAL_DUALSCREEN_AAP_MINOR` | 5 | the Android Auto version the unit claims (1.x). At 6 or higher Google Maps sends navigation messages this unit cannot read, so the arrows jar shows no turn pictograms (#4). The map shows at 2 to 7 |
+| `GAL_PLAYER_WINDOW` | unset | the installer says the cluster map window was "not reported by the display manager" and your cluster's is not 800x480: `1010x376` on SEAT and Skoda |
+| `CLUSTERMAP_KEEP_ARROWS` | 0 | 1 keeps the turn-arrows jar with the map (adds it if missing): map, arrows and music together on SEAT. On VW the map has gone blank when a route starts; one Tiguan `K4525` report says otherwise on beta8 (#44) |
 | `CLUSTERMAP_ADD_NAVIGNORE` | 0 | the map goes as soon as a route starts, on firmware where the installer does not add `NavActiveIgnore` by itself. 1 adds it, with a backup, and uninstall removes it. It edits the script that starts the centre screen, so check SSH works first |
 | `CLUSTERMAP_CARPLAY_TRIAL` | unset | the installer refuses the CarPlay map because this unit's `libairplay.so` is a different build. Put the size it prints here to allow the attempt; the hook still checks every symbol it patches and leaves CarPlay stock if they do not fit. See [CarPlay](CarPlay.md) |
 | `GAL_PLAYER_DECODER` | sw | `sw` is the tested software decoder. `hw` uses the unit's own video decoder and frees most of a processor core. If it will not open, the player uses software; if it fails while decoding, it stays off until the next reboot. **Not yet car-tested** |
@@ -187,7 +191,7 @@ top, bottom, left, right.
 | Skoda 1010×376 (`P4526`) | 125 | `40,127,127,127` | raskrivuska, #15 |
 | VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
 | VW 12.3 in Passat B8 2019 (`K4525`), ETA card showing, with `GAL_SECONDARY_UI_THEME=0` | 138 | `56,73,127,127` | danielszyszko-ui, #41 |
-| VW Golf (`P4521`) | 140–160 | about `53,73,127,127` | tvarszegi1, #8, still testing |
+| VW Golf (`P4521`), ETA card showing, Google Maps and Waze | 138 | `52,82,127,127` | tvarszegi1, #8, road-tested |
 
 Lower DPI makes the map and its text smaller, so more of the map shows; below
 about DPI 140 Google Maps changes from two overlay cards to one in the middle.

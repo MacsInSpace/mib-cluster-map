@@ -70,7 +70,8 @@ These shaped the design; changing them has broken things before.
 
 ### The connection loop
 
-Once the unit offers a cluster display, Google Maps stops sending the old
+Once the unit claims Android Auto 1.6 or later (`GAL_DUALSCREEN_AAP_MINOR`
+6 or 7), Google Maps stops sending the old
 next-turn messages (`0x8004`, `0x8005`) on the navigation service and sends
 `0x8006` (NavigationState) and `0x8007` (NavigationCurrentPosition) about once
 a second instead. The 2018 receiver does not know them and replies "unexpected
@@ -80,8 +81,11 @@ drops that reply while the cluster sink is registered
 (`GAL_FIX_SUPPRESS_UNEXPECTED`, on). The navigation service id is assigned at
 start-up (12 here); read it from the `event=service.class` log line.
 
-The newer messages are not translated, so the Java side gets no turn data;
-that is one reason the arrows and the map cannot run together.
+The newer messages are not translated, so at 1.6 and later the Java side
+gets no turn data. Up to 1.5 the phone still sends the old pair and the
+arrows jar's pictograms work, with the map shown at every version from 1.2
+to 1.7 (#4: SEAT `P4709`, 2 to 5 work, 6 does not). The shipped settings
+therefore claim 1.5.
 `kamgurgul/mib2q-carplay` rewrites `0x8006`→`0x8004` and `0x8007`→`0x8005`
 before `gal` routes them; porting that is the place to start for both at once.
 
