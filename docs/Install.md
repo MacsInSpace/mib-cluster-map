@@ -186,6 +186,7 @@ top, bottom, left, right.
 | VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
 | Skoda 1010×376 (`P4526`) | 125 | `40,127,127,127` | raskrivuska, #15 |
 | VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
+| VW 12.3 in Passat B8 2019 (`K4525`), ETA card showing, with `GAL_SECONDARY_UI_THEME=0` | 138 | `56,73,127,127` | danielszyszko-ui, #41 |
 | VW Golf (`P4521`) | 140–160 | about `53,73,127,127` | tvarszegi1, #8, still testing |
 
 Lower DPI makes the map and its text smaller, so more of the map shows; below
