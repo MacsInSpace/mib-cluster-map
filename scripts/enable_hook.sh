@@ -420,6 +420,7 @@ case "$TRAIN" in
     *_SEG*) CAR_MAKE=SEAT;  CAR_WINDOW=1010x376; CAR_DPI=125; CAR_INSETS=105,127,127,127 ;;
     *_SKG*) CAR_MAKE=Skoda; CAR_WINDOW=1010x376; CAR_DPI=125; CAR_INSETS=40,127,127,127 ;;
     *_VW*)  CAR_MAKE=VW;    CAR_WINDOW=800x480;  CAR_DPI=138; CAR_INSETS=52,82,127,127 ;;
+    *_AUG22_*) CAR_MAKE=Audi; CAR_WINDOW=1440x455; CAR_DPI=140; CAR_INSETS=40,40,127,127 ;;
     *)      CAR_MAKE=;      CAR_WINDOW=;         CAR_DPI=125; CAR_INSETS=40,40,127,127 ;;
 esac
 
@@ -506,6 +507,19 @@ if [ "$CONF_DPI" = auto ] || [ "$CONF_INSETS" = auto ]; then
         echo "WARNING: could not fill in the auto settings; the hook uses its built-in values." >&2
     fi
 fi
+# Audi A4 B9 (AUG22) shows its cockpit map in context 72, not 70 (#14). The
+# shipped 70 is changed in the installed copy; any other number is kept.
+if [ "$CAR_MAKE" = Audi ] &&
+   grep -q '^GAL_VC_CONTEXT=70[ 	]*$' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null; then
+    if sed 's/^GAL_VC_CONTEXT=70[ 	]*$/GAL_VC_CONTEXT=72/' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" \
+           > "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" &&
+       mv "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf"; then
+        echo "Cockpit context: 72 (Audi)"
+    else
+        rm -f "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new"
+        echo "WARNING: could not set GAL_VC_CONTEXT=72 for Audi; set it in gal_dualscreen.conf." >&2
+    fi
+fi
 [ "$CONF_DPI" = auto ] && echo "Map DPI: $CAR_DPI ($AUTO_FROM)" || echo "Map DPI: ${CONF_DPI:-built-in} (from gal_dualscreen.conf)"
 [ "$CONF_INSETS" = auto ] && echo "Map insets: $CAR_INSETS ($AUTO_FROM)" || echo "Map insets: ${CONF_INSETS:-built-in} (from gal_dualscreen.conf)"
 # The DPI the hook will actually use, for the summary. --dpi goes into the
@@ -569,37 +583,31 @@ else
 fi
 [ "$CARPLAY_OK" -eq 1 ] || echo "CarPlay map: not installed, $CARPLAY_WHY."
 
-# CLUSTERMAP_CARPLAY_SCALE=<percent>, 100 to 200: ask the iPhone for a frame
-# that much larger than the window, and for a display that much larger in
-# millimetres, so its pixel density (and with it the iPhone's UI scale) stays
-# the same while it lays out more map. The player shrinks the frame into the
-# window. Costs decoding time: the player decodes in software (#19).
+# CLUSTERMAP_CARPLAY_SCALE=<percent>, 70 to 200: declare the display that
+# much larger in millimetres than the 200 mm wide the hook declares by
+# default. The iPhone picks its UI scale from pixels per millimetre, so a
+# larger display at the same pixels gets a smaller UI and more map; below
+# 100 the UI is larger. The frame stays the window's size, so it costs no
+# decoding time (#19; ipaifix/mst2-carplay-scale and DiPlay found the same
+# on the main screen).
 CP_SCALE=`sed -n 's/^CLUSTERMAP_CARPLAY_SCALE=\([0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 case "$CP_SCALE" in
     '') CP_SCALE=100 ;;
 esac
-[ "$CP_SCALE" -lt 100 ] && CP_SCALE=100
+[ "$CP_SCALE" -lt 70 ] && CP_SCALE=70
 [ "$CP_SCALE" -gt 200 ] && CP_SCALE=200
-# Even sizes: H.264 frames are encoded in 2x2 chroma blocks. At 100 % the
-# window's own size, exactly as before this setting existed.
 CP_W=$MAP_W; CP_H=$MAP_H
-if [ "$CP_SCALE" -ne 100 ]; then
-    CP_W=`expr $MAP_W \* $CP_SCALE / 200 \* 2`
-    CP_H=`expr $MAP_H \* $CP_SCALE / 200 \* 2`
-fi
-# 200 mm wide at 100 %, the hook's own default, scaled with the frame.
 CP_W_MM=`expr 200 \* $CP_SCALE / 100`
 CP_H_MM=`expr $CP_W_MM \* $CP_H / $CP_W`
 if [ "$CARPLAY_OK" -eq 1 ] && [ "$CP_SCALE" -ne 100 ]; then
-    echo "CarPlay map: frame ${CP_W}x${CP_H} (${CP_SCALE} %), shown in the ${MAP_W}x${MAP_H} window"
+    echo "CarPlay map: display declared as ${CP_W_MM}x${CP_H_MM} mm (${CP_SCALE} %) for the ${MAP_W}x${MAP_H} window"
 fi
 
 # CarPlay's safe area: the part of the window the dials do not cover, where
 # the iPhone keeps the car and its instruction card. The same
 # GAL_SECONDARY_INSETS (top,bottom,left,right) Android Auto uses, which are
-# in its 800x480 frame after margins, scaled to the CarPlay frame (the window,
-# or larger with CLUSTERMAP_CARPLAY_SCALE). harman-f's hook
+# in its 800x480 frame, less the margins, scaled to the window. harman-f's hook
 # reads it when the iPhone connects. Without it the whole window counts as
 # visible (Golf R: card and car under the dials).
 CARPLAY_SAFEAREA=$APP_MOUNT/root/mibr-carplay111-safearea.conf
@@ -607,10 +615,17 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
     INSETS=`sed -n 's/^GAL_SECONDARY_INSETS=\([0-9]*\),\([0-9]*\),\([0-9]*\),\([0-9]*\)[ 	]*$/\1 \2 \3 \4/p' \
         "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
     set -- ${INSETS:-40 40 127 127}
-    SAFE_Y=`expr $1 \* $CP_H / \( 480 - $MARGIN_H \) || :`
-    SAFE_B=`expr $2 \* $CP_H / \( 480 - $MARGIN_H \) || :`
-    SAFE_X=`expr $3 \* $CP_W / \( 800 - $MARGIN_W \) || :`
-    SAFE_R=`expr $4 \* $CP_W / \( 800 - $MARGIN_W \) || :`
+    # The insets count from the edge of the whole 800x480 frame, margins
+    # included; CarPlay has no margins, so take them off first (SEAT and
+    # Skoda: 91 px top and bottom, which had made the safe area too small).
+    IN_T=`expr $1 - $MARGIN_H / 2 || :`; [ "$IN_T" -lt 0 ] && IN_T=0
+    IN_B=`expr $2 - $MARGIN_H / 2 || :`; [ "$IN_B" -lt 0 ] && IN_B=0
+    IN_L=`expr $3 - $MARGIN_W / 2 || :`; [ "$IN_L" -lt 0 ] && IN_L=0
+    IN_R=`expr $4 - $MARGIN_W / 2 || :`; [ "$IN_R" -lt 0 ] && IN_R=0
+    SAFE_Y=`expr $IN_T \* $CP_H / \( 480 - $MARGIN_H \) || :`
+    SAFE_B=`expr $IN_B \* $CP_H / \( 480 - $MARGIN_H \) || :`
+    SAFE_X=`expr $IN_L \* $CP_W / \( 800 - $MARGIN_W \) || :`
+    SAFE_R=`expr $IN_R \* $CP_W / \( 800 - $MARGIN_W \) || :`
     SAFE_W=`expr $CP_W - $SAFE_X - $SAFE_R || :`
     SAFE_H=`expr $CP_H - $SAFE_Y - $SAFE_B || :`
     # echo, not printf: some units have no printf binary
@@ -623,6 +638,47 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
     fi
 else
     rm -f "$CARPLAY_SAFEAREA" 2>/dev/null || true
+fi
+
+# What the iPhone draws on the cluster, from gal_dualscreen.conf. harman-f's
+# hook reads these files when the iPhone connects; with none of the settings
+# present they are removed and the iPhone draws its default.
+#   CLUSTERMAP_CARPLAY_VIEW=full|map|card   map and card, the map only, or the card only
+#   CLUSTERMAP_CARPLAY_SPEEDLIMIT, _COMPASS, _ETA = yes|no
+#   CLUSTERMAP_CARPLAY_CARD_POSITION=left|right|top
+CP_NAV=$APP_MOUNT/root/mibr-carplay111-nav
+cp_setting() {
+    sed -n "s/^CLUSTERMAP_CARPLAY_$1=\\([a-z]*\\)[ 	]*\$/\\1/p" \
+        "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1
+}
+rm -f "$CP_NAV-query.enabled" "$CP_NAV.surface" "$CP_NAV.showSpeedLimit" \
+      "$CP_NAV.showCompass" "$CP_NAV.showETA" "$CP_NAV.maneuverLayout" 2>/dev/null || true
+if [ "$CARPLAY_OK" -eq 1 ]; then
+    CP_VIEW=`cp_setting VIEW`
+    case "$CP_VIEW" in
+        map)  echo map > "$CP_NAV.surface" ;;
+        card) echo instructioncard > "$CP_NAV.surface" ;;
+        full) echo base > "$CP_NAV.surface" ;;
+        '')   ;;
+        *)    echo "CarPlay map: CLUSTERMAP_CARPLAY_VIEW=$CP_VIEW not understood (full, map or card); ignored" ;;
+    esac
+    CP_QUERY=
+    for k in SPEEDLIMIT:showSpeedLimit COMPASS:showCompass ETA:showETA; do
+        v=`cp_setting ${k%%:*}`
+        case "$v" in
+            yes|no) echo "$v" > "$CP_NAV.${k#*:}"; CP_QUERY="$CP_QUERY ${k#*:}=$v" ;;
+            '') ;;
+            *) echo "CarPlay map: CLUSTERMAP_CARPLAY_${k%%:*}=$v not understood (yes or no); ignored" ;;
+        esac
+    done
+    v=`cp_setting CARD_POSITION`
+    case "$v" in
+        left|right|top) echo "$v" > "$CP_NAV.maneuverLayout"; CP_QUERY="$CP_QUERY card=$v" ;;
+        '') ;;
+        *) echo "CarPlay map: CLUSTERMAP_CARPLAY_CARD_POSITION=$v not understood (left, right or top); ignored" ;;
+    esac
+    [ -n "$CP_QUERY" ] && : > "$CP_NAV-query.enabled"
+    [ -n "$CP_VIEW$CP_QUERY" ] && echo "CarPlay map: view ${CP_VIEW:-full};${CP_QUERY:- iPhone defaults}"
 fi
 
 mount -ur "$APP_MOUNT" 2>/dev/null || true
@@ -970,15 +1026,28 @@ NAVIGNORE_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SKG13_P4526 MH
 # may not start (see docs/Install.md, Safety and recovery).
 NAVIGNORE_ASKED=`sed -n 's/^CLUSTERMAP_ADD_NAVIGNORE=\([01]\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+# Never on the older MIB2 High generation (VWG11, and Audi AUG22 with the
+# same Android Auto receiver): with it, Android Auto stopped working on an
+# S2125 (#39) and the cockpit froze on "Initialising navigation" on a K3342
+# (#28). The Audi K3346 kept its map through a route without it (#14).
+NAVIGNORE_NEVER=0
+case "$TRAIN" in *_VWG11_*|*_AUG22_*) NAVIGNORE_NEVER=1 ;; esac
 echo
 if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo "WARNING: cannot check the Java interface ($LSD_SH or lsd_jar.sh missing)." >&2
 else
-    if sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar; then
+    if sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar && [ "$NAVIGNORE_NEVER" -eq 1 ]; then
+        echo "WARNING: NavActiveIgnore is loaded. On firmware $TRAIN it has stopped" >&2
+        echo "         Android Auto (#39) or frozen the cockpit (#28). If either" >&2
+        echo "         happens, remove it with the toolbox or this package's uninstall." >&2
+    elif sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar; then
         echo "Java check: NavActiveIgnore is loaded (required)."
     elif sh "$CARD_ROOT/lsd_jar.sh" loaded CarPlayNavigationPatch.jar; then
         # CarPlay Maps VC ships the same nine classes under another name.
         echo "Java check: CarPlayNavigationPatch is loaded (the same patch as NavActiveIgnore)."
+    elif [ "$NAVIGNORE_NEVER" -eq 1 ]; then
+        echo "Java check: NavActiveIgnore is not loaded, and is never added on $TRAIN"
+        [ "$NAVIGNORE_ASKED" = 1 ] && echo "            (CLUSTERMAP_ADD_NAVIGNORE=1 ignored: it broke Android Auto on this generation, #39, #28)."
     elif [ "$KEEP_NAVIGNORE" -eq 1 ]; then
         echo "Java check: NavActiveIgnore is NOT loaded and was left alone (--no-navignore)."
         echo "            The cluster will drop its map when the phone navigates."

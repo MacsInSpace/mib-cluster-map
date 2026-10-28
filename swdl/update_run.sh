@@ -71,10 +71,17 @@ if [ "$MODE" = install ]; then
         # the ClusterMap screen this update copied can be used for status,
         # logs and uninstall. The same switch the MQB Coding MIB2 Toolbox sets
         # when it installs. It is left on at uninstall.
-        LD_LIBRARY_PATH=/mnt/app/root/lib-target:/eso/lib:/mnt/app/usr/lib:/mnt/app/armle/lib:/mnt/app/armle/lib/dll:/mnt/app/armle/usr/lib \
-        IPL_CONFIG_DIR=/etc/eso/production \
-            /mnt/app/eso/bin/apps/pc b:0:0xC002000D 1 >> "$RESULT" 2>&1
-        echo "Engineering menu enabled: hold MENU > Testmode > Green Developer Menu > ClusterMap" >> "$RESULT"
+        # Some units (VWG11, #39) have no pc: say so instead of claiming it worked.
+        if [ -x /mnt/app/eso/bin/apps/pc ] &&
+           LD_LIBRARY_PATH=/mnt/app/root/lib-target:/eso/lib:/mnt/app/usr/lib:/mnt/app/armle/lib:/mnt/app/armle/lib/dll:/mnt/app/armle/usr/lib \
+           IPL_CONFIG_DIR=/etc/eso/production \
+               /mnt/app/eso/bin/apps/pc b:0:0xC002000D 1 >> "$RESULT" 2>&1; then
+            echo "Engineering menu enabled: hold MENU > Testmode > Green Developer Menu > ClusterMap" >> "$RESULT"
+        else
+            echo "Engineering menu: not switched on (this unit has no pc tool). If hold MENU > Testmode" >> "$RESULT"
+            echo "  does not show the Green Developer Menu, switch it on with VCDS/OBDeleven: 5F," >> "$RESULT"
+            echo "  adaptation, developer mode on. The ClusterMap screen is then in that menu." >> "$RESULT"
+        fi
     elif grep -q "NOT SUPPORTED" "$RESULT"; then
         # Nothing was installed. Gather what a port to this firmware needs, so
         # the owner does not have to do anything else to help.
