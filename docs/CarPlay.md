@@ -107,6 +107,20 @@ keeps each file as `pf*.conf.clustermap.original`; the uninstall removes
 only the marked line, so rules other tools added (such as the MIB2
 Toolbox's SSH rule) stay.
 
+### A less zoomed-in map
+
+The iPhone draws the cluster window at a fixed scale of its own, chosen from
+the display's pixel density: the pixels the car asks for over the
+millimetres it declares (`ALTSCREEN111_WIDTH_MM`, 200 mm wide by default).
+`GAL_SECONDARY_DPI` is an Android Auto setting and does nothing here (#19).
+`CLUSTERMAP_CARPLAY_SCALE=<percent>` (100 to 200) asks for a frame that many
+percent larger and declares the display that many percent larger in
+millimetres, so the density, and with it the iPhone's text size, stays the
+same while more map fits. The player shrinks the frame into the window; the
+safe area is scaled with it. On a SEAT, 150 asks for 1514x564 and declares
+300x111 mm. Experimental: whether iOS keeps its scale has to be shown on a
+car, and the player decodes in software, so larger frames cost frame rate.
+
 The iPhone keeps the car and its instruction card inside a safe area. The
 installer writes it to `/mnt/app/root/mibr-carplay111-safearea.conf` from
 `GAL_SECONDARY_INSETS`, the same setting that keeps the Android Auto map
