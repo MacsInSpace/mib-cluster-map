@@ -569,10 +569,37 @@ else
 fi
 [ "$CARPLAY_OK" -eq 1 ] || echo "CarPlay map: not installed, $CARPLAY_WHY."
 
+# CLUSTERMAP_CARPLAY_SCALE=<percent>, 100 to 200: ask the iPhone for a frame
+# that much larger than the window, and for a display that much larger in
+# millimetres, so its pixel density (and with it the iPhone's UI scale) stays
+# the same while it lays out more map. The player shrinks the frame into the
+# window. Costs decoding time: the player decodes in software (#19).
+CP_SCALE=`sed -n 's/^CLUSTERMAP_CARPLAY_SCALE=\([0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+case "$CP_SCALE" in
+    '') CP_SCALE=100 ;;
+esac
+[ "$CP_SCALE" -lt 100 ] && CP_SCALE=100
+[ "$CP_SCALE" -gt 200 ] && CP_SCALE=200
+# Even sizes: H.264 frames are encoded in 2x2 chroma blocks. At 100 % the
+# window's own size, exactly as before this setting existed.
+CP_W=$MAP_W; CP_H=$MAP_H
+if [ "$CP_SCALE" -ne 100 ]; then
+    CP_W=`expr $MAP_W \* $CP_SCALE / 200 \* 2`
+    CP_H=`expr $MAP_H \* $CP_SCALE / 200 \* 2`
+fi
+# 200 mm wide at 100 %, the hook's own default, scaled with the frame.
+CP_W_MM=`expr 200 \* $CP_SCALE / 100`
+CP_H_MM=`expr $CP_W_MM \* $CP_H / $CP_W`
+if [ "$CARPLAY_OK" -eq 1 ] && [ "$CP_SCALE" -ne 100 ]; then
+    echo "CarPlay map: frame ${CP_W}x${CP_H} (${CP_SCALE} %), shown in the ${MAP_W}x${MAP_H} window"
+fi
+
 # CarPlay's safe area: the part of the window the dials do not cover, where
 # the iPhone keeps the car and its instruction card. The same
 # GAL_SECONDARY_INSETS (top,bottom,left,right) Android Auto uses, which are
-# in its 800x480 frame after margins, scaled to the window. harman-f's hook
+# in its 800x480 frame after margins, scaled to the CarPlay frame (the window,
+# or larger with CLUSTERMAP_CARPLAY_SCALE). harman-f's hook
 # reads it when the iPhone connects. Without it the whole window counts as
 # visible (Golf R: card and car under the dials).
 CARPLAY_SAFEAREA=$APP_MOUNT/root/mibr-carplay111-safearea.conf
@@ -580,12 +607,12 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
     INSETS=`sed -n 's/^GAL_SECONDARY_INSETS=\([0-9]*\),\([0-9]*\),\([0-9]*\),\([0-9]*\)[ 	]*$/\1 \2 \3 \4/p' \
         "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
     set -- ${INSETS:-40 40 127 127}
-    SAFE_Y=`expr $1 \* $MAP_H / \( 480 - $MARGIN_H \) || :`
-    SAFE_B=`expr $2 \* $MAP_H / \( 480 - $MARGIN_H \) || :`
-    SAFE_X=`expr $3 \* $MAP_W / \( 800 - $MARGIN_W \) || :`
-    SAFE_R=`expr $4 \* $MAP_W / \( 800 - $MARGIN_W \) || :`
-    SAFE_W=`expr $MAP_W - $SAFE_X - $SAFE_R || :`
-    SAFE_H=`expr $MAP_H - $SAFE_Y - $SAFE_B || :`
+    SAFE_Y=`expr $1 \* $CP_H / \( 480 - $MARGIN_H \) || :`
+    SAFE_B=`expr $2 \* $CP_H / \( 480 - $MARGIN_H \) || :`
+    SAFE_X=`expr $3 \* $CP_W / \( 800 - $MARGIN_W \) || :`
+    SAFE_R=`expr $4 \* $CP_W / \( 800 - $MARGIN_W \) || :`
+    SAFE_W=`expr $CP_W - $SAFE_X - $SAFE_R || :`
+    SAFE_H=`expr $CP_H - $SAFE_Y - $SAFE_B || :`
     # echo, not printf: some units have no printf binary
     if [ "$SAFE_W" -ge 160 ] && [ "$SAFE_H" -ge 120 ] &&
        { echo "x=$SAFE_X"; echo "y=$SAFE_Y"; echo "w=$SAFE_W"; echo "h=$SAFE_H"; } > "$CARPLAY_SAFEAREA"; then
@@ -765,7 +792,12 @@ grep -q "LD_PRELOAD=$PRELOAD_SO_ALIAS" "$TEMP" || {
 # always come and go together. CarPlay is asked for the cluster map
 # window's size, read above, so its stream fills the player's window.
 if [ "$CARPLAY_OK" -eq 1 ]; then
-    CP_INJECTION="\"LD_PRELOAD=$CARPLAY_PRELOAD\", \"ALTSCREEN111_WIDTH=$MAP_W\", \"ALTSCREEN111_HEIGHT=$MAP_H\", "
+    CP_INJECTION="\"LD_PRELOAD=$CARPLAY_PRELOAD\", \"ALTSCREEN111_WIDTH=$CP_W\", \"ALTSCREEN111_HEIGHT=$CP_H\", "
+    CP_ADDED=3
+    if [ "$CP_SCALE" -ne 100 ]; then
+        CP_INJECTION="$CP_INJECTION\"ALTSCREEN111_WIDTH_MM=$CP_W_MM\", \"ALTSCREEN111_HEIGHT_MM=$CP_H_MM\", "
+        CP_ADDED=5
+    fi
     CP_EXISTING=`awk '
     BEGIN { in_children=0; in_cp=0 }
     {
@@ -783,7 +815,7 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
         CARPLAY_OK=0; CARPLAY_WHY="CarPlay already has a preloaded library (another CarPlay mod?)"
     elif [ -z "$CP_EXISTING" ]; then
         CARPLAY_OK=0; CARPLAY_WHY="no carplay entry in the supervisor config"
-    elif [ `expr $CP_EXISTING + 3` -gt 10 ]; then
+    elif [ `expr $CP_EXISTING + $CP_ADDED` -gt 10 ]; then
         CARPLAY_OK=0; CARPLAY_WHY="its environment list would pass the limit of 10"
     else
         awk -v injection="$CP_INJECTION" '
@@ -805,7 +837,7 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
         }
     fi
     if [ "$CARPLAY_OK" -eq 1 ]; then
-        echo "CarPlay map: added to dio_manager's start-up ($CP_EXISTING + 3 environment entries)."
+        echo "CarPlay map: added to dio_manager's start-up ($CP_EXISTING + $CP_ADDED environment entries)."
     else
         echo "CarPlay map: not installed, $CARPLAY_WHY. The Android Auto map is unaffected."
     fi
