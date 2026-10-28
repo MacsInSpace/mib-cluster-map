@@ -190,3 +190,26 @@ Change one thing per run, and record the firmware, the package build
 (`SHA256SUMS.txt`), the settings file, the hook and player logs, and the phone
 and app versions. Save logs before rebooting. A result from one car is a
 result for that car and firmware; say so when reporting it.
+
+## Android Auto 1.6+ navigation
+
+From protocol 1.6 Google Maps replaces `0x8004`/`0x8005` (next turn,
+distance) with `0x8006 NavigationState` and `0x8007 NavigationCurrentPosition`.
+This unit's receiver was built against 1.2 and rejects them, which is why the
+turn pictograms stopped at `GAL_DUALSCREEN_AAP_MINOR=6` (#4).
+`src/nav_translate.c` decodes the new pair in `routeMessage` and writes the old
+one over it, in place, so the stock endpoint and the arrows jar see what they
+always did. It also maps the new status 3 (rerouting) to 1 (active). The 1.7
+schema and manoeuvre table come from
+[kkrvch/mib-std2-kombibridge](https://github.com/kkrvch/mib-std2-kombibridge)
+(its author invited reuse in that project's issue #5); the legacy field numbers
+are this receiver's own `k*FieldNumber` symbols. Host test:
+
+```sh
+cc -I src tests/nav_translate_test.c src/nav_translate.c -o /tmp/navtest && /tmp/navtest
+```
+
+Lanes and the distance and time to the destination are decoded by kombibridge
+but have no field in the old messages. Showing them on the cockpit needs the
+Java side (its `LaneGuidance`, `DistanceToDestination` and `TimeToDestination`
+BAP functions), which is not part of this project yet.

@@ -166,7 +166,8 @@ a route starts, and on a Golf (`P4521`) the cockpit switched to its own arrow
 view after a few presses of OK and stayed there, even after a restart, until
 the arrows were removed. One Tiguan (`K4525`) reports both working (#44). The
 turn pictograms need `GAL_DUALSCREEN_AAP_MINOR` at 5 or lower, the shipped
-value from v1.1.1-beta9 (#4). Not possible so far: zooming the cluster map from the steering
+value from v1.1.1-beta9 (#4); the hook now translates the newer navigation
+messages, so 6 and 7 should work too, still to be tested on a car. Not possible so far: zooming the cluster map from the steering
 wheel ([why](docs/Development.md#zoom)), and switching between the phone's map
 and the car's map from the steering wheel.
 
