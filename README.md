@@ -125,8 +125,23 @@ information` is a hint, not proof. You do not have to work it out: the
 installer checks the real firmware itself.
 
 Not listed, or "wanted"? Run the update anyway: it installs nothing and
-collects what is needed to add your unit. See
-[Getting your unit added](docs/Install.md#getting-your-unit-added).
+collects what is needed to add your unit. The quickest way to get it working
+is to port it yourself with those files: see
+[Port your own car](CONTRIBUTING.md#port-your-own-car).
+
+## Where the project stands
+
+The project began with one Golf, and that car has worked for a while. It now
+reaches VW, SEAT, Skoda and Audi units thanks to owners who sent logs and
+photos from their own cars. It is still maintained, but by one person with
+a day job, so replies come a few times a week rather than daily, and
+releases come when something is confirmed on a car.
+
+What would help most now is people who work on the code directly: port your
+own firmware in a fork (an AI assistant makes this far more approachable than
+it sounds), fix what you find, and send a pull request. The
+[Contributing guide](CONTRIBUTING.md) explains how, including a
+step-by-step for porting your own car.
 
 ## Status
 
@@ -162,11 +177,14 @@ and the car's map from the steering wheel.
 | [Install guide](docs/Install.md) | Install routes, the menu, settings, logs, safety and recovery, getting your unit added |
 | [CarPlay](docs/CarPlay.md) | The CarPlay map: design, status, testing |
 | [Development](docs/Development.md) | How it works, what was learned, adding a firmware, building |
+| [Contributing](CONTRIBUTING.md) | Forks, pull requests, using an AI assistant, and porting your own car |
 
 ## Reporting a problem
 
 Open an issue with your car, firmware train, what you did and what you saw.
-Attach the logs from green menu **Save logs to SD**, saved before rebooting.
+Attach `update_result.txt` and the logs from green menu **Save logs to SD**,
+saved before rebooting: without them most reports can't be looked into.
+A fix of your own is even better, as a pull request.
 Read them first: the system log can contain phone names and Bluetooth
 addresses.
 
