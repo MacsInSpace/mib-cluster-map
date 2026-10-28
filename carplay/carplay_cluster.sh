@@ -22,6 +22,7 @@ STATE=/tmp/mibr-carplay111.state
 PIDFILE=/tmp/carplay_cluster.pid
 PLAYER_LOG=/tmp/stream-player-carplay.log
 PLAYER_PID=
+PLAYER_START=0
 
 log() { echo "carplay_cluster $*"; }
 
@@ -66,9 +67,16 @@ while kill -0 "$OWNER" 2>/dev/null; do
     if [ "$CUR" = streaming ]; then
         if ! player_running; then
             if [ -n "$PLAYER_PID" ]; then
-                # It ended on its own while CarPlay still streams.
+                # It ended on its own while CarPlay still streams. Only a
+                # player that dies within 30 s counts towards giving up: one
+                # that ran for minutes before the hook reset its stream is
+                # not failing, and counting those made the cluster stay on
+                # the car's map after the fifth reset of a drive (#10, #43).
                 wait "$PLAYER_PID" 2>/dev/null
                 PLAYER_PID=
+                if [ `expr ${SECONDS%%.*} - $PLAYER_START` -ge 30 ]; then
+                    FAILS=0
+                fi
                 FAILS=`expr $FAILS + 1`
                 [ $FAILS -ge 5 ] && { log "player failed $FAILS times; giving up until CarPlay restarts"; break; }
                 sleep 2
@@ -77,6 +85,7 @@ while kill -0 "$OWNER" 2>/dev/null; do
             echo "==== stream-player for CarPlay ====" >> "$PLAYER_LOG"
             "$PLAYER" --no-ack "$SOURCE" >> "$PLAYER_LOG" 2>&1 &
             PLAYER_PID=$!
+            PLAYER_START=${SECONDS%%.*}
         fi
     else
         [ -n "$PLAYER_PID" ] && stop_player "stream state ${CUR:-none}"
