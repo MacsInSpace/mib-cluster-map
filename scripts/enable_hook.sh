@@ -508,6 +508,14 @@ if [ "$CONF_DPI" = auto ] || [ "$CONF_INSETS" = auto ]; then
 fi
 [ "$CONF_DPI" = auto ] && echo "Map DPI: $CAR_DPI ($AUTO_FROM)" || echo "Map DPI: ${CONF_DPI:-built-in} (from gal_dualscreen.conf)"
 [ "$CONF_INSETS" = auto ] && echo "Map insets: $CAR_INSETS ($AUTO_FROM)" || echo "Map insets: ${CONF_INSETS:-built-in} (from gal_dualscreen.conf)"
+# The DPI the hook will actually use, for the summary. --dpi goes into the
+# environment, which the hook reads before the conf file, so it wins.
+case "$CONF_DPI" in
+    auto) EFFECTIVE_DPI=$CAR_DPI ;;
+    '')   EFFECTIVE_DPI=built-in ;;
+    *)    EFFECTIVE_DPI=$CONF_DPI ;;
+esac
+[ "$DPI" -ne 140 ] && EFFECTIVE_DPI=$DPI
 
 # Install stream-player to /mnt/app/navigation
 # Through a new file and a rename: copying over the old player fails while it
@@ -882,7 +890,7 @@ echo "  preload target: $PRELOAD_SO_ALIAS"
 echo "    on the internal /mnt/app partition, not the SD card -- avoids the"
 echo "    SD-card mount-timing race at GAL's boot-time launch."
 echo "  output mode: $OUTPUT (video forwarded to stream-player)"
-echo "  cluster: Android Auto 800x480 @ 30 fps (margins ${MARGIN_W}x${MARGIN_H}), DPI $DPI, ${MAP_W}x${MAP_H} window"
+echo "  cluster: Android Auto 800x480 @ 30 fps (margins ${MARGIN_W}x${MARGIN_H}), DPI $EFFECTIVE_DPI, ${MAP_W}x${MAP_H} window"
 if [ "$CARPLAY_OK" -eq 1 ]; then echo "  CarPlay map: installed, ${MAP_W}x${MAP_H}"; else echo "  CarPlay map: no ($CARPLAY_WHY)"; fi
 echo "  debug logs: $DEBUG"
 echo "  second sink: $SECOND_SINK   inject metadata: $INJECT_META"
