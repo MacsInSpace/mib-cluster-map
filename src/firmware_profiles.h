@@ -100,13 +100,6 @@ static const gal_profile k_profiles[] = {
         0x34u, 0x58u, 59u
     },
     /*
-     * Skoda MIB2.5 High, MU1440. Car-tested by raskrivuska with its trial
-     * line (issue #15): the profile verified, the player decoded the phone's
-     * picture and the cockpit switched, with the map readable at DPI 125 and
-     * insets 40,127,127,127. Its receiver library is byte-identical to
-     * P4521's, so every verified layout applies; handler offsets as P4521.
-     */
-    /*
      * VW MIB2.5 High, P4512_1: Golf R and Passat B8 (MU1161). Car-tested with
      * its trial line on both (Golf R first; Passat by slechtaadam-byte, issue
      * #47: route, both dial layouts, unplug/replug, reverse camera and a
@@ -121,12 +114,35 @@ static const gal_profile k_profiles[] = {
         0x80u, 0x84u, 40u,
         0x34u, 0x58u, 59u
     },
+    /*
+     * Skoda MIB2.5 High, MU1440. Car-tested by raskrivuska with its trial
+     * line (issue #15): the profile verified, the player decoded the phone's
+     * picture and the cockpit switched, with the map readable at DPI 125 and
+     * insets 40,127,127,127. Its receiver library is byte-identical to
+     * P4521's, so every verified layout applies; handler offsets as P4521.
+     */
     {
         "MHI2_ER_SKG13_P4526", 1,
         0x002385c0u, 0x00232458u, 0x00232368u,
         0x001d9ac0u, 0xe92d4ff0u, 0xf0u,
         0x94u, 0xc4u,
         0x80u, 0x84u, 40u,
+        0x34u, 0x58u, 59u
+    },
+    /*
+     * Audi A4 B9 MIB2 High (AUG22), MU1438. Car-tested by mariuszhejnold-arch
+     * with its trial line on beta10 (issue #14): the map shown in the wide
+     * and classic cockpit views, with a route, without NavActiveIgnore. Its
+     * receiver is VWG11's libautoreceiver_qnx.so.1 (byte-identical to
+     * K3342's); 40-byte configuration entries. Cockpit map window 1440x455
+     * in context 72, which the installer sets.
+     */
+    {
+        "MHI2_ER_AUG22_K3346", 1,
+        0x0022c8b4u, 0x00228e90u, 0x00228da0u,
+        0x001d6640u, 0xe92d4ff0u, 0xe8u,
+        0x88u, 0xb8u,
+        0x78u, 0x7cu, 40u,
         0x34u, 0x58u, 59u
     },
 };

@@ -107,25 +107,59 @@ keeps each file as `pf*.conf.clustermap.original`; the uninstall removes
 only the marked line, so rules other tools added (such as the MIB2
 Toolbox's SSH rule) stay.
 
-### A less zoomed-in map
+### How much the map shows
 
-The iPhone draws the cluster window at a fixed scale of its own, chosen from
-the display's pixel density: the pixels the car asks for over the
-millimetres it declares (`ALTSCREEN111_WIDTH_MM`, 200 mm wide by default).
+The iPhone chooses its text and icon size from the display's pixel density:
+the pixels the car asks for over the millimetres it declares
+(`ALTSCREEN111_WIDTH_MM`, 200 mm wide by default). Other projects found the
+same on the main screen: declaring more millimetres for the same pixels gives
+a smaller, denser UI ([ipaifix/mst2-carplay-scale](https://github.com/ipaifix/mst2-carplay-scale),
+[DiPlay #404](https://github.com/shihabal3amri/DiPlay/pull/404)).
 `GAL_SECONDARY_DPI` is an Android Auto setting and does nothing here (#19).
-`CLUSTERMAP_CARPLAY_SCALE=<percent>` (100 to 200) asks for a frame that many
-percent larger and declares the display that many percent larger in
-millimetres, so the density, and with it the iPhone's text size, stays the
-same while more map fits. The player shrinks the frame into the window; the
-safe area is scaled with it. On a SEAT, 150 asks for 1514x564 and declares
-300x111 mm. Experimental: whether iOS keeps its scale has to be shown on a
-car, and the player decodes in software, so larger frames cost frame rate.
+
+`CLUSTERMAP_CARPLAY_SCALE=<percent>` (70 to 200) declares the display that
+many percent larger: above 100 the text, icons and card get smaller and more
+map fits; below 100 they get larger. The frame stays the window's size, so it
+costs no decoding time. On a SEAT, 130 declares 260x96 mm for the 1010x376
+window. Whether iOS treats the cluster display like the main screen here
+still has to be shown on a car.
+
+(v1.1.1-beta13 instead asked for a larger frame and shrank it in the player.
+That made everything smaller by the same amount and cost frame rate; beta14
+replaced it.)
+
+What the iPhone draws there can be chosen too, through settings harman-f's
+hook already reads (`gal_dualscreen.conf` documents them):
+`CLUSTERMAP_CARPLAY_VIEW` (`full`, `map` alone or `card` alone), and
+`CLUSTERMAP_CARPLAY_SPEEDLIMIT`, `_COMPASS`, `_ETA` (`yes`/`no`) and
+`_CARD_POSITION` (`left`, `right`, `top`). Unset, the iPhone decides.
+
+### Day and night
+
+The cluster's display entry was a copy of the main screen's, including its
+`nightMode`. A display that declares its own `nightMode` is skipped by the
+car's day/night command, so the cluster kept one appearance (#10). From beta14
+the cluster's entry leaves it out and follows the car, as
+[luka-dev/mib2q-carplay-rgi](https://github.com/luka-dev/mib2q-carplay-rgi)
+found on the Audi MHI2Q.
+
+### Delay
+
+The iPhone sends a keyframe only when asked (2 in 5540 pictures in one
+capture), so when the player fell behind it caught up by decoding faster,
+which took 2 to 8 s (#19). From beta14 the player asks the hook for a keyframe
+once it is more than 512 KB behind, and skips everything queued before it when
+it arrives: the picture jumps to the present. If none comes, nothing is
+skipped. `stream-player.log` says `asked the phone for a keyframe` and
+`the picture jumps to the present`.
 
 The iPhone keeps the car and its instruction card inside a safe area. The
 installer writes it to `/mnt/app/root/mibr-carplay111-safearea.conf` from
 `GAL_SECONDARY_INSETS`, the same setting that keeps the Android Auto map
-clear of the dials, scaled to the window (800x480 with the default insets:
-546x400 at 127,40).
+clear of the dials, less Android Auto's margins and scaled to the window
+(800x480 with the default insets: 546x400 at 127,40; SEAT 1010x376: 690x314
+at 160,17). Until beta14 the margins were not taken off, which on SEAT and
+Skoda left too little and the whole window was used.
 
 An iPhone that knew the car before the install keeps its old idea of the car
 and never asks for the cluster stream (Golf R). Once after installing: on the

@@ -18,3 +18,13 @@ that exact binary is not published.
 This project uses only its cluster-stream output (H.264 on 127.0.0.1:19820),
 not harman-f's direct MOST bridge. To update: copy the directory again and
 change the commit above.
+
+## Local changes
+
+Both marked `mib-cluster-map` in `libaltscreen111_gen2.c`:
+
+- The cluster's display entry no longer carries the main screen's
+  `nightMode`, so the iPhone applies the car's day/night setting to it
+  (finding from luka-dev/mib2q-carplay-rgi, GPL-3.0).
+- With the navigation query on and no manoeuvre layout set, the URL leaves
+  `maneuverLayout` out instead of sending it empty.

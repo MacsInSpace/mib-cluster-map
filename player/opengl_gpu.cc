@@ -217,12 +217,33 @@ static char g_videoSource[512] = "tcp://127.0.0.1:12346";
  */
 static bool g_bufferedReader = false;
 static const size_t kReaderBufBytes   = 8u * 1024u * 1024u;
-static const size_t kReaderBehindOn   = 384u * 1024u;  // skip the loop filter above this backlog
+static const size_t kReaderBehindOn   = 192u * 1024u;  // skip the loop filter above this backlog
 static const size_t kReaderBehindOff  = 64u * 1024u;   // and restore it below this
 static uint8_t* g_rb = NULL;
 static size_t g_rbHead = 0, g_rbFill = 0, g_rbHigh = 0;
 static bool g_rbClosed = false;
 static uint64_t g_rbBehindEpisodes = 0;
+
+/*
+ * Jumping to the present (#19, #10). The iPhone sends a keyframe only when
+ * asked (2 in 5540 pictures in one capture), so catching up by decoding
+ * faster took 2 to 8 s each time. Above kReaderJumpOn the player asks the
+ * hook for one through its manual resync markers; the reader watches the
+ * incoming bytes for it, and the decoder then skips everything queued before
+ * it, as luka-dev's MHI2Q renderer does. If none comes, nothing is skipped.
+ */
+static const size_t kReaderJumpOn = 512u * 1024u;
+static const char* kResyncEnableMarker = "/tmp/mibr-alt111-resync.enabled";
+static const char* kResyncArmMarker = "/tmp/mibr-alt111-resync-arm";
+static bool g_rbJumpWanted = false, g_rbJumpFound = false;
+static uint64_t g_rbJumpAt = 0;                // stream offset of the keyframe's start code
+static uint64_t g_rbWritten = 0, g_rbRead = 0; // stream offsets written and taken
+static unsigned g_rbScanZeros = 0;
+static bool g_rbScanHeader = false;
+static uint64_t g_rbJumps = 0;
+
+/* Brightness of a recent decoded picture, 0-255, for the health line (#4). */
+static volatile unsigned g_lastLuma = 0;
 static pthread_mutex_t g_rbMutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  g_rbCond  = PTHREAD_COND_INITIALIZER;
 static bool g_isSocket = false;
@@ -742,6 +763,21 @@ static void* ReaderThreadFunc(void* arg) {
             size_t first = kReaderBufBytes - tail < (size_t)n ? kReaderBufBytes - tail : (size_t)n;
             memcpy(g_rb + tail, tmp, first);
             memcpy(g_rb, tmp + first, (size_t)n - first);
+            /* Find the asked-for keyframe: start code 00 00 01, NAL type 5. */
+            for (ssize_t i = 0; g_rbJumpWanted && !g_rbJumpFound && i < n; ++i) {
+                uint8_t b = tmp[i];
+                if (g_rbScanHeader) {
+                    g_rbScanHeader = false;
+                    if ((b & 0x1f) == 5 && g_rbWritten + (uint64_t)i >= 3u) {
+                        g_rbJumpAt = g_rbWritten + (uint64_t)i - 3u;
+                        g_rbJumpFound = true;
+                    }
+                }
+                if (b == 0) { ++g_rbScanZeros; continue; }
+                if (b == 1 && g_rbScanZeros >= 2) g_rbScanHeader = true;
+                g_rbScanZeros = 0;
+            }
+            g_rbWritten += (uint64_t)n;
             g_rbFill += (size_t)n;
             if (g_rbFill > g_rbHigh) g_rbHigh = g_rbFill;
             pthread_cond_signal(&g_rbCond);
@@ -761,19 +797,47 @@ static void* ReaderThreadFunc(void* arg) {
     return NULL;
 }
 
-/* Decoder side: like recv(), 0 once the reader has finished and the buffer is empty. */
-static ssize_t reader_take(uint8_t* out, size_t max, size_t* backlog) {
+/* Decoder side: like recv(), 0 once the reader has finished and the buffer is
+ * empty. *skipped is how much was dropped to reach an asked-for keyframe. */
+static ssize_t reader_take(uint8_t* out, size_t max, size_t* backlog, size_t* skipped) {
     pthread_mutex_lock(&g_rbMutex);
     while (g_rbFill == 0 && !g_rbClosed && g_running) pthread_cond_wait(&g_rbCond, &g_rbMutex);
+    *skipped = 0;
+    if (g_rbJumpFound) {
+        if (g_rbJumpAt > g_rbRead && g_rbJumpAt - g_rbRead < g_rbFill) {
+            size_t drop = (size_t)(g_rbJumpAt - g_rbRead);
+            g_rbHead = (g_rbHead + drop) % kReaderBufBytes;
+            g_rbFill -= drop;
+            g_rbRead += drop;
+            *skipped = drop;
+        }
+        g_rbJumpFound = g_rbJumpWanted = false;
+    }
     size_t n = g_rbFill < max ? g_rbFill : max;
     size_t first = kReaderBufBytes - g_rbHead < n ? kReaderBufBytes - g_rbHead : n;
     memcpy(out, g_rb + g_rbHead, first);
     memcpy(out + first, g_rb, n - first);
     g_rbHead = (g_rbHead + n) % kReaderBufBytes;
     g_rbFill -= n;
+    g_rbRead += n;
     *backlog = g_rbFill;
     pthread_mutex_unlock(&g_rbMutex);
     return (ssize_t)n;
+}
+
+/* Ask harman-f's hook for a keyframe (its manual resync) and watch for it. */
+static void ask_for_keyframe(size_t backlog) {
+    int fd = open(kResyncArmMarker, O_CREAT | O_WRONLY, 0644);
+    if (fd >= 0) close(fd);
+    pthread_mutex_lock(&g_rbMutex);
+    g_rbJumpWanted = true;
+    g_rbJumpFound = false;
+    g_rbScanZeros = 0;
+    g_rbScanHeader = false;
+    pthread_mutex_unlock(&g_rbMutex);
+    if (g_rbJumps < 50)
+        LOG("decoder: %zu KB behind, asked the phone for a keyframe t=%llu.%03llu",
+            backlog / 1024u, T_ARGS(now_us()));
 }
 
 static void* DecoderThreadFunc(void* arg) {
@@ -868,6 +932,7 @@ static void* DecoderThreadFunc(void* arg) {
     pthread_t readerThread;
     bool readerRunning = false;
     uint64_t nextReaderLogUs = 0;
+    uint64_t nextKeyframeAskUs = 0;
 
     while (g_running) {
         int sock = -1;
@@ -937,8 +1002,12 @@ static void* DecoderThreadFunc(void* arg) {
             if (!g_rb) g_rb = (uint8_t*)malloc(kReaderBufBytes);
             g_rbHead = g_rbFill = 0;
             g_rbClosed = false;
+            g_rbWritten = g_rbRead = 0;
+            g_rbJumpWanted = g_rbJumpFound = false;
             if (g_rb && pthread_create(&readerThread, NULL, ReaderThreadFunc, (void*)(intptr_t)sock) == 0) {
                 readerRunning = true;
+                int fd = open(kResyncEnableMarker, O_CREAT | O_WRONLY, 0644);
+                if (fd >= 0) close(fd);
                 LOG("socket: buffered reader on (%zu KB)", kReaderBufBytes / 1024u);
             } else {
                 LOG("socket: buffered reader unavailable; reading directly");
@@ -948,9 +1017,23 @@ static void* DecoderThreadFunc(void* arg) {
         while (g_running) {
             ssize_t bytes_read = 0;
             if (readerRunning) {
-                size_t backlog = 0;
-                bytes_read = reader_take(inbuf, 131072, &backlog);
+                size_t backlog = 0, skipped = 0;
+                bytes_read = reader_take(inbuf, 131072, &backlog, &skipped);
                 if (bytes_read == 0) break; /* the reader logged why */
+                if (skipped > 0) {
+                    /* Start clean at the keyframe: no half picture from before it. */
+                    av_parser_close(parser);
+                    parser = av_parser_init(codec->id);
+                    if (!parser) { LOGE("avcodec: parser init failed"); g_running = false; break; }
+                    avcodec_flush_buffers(codecCtx);
+                    if (++g_rbJumps <= 50)
+                        LOG("decoder: keyframe arrived; skipped %zu KB queued before it, the picture jumps to the present t=%llu.%03llu",
+                            skipped / 1024u, T_ARGS(now_us()));
+                }
+                if (backlog > kReaderJumpOn && now_us() >= nextKeyframeAskUs) {
+                    ask_for_keyframe(backlog);
+                    nextKeyframeAskUs = now_us() + 3000000ULL;
+                }
                 if (!gotData) {
                     gotData = true;
                     LOG("socket: first data t=%llu.%03llu", T_ARGS(now_us()));
@@ -1101,6 +1184,12 @@ static void* DecoderThreadFunc(void* arg) {
                         for (int y = 0; y < h; ++y) {
                             memcpy(dstY + y * w, frame->data[0] + y * frame->linesize[0], w);
                         }
+                        if ((g_decodedFrameCount & 31u) == 0) {
+                            uint64_t sum = 0, count = 0;
+                            for (int y = 8; y < h; y += 16)
+                                for (int x = 8; x < w; x += 16, ++count) sum += dstY[y * w + x];
+                            g_lastLuma = count ? (unsigned)(sum / count) : 0u;
+                        }
                         // Copy U plane
                         for (int y = 0; y < h / 2; ++y) {
                             memcpy(dstU + y * (w / 2), frame->data[1] + y * frame->linesize[1], w / 2);
@@ -1145,8 +1234,10 @@ static void* DecoderThreadFunc(void* arg) {
             pthread_cond_broadcast(&g_rbCond);
             pthread_join(readerThread, NULL);
             readerRunning = false;
-            LOG("socket: reader backlog most %zu KB, catch-ups %llu",
-                g_rbHigh / 1024u, (unsigned long long)g_rbBehindEpisodes);
+            unlink(kResyncEnableMarker);
+            LOG("socket: reader backlog most %zu KB, catch-ups %llu, jumps to a keyframe %llu",
+                g_rbHigh / 1024u, (unsigned long long)g_rbBehindEpisodes,
+                (unsigned long long)g_rbJumps);
         }
         if (sock >= 0) { g_streamSock = -1; close(sock); sock = -1; }
         if (infile) { fclose(infile); infile = NULL; }
@@ -1837,6 +1928,18 @@ int main(int argc, char* argv[]) {
             uint64_t curDec = g_decodedFrameCount;
             decodeFps = (double)(curDec - lastDecCount) * 1000000.0 / (double)elapsedUs;
             lastDecCount = curDec;
+
+            /* Once a minute, always: is the picture still coming, and is it black? (#4) */
+            static uint64_t s_healthUs = 0, s_healthDec = 0;
+            if (s_healthUs == 0) {
+                s_healthUs = frameEndUs;
+                s_healthDec = curDec;
+            } else if (frameEndUs - s_healthUs >= 60000000ULL) {
+                LOG("health: %llu pictures decoded in the last minute; brightness %u of 255 (under 16 is black) t=%llu.%03llu",
+                    (unsigned long long)(curDec - s_healthDec), g_lastLuma, T_ARGS(frameEndUs));
+                s_healthUs = frameEndUs;
+                s_healthDec = curDec;
+            }
             frameCount = 0;
             lastFpsUs = frameEndUs;
 

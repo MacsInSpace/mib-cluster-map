@@ -158,6 +158,7 @@ if [ -d "$PRELOAD_WRITE_DIR" ] || [ -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" ] |
         rm -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" 2>/dev/null || true
         # The CarPlay map's safe area, read only by its hook.
         rm -f "$APP_MOUNT/root/mibr-carplay111-safearea.conf" 2>/dev/null || true
+        rm -f "$APP_MOUNT/root/mibr-carplay111-nav-query.enabled" "$APP_MOUNT/root/mibr-carplay111-nav."* 2>/dev/null || true
         # enable_hook.sh put the player here; nothing else on the unit uses it.
         if rm -f "$APP_MOUNT/navigation/stream-player" 2>/dev/null; then
             echo "  removed player: $APP_MOUNT/navigation/stream-player"

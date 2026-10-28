@@ -692,9 +692,14 @@ static void active_alt_url_copy(char *out, size_t cap)
     nav_tristate_value(g_nav_eta_path, eta, sizeof(eta), "yes");
     nav_maneuver_value(maneuver, sizeof(maneuver));
 
-    snprintf(out, cap,
-             "%s?showSpeedLimit=%s&showCompass=%s&showETA=%s&maneuverLayout=%s",
-             base, speed, compass, eta, maneuver);
+    /* mib-cluster-map: leave maneuverLayout out rather than send it empty. */
+    if (maneuver[0] == '\0')
+        snprintf(out, cap, "%s?showSpeedLimit=%s&showCompass=%s&showETA=%s",
+                 base, speed, compass, eta);
+    else
+        snprintf(out, cap,
+                 "%s?showSpeedLimit=%s&showCompass=%s&showETA=%s&maneuverLayout=%s",
+                 base, speed, compass, eta, maneuver);
 }
 
 /* 0 = preserve stock, +1 = force bit 26, -1 = clear bit 26. */
@@ -2270,6 +2275,14 @@ CFDictionaryRef AirPlayCopyServerInfo(AirPlayReceiverSessionRef session, CFArray
         remove_key(alt,"yOffset");
         remove_key(alt,"windowWidth");
         remove_key(alt,"windowHeight");
+        /*
+         * mib-cluster-map: a display that declares its own nightMode is
+         * skipped by the car's un-addressed SetNightMode, so the cloned
+         * main-screen value froze the cluster in one appearance (#10).
+         * Without it the cluster follows the car's day/night, as described
+         * by luka-dev/mib2q-carplay-rgi.
+         */
+        remove_key(alt,"nightMode");
 
         /*
          * Coherent GEN2 no-HID profile. Do not inherit main-display touch
