@@ -165,7 +165,7 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 
 | Setting | Shipped | Change it when |
 |---|---|---|
-| `GAL_SECONDARY_DPI` | auto | map text and turn card too big (lower) or too small (higher). `auto` is the value owners settled on for your make: SEAT 140, Skoda 125, VW 138, otherwise 125. A number here is kept as it is |
+| `GAL_SECONDARY_DPI` | auto | map text and turn card too big (lower) or too small (higher). `auto` is the value owners settled on for your make: SEAT 125, Skoda 125, VW 138, otherwise 125. A number here is kept as it is |
 | `GAL_SECONDARY_INSETS` | auto | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. `auto` is SEAT `105,127,127,127`, Skoda `40,127,127,127`, VW `52,82,127,127`, otherwise `40,40,127,127`. They also set where CarPlay keeps its card. See the settings owners have settled on, below |
 | `GAL_SECONDARY_UI_THEME` | 0 (follows the headlights) | you want the cluster map always dark (2) or always light (1). Waze stays dark whatever is set |
 | `GAL_DUALSCREEN_AAP_MINOR` | 5 | the Android Auto version the unit claims (1.x). At 6 or higher Google Maps sends navigation messages this unit cannot read, so the arrows jar shows no turn pictograms (#4). The map shows at 2 to 7 |
@@ -190,7 +190,7 @@ on `auto` follows it without editing anything.
 
 | Cluster | DPI | Insets | From |
 |---|---|---|---|
-| SEAT 1010×376 (`P4708`, `P4709`), *auto* | 140 | `105,127,127,127` | SEAT owners, #4 |
+| SEAT 1010×376 (`P4708`, `P4709`), *auto* | 125 | `105,127,127,127` | SEAT owners, #4 and #19 (140 until beta11; owners found it too large) |
 | SEAT, for Waze | 110 | `105,127,127,127` | DaniFR3, #4 |
 | VW 12.3 in Passat B8 (`K4525`) | 145 | `56,73,127,127` | d4nt387, #8 |
 | VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
@@ -198,6 +198,7 @@ on `auto` follows it without editing anything.
 | VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
 | VW 12.3 in Passat B8 2019 (`K4525`), ETA card showing, with `GAL_SECONDARY_UI_THEME=0` | 138 | `56,73,127,127` | danielszyszko-ui, #41 |
 | VW Golf (`P4521`), ETA card showing, Google Maps and Waze, *auto* for VW | 138 | `52,82,127,127` | tvarszegi1, #8, road-tested |
+| VW Passat B8 2018 (`P4512_1`), small and large dials, *auto* for VW | 138 | `52,82,127,127` | slechtaadam-byte, #47 |
 
 Lower DPI makes the map and its text smaller, so more of the map shows; below
 about DPI 140 Google Maps changes from two overlay cards to one in the middle.

@@ -106,6 +106,21 @@ static const gal_profile k_profiles[] = {
      * insets 40,127,127,127. Its receiver library is byte-identical to
      * P4521's, so every verified layout applies; handler offsets as P4521.
      */
+    /*
+     * VW MIB2.5 High, P4512_1: Golf R and Passat B8 (MU1161). Car-tested with
+     * its trial line on both (Golf R first; Passat by slechtaadam-byte, issue
+     * #47: route, both dial layouts, unplug/replug, reverse camera and a
+     * wireless adapter). gal 1269219 bytes; receiver 1067402 bytes as on
+     * P4521. Handler offsets as P4521.
+     */
+    {
+        "MHI2_ER_VWG13_P4512", 1,
+        0x00237f78u, 0x00231e10u, 0x00231d20u,
+        0x001d9660u, 0xe92d4ff0u, 0xf0u,
+        0x94u, 0xc4u,
+        0x80u, 0x84u, 40u,
+        0x34u, 0x58u, 59u
+    },
     {
         "MHI2_ER_SKG13_P4526", 1,
         0x002385c0u, 0x00232458u, 0x00232368u,

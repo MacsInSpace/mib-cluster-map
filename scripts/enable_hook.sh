@@ -417,7 +417,7 @@ done
 # window, when the display manager does not list it (#15, #19: a SEAT and a
 # Skoda drew stripes in an 800x480 window). Values: docs/Install.md.
 case "$TRAIN" in
-    *_SEG*) CAR_MAKE=SEAT;  CAR_WINDOW=1010x376; CAR_DPI=140; CAR_INSETS=105,127,127,127 ;;
+    *_SEG*) CAR_MAKE=SEAT;  CAR_WINDOW=1010x376; CAR_DPI=125; CAR_INSETS=105,127,127,127 ;;
     *_SKG*) CAR_MAKE=Skoda; CAR_WINDOW=1010x376; CAR_DPI=125; CAR_INSETS=40,127,127,127 ;;
     *_VW*)  CAR_MAKE=VW;    CAR_WINDOW=800x480;  CAR_DPI=138; CAR_INSETS=52,82,127,127 ;;
     *)      CAR_MAKE=;      CAR_WINDOW=;         CAR_DPI=125; CAR_INSETS=40,40,127,127 ;;
