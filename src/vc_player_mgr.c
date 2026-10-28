@@ -477,9 +477,15 @@ void vc_player_stop_wait(int grace_ms)
 #ifdef __QNX__
         if (hook_fix_enabled(HOOK_FIX_ORPHAN_RESTORE))
             restore_display_async("player_sigkill");
-        else
-            (void)system("LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production /eso/bin/apps/dmdt dc 70 33 2>/dev/null; "
-                         "LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production /eso/bin/apps/dmdt sc 4 70 2>/dev/null");
+        else {
+            const gal_secondary_config *cfg = gal_hook_config();
+            char cmd[320];
+            (void)snprintf(cmd, sizeof cmd,
+                           "LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production /eso/bin/apps/dmdt dc %u %u 2>/dev/null; "
+                           "LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production /eso/bin/apps/dmdt sc %u %u 2>/dev/null",
+                           cfg->context_id, cfg->restore_displayable_id, cfg->vc_display, cfg->context_id);
+            (void)system(cmd);
+        }
 #endif
     }
 }

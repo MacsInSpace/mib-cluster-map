@@ -54,6 +54,38 @@ VW map.
    map view with the steering wheel buttons. iPhone: once after installing,
    **Forget This Car** in its CarPlay settings and plug it in again.
 
+### Settings
+
+You do not need to edit anything. In `ClusterMap/gal_dualscreen.conf` the
+map's size (`GAL_SECONDARY_DPI`) and the area kept clear of the dials
+(`GAL_SECONDARY_INSETS`) ship as `auto`. The installer reads which car it is
+in and the size of the cockpit's map window, and uses the values owners have
+tested on that car:
+
+| Car | Cockpit map window | DPI | Insets (top, bottom, left, right) |
+|---|---|---|---|
+| SEAT | 1010×376 | 140 | `105,127,127,127` |
+| Skoda | 1010×376 | 125 | `40,127,127,127` |
+| VW | 800×480 | 138 | `52,82,127,127` |
+| Any other | | 125 | `40,40,127,127` |
+
+When owners of another car settle on values that work, they are added to
+this list and arrive with the next release, so leave `auto` in place and
+your car picks them up when you install it. To use your own values instead,
+replace `auto` with numbers and install again; the installer keeps them.
+The old 800×480 defaults are a good place to start:
+
+```ini
+GAL_SECONDARY_DPI=125
+GAL_SECONDARY_INSETS=40,40,127,127
+```
+
+Lower DPI draws the map and its text smaller; raise an inset (0 to 127) if
+something hides behind the dials.
+`update_result.txt` says which values were used and where they came from.
+Starting points from other owners are in the
+[Install guide](docs/Install.md#settings-owners-have-settled-on).
+
 The update writes what it did to `ClusterMap/update_result.txt` on the card.
 It also adds a **ClusterMap** screen to the green engineering menu (hold MENU >
 `Testmode` > `Green Developer Menu`) for status, logs, uninstall and the
@@ -114,8 +146,10 @@ phone is unplugged and plugged in again.
 | Autorun install without the service menu (`Swdlautorun.txt`) | Tested on a car (Golf `P4521`); Audi untested |
 
 Showing the arrows and the map together works on SEAT with
-`CLUSTERMAP_KEEP_ARROWS=1`. On VW the map has gone blank when a route starts;
-one Tiguan (`K4525`) reports both working on beta8 (#44), being checked. The
+`CLUSTERMAP_KEEP_ARROWS=1`. On VW leave it at 0: the map has gone blank when
+a route starts, and on a Golf (`P4521`) the cockpit switched to its own arrow
+view after a few presses of OK and stayed there, even after a restart, until
+the arrows were removed. One Tiguan (`K4525`) reports both working (#44). The
 turn pictograms need `GAL_DUALSCREEN_AAP_MINOR` at 5 or lower, the shipped
 value from v1.1.1-beta9 (#4). Not possible so far: zooming the cluster map from the steering
 wheel ([why](docs/Development.md#zoom)), and switching between the phone's map

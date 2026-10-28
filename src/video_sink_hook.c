@@ -566,7 +566,7 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
     uint32_t bottom = (config != NULL) ? config->insets_bottom : 40u;
     uint32_t left = (config != NULL) ? config->insets_left : 127u;
     uint32_t right = (config != NULL) ? config->insets_right : 127u;
-    uint32_t ui_theme = (config != NULL) ? config->ui_theme : 2u;
+    uint32_t ui_theme = (config != NULL) ? config->ui_theme : 0u;
     uint32_t viewing_distance = (config != NULL) ? config->viewing_distance : 700u;
 
     if (vconf == NULL) return;

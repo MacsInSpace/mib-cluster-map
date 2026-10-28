@@ -152,8 +152,9 @@ it. Android Auto's cluster video is always 800×480, so where the window has
 another shape the phone is asked to leave margins (0×182 for 1010×376) and
 the player scales the rest to fill the window. CarPlay is asked for the
 window's size. If the size cannot be read, the card's `GAL_PLAYER_WINDOW`
-is used when set (for example `GAL_PLAYER_WINDOW=1010x376`), otherwise
-800×480. The install
+is used when set (for example `GAL_PLAYER_WINDOW=1010x376`), otherwise the
+usual size for the make (1010×376 on SEAT and Skoda, 800×480 on VW and
+anything else). The install
 output and the unit's copy of the settings (`GAL_PLAYER_WINDOW`,
 `GAL_SECONDARY_MARGINS`) show what was chosen.
 
@@ -164,12 +165,13 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 
 | Setting | Shipped | Change it when |
 |---|---|---|
-| `GAL_SECONDARY_DPI` | 125 | map text and turn card too big (lower) or too small (higher) |
-| `GAL_SECONDARY_INSETS` | 40,40,127,127 | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. See the settings owners have settled on, below |
-| `GAL_SECONDARY_UI_THEME` | 2 (dark) | 0 lets Google Maps switch between day and night (Waze stays dark), 1 is light |
+| `GAL_SECONDARY_DPI` | auto | map text and turn card too big (lower) or too small (higher). `auto` is the value owners settled on for your make: SEAT 140, Skoda 125, VW 138, otherwise 125. A number here is kept as it is |
+| `GAL_SECONDARY_INSETS` | auto | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. `auto` is SEAT `105,127,127,127`, Skoda `40,127,127,127`, VW `52,82,127,127`, otherwise `40,40,127,127`. They also set where CarPlay keeps its card. See the settings owners have settled on, below |
+| `GAL_SECONDARY_UI_THEME` | 0 (follows the headlights) | you want the cluster map always dark (2) or always light (1). Waze stays dark whatever is set |
 | `GAL_DUALSCREEN_AAP_MINOR` | 5 | the Android Auto version the unit claims (1.x). At 6 or higher Google Maps sends navigation messages this unit cannot read, so the arrows jar shows no turn pictograms (#4). The map shows at 2 to 7 |
-| `GAL_PLAYER_WINDOW` | unset | the installer says the cluster map window was "not reported by the display manager" and your cluster's is not 800x480: `1010x376` on SEAT and Skoda |
-| `CLUSTERMAP_KEEP_ARROWS` | 0 | 1 keeps the turn-arrows jar with the map (adds it if missing): map, arrows and music together on SEAT. On VW the map has gone blank when a route starts; one Tiguan `K4525` report says otherwise on beta8 (#44) |
+| `GAL_PLAYER_WINDOW` | unset | the installer says the cluster map window was not listed and guessed wrong. It assumes `1010x376` on SEAT and Skoda and `800x480` on VW |
+| `GAL_VC_CONTEXT` | 70 | the cockpit map is in another display context. 70 on VW, SEAT and Skoda; an Audi A4 B9 (`K3346`) uses 72 (trial, #14) |
+| `CLUSTERMAP_KEEP_ARROWS` | 0 | 1 keeps the turn-arrows jar with the map (adds it if missing): map, arrows and music together on SEAT. Leave it at 0 on VW: the map has gone blank when a route starts, and a Golf `P4521` cockpit switched to its own arrow view after a few presses of OK and stayed there until the arrows were removed. One Tiguan `K4525` reports both working (#44) |
 | `CLUSTERMAP_ADD_NAVIGNORE` | 0 | the map goes as soon as a route starts, on firmware where the installer does not add `NavActiveIgnore` by itself. 1 adds it, with a backup, and uninstall removes it. It edits the script that starts the centre screen, so check SSH works first |
 | `CLUSTERMAP_CARPLAY_TRIAL` | unset | the installer refuses the CarPlay map because this unit's `libairplay.so` is a different build. Put the size it prints here to allow the attempt; the hook still checks every symbol it patches and leaves CarPlay stock if they do not fit. See [CarPlay](CarPlay.md) |
 | `GAL_PLAYER_DECODER` | sw | `sw` is the tested software decoder. `hw` uses the unit's own video decoder and frees most of a processor core. If it will not open, the player uses software; if it fails while decoding, it stays off until the next reboot. **Not yet car-tested** |
@@ -180,18 +182,22 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 
 The dials differ between cars, so these are starting points rather than
 recommendations. All are `GAL_SECONDARY_DPI` with `GAL_SECONDARY_INSETS` as
-top, bottom, left, right.
+top, bottom, left, right. With both left at `auto` the installer picks the
+SEAT, Skoda or VW row marked *auto* for you; to try another row, put its
+numbers in the file. When owners of a car confirm values on the road, that
+row becomes the *auto* one for the car in the next release, so a car left
+on `auto` follows it without editing anything.
 
 | Cluster | DPI | Insets | From |
 |---|---|---|---|
-| SEAT 1010×376 (`P4708`, `P4709`) | 140 | `105,127,127,127` | SEAT owners, #4 |
+| SEAT 1010×376 (`P4708`, `P4709`), *auto* | 140 | `105,127,127,127` | SEAT owners, #4 |
 | SEAT, for Waze | 110 | `105,127,127,127` | DaniFR3, #4 |
 | VW 12.3 in Passat B8 (`K4525`) | 145 | `56,73,127,127` | d4nt387, #8 |
 | VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
-| Skoda 1010×376 (`P4526`) | 125 | `40,127,127,127` | raskrivuska, #15 |
+| Skoda 1010×376 (`P4526`), *auto* | 125 | `40,127,127,127` | raskrivuska, #15 |
 | VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
 | VW 12.3 in Passat B8 2019 (`K4525`), ETA card showing, with `GAL_SECONDARY_UI_THEME=0` | 138 | `56,73,127,127` | danielszyszko-ui, #41 |
-| VW Golf (`P4521`), ETA card showing, Google Maps and Waze | 138 | `52,82,127,127` | tvarszegi1, #8, road-tested |
+| VW Golf (`P4521`), ETA card showing, Google Maps and Waze, *auto* for VW | 138 | `52,82,127,127` | tvarszegi1, #8, road-tested |
 
 Lower DPI makes the map and its text smaller, so more of the map shows; below
 about DPI 140 Google Maps changes from two overlay cards to one in the middle.
