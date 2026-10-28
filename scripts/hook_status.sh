@@ -48,6 +48,9 @@ grep \
     -e 'event=secondary.output_patch' \
     -e 'event=secondary.register' \
     -e 'event=discovery.metadata' \
+    -e 'event=discovery.rewrite' \
+    -e 'event=kombi.ready' \
+    -e 'event=focus.hold_wait' \
     -e 'event=aap.setup' \
     -e 'event=aap.media_config' \
     -e 'event=aap.video_focus' \
@@ -82,8 +85,7 @@ else
     echo "(debug logging was not enabled for this run: GAL_DUALSCREEN_DEBUG=0 or unset."
     echo " Frame-level events are never written without it. An empty section here is"
     echo " NOT evidence of zero frames -- re-run with --debug, or rely on the"
-    echo " \"VC route activated\" checklist line below, which only fires once the"
-    echo " secondary sink has actually received two frames.)"
+    echo " player lines of the checklist below.)"
 fi
 
 # A [PASS] means the corresponding log line was found -- it confirms the
@@ -124,16 +126,43 @@ check   "hook enabled at startup"                       'event=init .*enabled=1'
 check   "firmware ABI verified"                         'event=firmware.verify result=success'
 check   "primary sink registered"                       'event=primary.register result=success'
 check   "secondary sink registered"                     'event=secondary.register result=success'
-check   "secondary discovery metadata injected"         'event=discovery.metadata result=success role=secondary'
+# VWG11's receiver has no unknown-field strings, so its second display is
+# announced by rewriting the encoded message (discovery.rewrite) instead.
+check   "second display announced to the phone"         'event=discovery.metadata result=success role=secondary\|event=discovery.rewrite result=success'
 reached "secondary AAP setup"                           'event=aap.setup.complete role=secondary'
 reached "secondary AAP media configuration"             'event=aap.media_config role=secondary'
-check   "two distinct concurrent NvSS handles obtained" 'event=nvss.open.end role=secondary.*distinct=yes'
-check   "secondary NvSS stream configured"              'event=nvss.configure.end role=secondary.*secondary_ready=1'
-check   "VC route activated (cockpit on displayable 3)" 'event=vc.route action=activate result=success'
+check   "cockpit showed its map view (window 33)"       'event=kombi.ready'
+check   "cluster stream started for the player"         'event=aap.playback action=start role=secondary'
+check   "frames acknowledged to the phone"              'event=own.ack count='
 
-# The own/own-ack output modes bypass GAL's single CVideoRenderer and decode
-# into a private NvSS instance instead, so none of the checks above describe
-# what actually reaches the cockpit in those modes. These do.
+# The player writes its own log; it sits next to the hook log in a run_logs
+# save, and in /tmp on the unit.
+PLAYER_LOG=`dirname "$LOG"`/stream-player.log
+[ -r "$PLAYER_LOG" ] || PLAYER_LOG=/tmp/stream-player.log
+if [ -r "$PLAYER_LOG" ]; then
+    for step in "first frame drawn" "cluster switched to the player"; do
+        if grep -q "$step" "$PLAYER_LOG"; then
+            echo "[PASS] player: $step"
+        else
+            echo "[    ] player: $step"
+        fi
+    done
+else
+    echo "[    ] player log not found ($PLAYER_LOG)"
+fi
+
+if grep -q 'event=focus.hold_wait reason=kombi_not_ready' "$LOG" && \
+   ! grep -q 'event=kombi.ready' "$LOG"; then
+    echo "[NOTE] the cockpit never showed its map view in this session, so the"
+    echo "       player was never started. Switch the cockpit to the map view"
+    echo "       (the car's own navigation map) and the phone's map takes over."
+fi
+
+# The own/own-ack output modes decode inside GAL into a private NvSS
+# instance. The shipped mode is withhold (stream-player), so this section is
+# only printed when one of those modes was actually used.
+grep -q 'event=own\.\(open\|decode\|codec_config\|suppress\)' "$LOG" || OWN_MODE_UNUSED=1
+if [ -z "${OWN_MODE_UNUSED:-}" ]; then
 echo
 echo "Own-decode path (GAL_DUALSCREEN_OUTPUT=own / own-ack)"
 echo "------------------------------------------------------------"
@@ -178,6 +207,7 @@ NOPAY=`grep -c 'event=own.decode result=no_payload' "$LOG" 2>/dev/null || true`
 echo "       decode rejections: $FAILS   payload-extraction misses: $NOPAY"
 ACKS=`grep -c 'event=own.ack count=' "$LOG" 2>/dev/null || true`
 echo "       ack log lines: $ACKS (logged at 1,2,3 then every 300th)"
+fi
 
 echo
 echo "This checklist reflects what the hook's own log claims about itself. It"
