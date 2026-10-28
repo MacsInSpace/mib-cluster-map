@@ -208,8 +208,14 @@ addresses.
   included from source under GPL-3.0.
 - **Mr-MIBonk** ([M.I.B.](https://github.com/Mr-MIBonk/M.I.B._More-Incredible-Bash)):
   the `Swdlautorun.txt` trigger for installing without the service menu.
+- **kkrvch** ([mib-std2-kombibridge](https://github.com/kkrvch/mib-std2-kombibridge)):
+  the Android Auto 1.7 navigation decoder for MIB2 Standard. Its message
+  layout and manoeuvre table are ported into `src/nav_translate.c`, with the
+  author's kind permission, so the turn arrows can survive newer Android Auto
+  versions. Thank you!
 - **lito69**, **tulio150** and **DaniFR3**: car tests and porting files for
-  the SEAT and the settings.
+  the SEAT and the settings. Thanks also to lito69 for finding kombibridge and
+  pointing us to it.
 - **kamgurgul**, **wasimlhr** and **luka-dev**: the MHI2Q projects whose notes
   led to the connection-loop fix, and the open QNX toolchain.
 - **FFmpeg**: H.264 decoding, statically linked, LGPL v2.1 or later.

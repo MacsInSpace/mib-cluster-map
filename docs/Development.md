@@ -202,7 +202,8 @@ one over it, in place, so the stock endpoint and the arrows jar see what they
 always did. It also maps the new status 3 (rerouting) to 1 (active). The 1.7
 schema and manoeuvre table come from
 [kkrvch/mib-std2-kombibridge](https://github.com/kkrvch/mib-std2-kombibridge)
-(its author invited reuse in that project's issue #5); the legacy field numbers
+(its author invited reuse in that project's issue #5, and lito69 pointed us
+to it in #4: thank you both); the legacy field numbers
 are this receiver's own `k*FieldNumber` symbols. Host test:
 
 ```sh
