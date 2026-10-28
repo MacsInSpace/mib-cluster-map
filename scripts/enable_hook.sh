@@ -404,6 +404,25 @@ AIRPLAY_ALLOWED=0
 [ "$AIRPLAY_NOW" = "$AIRPLAY_SIZE" ] && AIRPLAY_ALLOWED=1
 [ -n "$AIRPLAY_TRIAL" ] && [ "$AIRPLAY_NOW" = "$AIRPLAY_TRIAL" ] && AIRPLAY_ALLOWED=1
 
+TRAIN=unknown
+for f in /net/rcc/dev/shmem/version.txt /dev/shmem/version.txt; do
+    if [ -r "$f" ]; then
+        TRAIN=`grep "Current train" "$f" | sed 's/Current train = //' | sed -e 's|["'"'"']||g' | sed 's/\r//'`
+        break
+    fi
+done
+
+# The settings owners have tested, by make: the cockpit map window, then
+# DPI and insets. Used for "auto" in gal_dualscreen.conf (#41) and, for the
+# window, when the display manager does not list it (#15, #19: a SEAT and a
+# Skoda drew stripes in an 800x480 window). Values: docs/Install.md.
+case "$TRAIN" in
+    *_SEG*) CAR_MAKE=SEAT;  CAR_WINDOW=1010x376; CAR_DPI=140; CAR_INSETS=105,127,127,127 ;;
+    *_SKG*) CAR_MAKE=Skoda; CAR_WINDOW=1010x376; CAR_DPI=125; CAR_INSETS=40,127,127,127 ;;
+    *_VW*)  CAR_MAKE=VW;    CAR_WINDOW=800x480;  CAR_DPI=138; CAR_INSETS=52,82,127,127 ;;
+    *)      CAR_MAKE=;      CAR_WINDOW=;         CAR_DPI=125; CAR_INSETS=40,40,127,127 ;;
+esac
+
 # The cluster map window. The cluster's encoder expects the window it shows
 # to be this size; an 800x480 window on a cluster whose map window is, say,
 # 1010x376 arrives as stripes (SEAT P4708, issue #4). So the player opens its
@@ -426,6 +445,10 @@ MAP_FROM="display manager"
 if [ -z "$MAP_SIZE" ] && [ -n "$MAP_SET" ]; then
     MAP_SIZE=$MAP_SET
     MAP_FROM="GAL_PLAYER_WINDOW in gal_dualscreen.conf"
+fi
+if [ -z "$MAP_SIZE" ] && [ -n "$CAR_WINDOW" ]; then
+    MAP_SIZE=$CAR_WINDOW
+    MAP_FROM="usual size on $CAR_MAKE; the display manager did not list it"
 fi
 MAP_W=`echo "$MAP_SIZE" | sed -n 's/^\([0-9][0-9]*\)x[0-9][0-9]*$/\1/p'`
 MAP_H=`echo "$MAP_SIZE" | sed -n 's/^[0-9][0-9]*x\([0-9][0-9]*\)$/\1/p'`
@@ -460,6 +483,31 @@ if [ -w "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" ]; then
       echo "GAL_PLAYER_WINDOW=${MAP_W}x${MAP_H}"
       echo "GAL_SECONDARY_MARGINS=${MARGIN_W}x${MARGIN_H}"; } >> "$PRELOAD_WRITE_DIR/gal_dualscreen.conf"
 fi
+
+# "auto" DPI and insets: the values owners settled on for this make and
+# window. A number in the card's file is kept as it is. Rewritten in place
+# because the hook keeps the first value it reads for a key.
+if [ "${MAP_W}x${MAP_H}" = "$CAR_WINDOW" ]; then
+    AUTO_FROM="tested on $CAR_MAKE, ${MAP_W}x${MAP_H}"
+else
+    CAR_DPI=125; CAR_INSETS=40,40,127,127
+    AUTO_FROM="no tested values for this car and window; shipped defaults"
+fi
+CONF_DPI=`sed -n 's/^GAL_SECONDARY_DPI=\([^ 	]*\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | head -1`
+CONF_INSETS=`sed -n 's/^GAL_SECONDARY_INSETS=\([^ 	]*\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | head -1`
+if [ "$CONF_DPI" = auto ] || [ "$CONF_INSETS" = auto ]; then
+    if sed -e "s/^GAL_SECONDARY_DPI=auto[ 	]*$/GAL_SECONDARY_DPI=$CAR_DPI/" \
+           -e "s/^GAL_SECONDARY_INSETS=auto[ 	]*$/GAL_SECONDARY_INSETS=$CAR_INSETS/" \
+           "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" > "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" &&
+       mv "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf"; then
+        :
+    else
+        rm -f "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new"
+        echo "WARNING: could not fill in the auto settings; the hook uses its built-in values." >&2
+    fi
+fi
+[ "$CONF_DPI" = auto ] && echo "Map DPI: $CAR_DPI ($AUTO_FROM)" || echo "Map DPI: ${CONF_DPI:-built-in} (from gal_dualscreen.conf)"
+[ "$CONF_INSETS" = auto ] && echo "Map insets: $CAR_INSETS ($AUTO_FROM)" || echo "Map insets: ${CONF_INSETS:-built-in} (from gal_dualscreen.conf)"
 
 # Install stream-player to /mnt/app/navigation
 # Through a new file and a rename: copying over the old player fails while it
@@ -882,13 +930,6 @@ NAVIGNORE_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SKG13_P4526 MH
 # may not start (see docs/Install.md, Safety and recovery).
 NAVIGNORE_ASKED=`sed -n 's/^CLUSTERMAP_ADD_NAVIGNORE=\([01]\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
-TRAIN=unknown
-for f in /net/rcc/dev/shmem/version.txt /dev/shmem/version.txt; do
-    if [ -r "$f" ]; then
-        TRAIN=`grep "Current train" "$f" | sed 's/Current train = //' | sed -e 's|["'"'"']||g' | sed 's/\r//'`
-        break
-    fi
-done
 echo
 if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo "WARNING: cannot check the Java interface ($LSD_SH or lsd_jar.sh missing)." >&2

@@ -73,7 +73,7 @@ static gal_secondary_config g_config = {
     800u, 480u, 30u, 1u, 3u, 4u, 70u, 33u, 0u, 1u,
     140u, 700u, 10000u,
     40u, 40u, 127u, 127u,
-    2u, 0u, { 0 },
+    0u, 0u, { 0 },
     0u, 0u
 };
 static volatile int g_initialized;
@@ -277,7 +277,8 @@ static void load_environment(void)
     value = getenv("GAL_SECONDARY_AAP_DISPLAY_ID");
     if (value != NULL) g_config.display_id = (unsigned)strtoul(value, NULL, 0);
     value = getenv("GAL_SECONDARY_DPI");
-    if (value != NULL) g_config.dpi = (unsigned)strtoul(value, NULL, 0);
+    /* 0 includes "auto", which the installer fills in; keep the built-in value. */
+    if (value != NULL && strtoul(value, NULL, 0) != 0) g_config.dpi = (unsigned)strtoul(value, NULL, 0);
     value = getenv("GAL_SECONDARY_VIEWING_DISTANCE");
     if (value != NULL) g_config.viewing_distance = (unsigned)strtoul(value, NULL, 0);
     value = getenv("GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4");

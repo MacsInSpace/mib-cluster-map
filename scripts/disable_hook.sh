@@ -103,10 +103,25 @@ carplay_pf_close
 # during a real recovery, which is the worst time to find out.
 # Confirmed by VcMOSTRenderMqb's stream player (dc 70 3 / sc 4 70,
 # restoring with dc 70 33 / sc 4 70) and by on-car notes.
+# Those are VW/SEAT/Skoda numbers; a car whose settings name another
+# cockpit context (Audi, #14) is restored with its own.
+vc_setting()
+{
+    v=
+    for f in "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" "$CARD_ROOT/gal_dualscreen.conf"; do
+        [ -r "$f" ] || continue
+        v=`sed -n "s/^$1=\([0-9][0-9]*\)[ 	]*\r*$/\1/p" "$f" 2>/dev/null | tail -1`
+        [ -n "$v" ] && break
+    done
+    echo "${v:-$2}"
+}
+VC_CTX=`vc_setting GAL_VC_CONTEXT 70`
+VC_DISP=`vc_setting GAL_VC_DISPLAY 4`
+VC_STOCK=`vc_setting GAL_VC_RESTORE_DISPLAYABLE_ID 33`
 VC_ROUTE_RESTORED=0
 if [ -x /eso/bin/apps/dmdt ]; then
-    if (cd /eso && IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt dc 70 33) &&
-       (cd /eso && IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt sc 4 70); then
+    if (cd /eso && IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt dc $VC_CTX $VC_STOCK) &&
+       (cd /eso && IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt sc $VC_DISP $VC_CTX); then
         VC_ROUTE_RESTORED=1
     fi
 fi
@@ -119,8 +134,8 @@ else
     echo "Original persistent smartphone_integrator.json restored."
     echo "  WARNING: could not set the VC route back to stock displayable 33 via dmdt." >&2
     echo "  If the cockpit was switched to displayable 3, restore it manually with:" >&2
-    echo "    cd /eso && IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt dc 70 33" >&2
-    echo "    cd /eso && IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt sc 4 70" >&2
+    echo "    cd /eso && IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt dc $VC_CTX $VC_STOCK" >&2
+    echo "    cd /eso && IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt sc $VC_DISP $VC_CTX" >&2
 fi
 echo "  restored from: $RESTORE_SOURCE"
 

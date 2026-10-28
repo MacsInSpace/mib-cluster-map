@@ -204,6 +204,27 @@ static volatile bool g_newFrameReady = false;
 static uint64_t g_decodedFrameCount = 0;
 static uint64_t g_lastDecodeDurationUs = 0;
 static char g_videoSource[512] = "tcp://127.0.0.1:12346";
+
+/*
+ * Buffered reader for the CarPlay stream (--no-ack). harman-f's hook queues
+ * only 16 pictures for this player, about half a second, and drops the
+ * player when that fills ("gen2 video AU rc=2 -> consumer reset"), which
+ * puts the car's own map back. Reading and decoding on one thread meant one
+ * slow stretch of large pictures was enough (#10, #19, #43: 4 of 5 switches
+ * back in one capture). A second thread now keeps the socket drained into
+ * this buffer, and while the decoder is behind it skips the loop filter to
+ * catch up. Android Auto keeps its ACK pacing and does not use this.
+ */
+static bool g_bufferedReader = false;
+static const size_t kReaderBufBytes   = 8u * 1024u * 1024u;
+static const size_t kReaderBehindOn   = 384u * 1024u;  // skip the loop filter above this backlog
+static const size_t kReaderBehindOff  = 64u * 1024u;   // and restore it below this
+static uint8_t* g_rb = NULL;
+static size_t g_rbHead = 0, g_rbFill = 0, g_rbHigh = 0;
+static bool g_rbClosed = false;
+static uint64_t g_rbBehindEpisodes = 0;
+static pthread_mutex_t g_rbMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t  g_rbCond  = PTHREAD_COND_INITIALIZER;
 static bool g_isSocket = false;
 
 int windowWidth  = 800;
@@ -324,6 +345,30 @@ static const char* fragmentShaderSource =
  */
 #define T_ARGS(us) (unsigned long long)((us) / 1000000ULL), (unsigned long long)((us) / 1000ULL % 1000ULL)
 static pid_t g_parentPid = 0;
+/*
+ * The numbers above are VW's, SEAT's and Skoda's. An Audi A4 B9 (K3346, #14)
+ * shows its map in context 72 or 74 instead, so they come from
+ * GAL_VC_CONTEXT, GAL_VC_DISPLAY, GAL_VC_DISPLAYABLE_ID and
+ * GAL_VC_RESTORE_DISPLAYABLE_ID, the hook's own keys. The dmdt arguments are
+ * built once at start-up, so the crash handler only reads them.
+ */
+static unsigned g_vcContext = 70u;
+static unsigned g_vcDisplay = 4u;
+static unsigned g_vcDisplayable = 3u;
+static unsigned g_vcRestore = 33u;
+static char g_dmdtShow[32] = "dc 70 3";
+static char g_dmdtRestore[32] = "dc 70 33";
+static char g_dmdtSelect[32] = "sc 4 70";
+static char g_dmdtCrashCmd[320] = "";
+static void build_dmdt_args() {
+    snprintf(g_dmdtShow, sizeof(g_dmdtShow), "dc %u %u", g_vcContext, g_vcDisplayable);
+    snprintf(g_dmdtRestore, sizeof(g_dmdtRestore), "dc %u %u", g_vcContext, g_vcRestore);
+    snprintf(g_dmdtSelect, sizeof(g_dmdtSelect), "sc %u %u", g_vcDisplay, g_vcContext);
+    snprintf(g_dmdtCrashCmd, sizeof(g_dmdtCrashCmd),
+             "LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production /eso/bin/apps/dmdt %s 2>/dev/null; "
+             "LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production /eso/bin/apps/dmdt %s 2>/dev/null",
+             g_dmdtRestore, g_dmdtSelect);
+}
 #ifdef __QNX__
 struct DmdtRun { const char* args; int status; };
 
@@ -360,7 +405,7 @@ static bool g_switchClosed = false;    /* g_switchLock: shutting down */
 
 static void* display_switch_thread(void* arg) {
     (void)arg;
-    dmdt_pair("dc 70 3", "sc 4 70", "cluster switched to the player");
+    dmdt_pair(g_dmdtShow, g_dmdtSelect, "cluster switched to the player");
     return NULL;
 }
 
@@ -389,7 +434,7 @@ static void execute_final_commands() {
     pthread_mutex_unlock(&g_switchLock);
     if (!started) return;
     pthread_join(g_switchThread, NULL);
-    dmdt_pair("dc 70 33", "sc 4 70", "stock Kombi map restored");
+    dmdt_pair(g_dmdtRestore, g_dmdtSelect, "stock Kombi map restored");
 }
 #else
 static void request_display_switch() {}
@@ -541,10 +586,9 @@ static void nvss_disable_for_boot(const char*) {}
 static void write_ack();
 
 static void crash_signal_handler(int sig) {
-    fprintf(stderr, "\n[stream-player CRASH] Caught fatal signal %d! Emergency restoring display context 33...\n", sig);
+    fprintf(stderr, "\n[stream-player CRASH] Caught fatal signal %d! Emergency restoring the stock cluster map...\n", sig);
 #ifdef __QNX__
-    system("LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production /eso/bin/apps/dmdt dc 70 33 2>/dev/null");
-    system("LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production /eso/bin/apps/dmdt sc 4 70 2>/dev/null");
+    if (g_dmdtCrashCmd[0]) system(g_dmdtCrashCmd);
 #endif
     signal(sig, SIG_DFL);
     raise(sig);
@@ -677,6 +721,61 @@ static bool connect_retry_allowed() {
     return g_running;
 }
 
+/* Reader side: drain the socket into g_rb until it closes or the buffer fills. */
+static void* ReaderThreadFunc(void* arg) {
+    int sock = (int)(intptr_t)arg;
+    uint8_t* tmp = (uint8_t*)malloc(131072);
+    bool overflow = false;
+    while (tmp && g_running) {
+        ssize_t n = recv(sock, tmp, 131072, 0);
+        if (n < 0 && errno == EINTR) continue;
+        if (n <= 0) {
+            if (n < 0) LOG("socket: recv error (errno=%d) t=%llu.%03llu", errno, T_ARGS(now_us()));
+            else LOG("socket: stream closed t=%llu.%03llu", T_ARGS(now_us()));
+            break;
+        }
+        pthread_mutex_lock(&g_rbMutex);
+        if ((size_t)n > kReaderBufBytes - g_rbFill) {
+            overflow = true;
+        } else {
+            size_t tail = (g_rbHead + g_rbFill) % kReaderBufBytes;
+            size_t first = kReaderBufBytes - tail < (size_t)n ? kReaderBufBytes - tail : (size_t)n;
+            memcpy(g_rb + tail, tmp, first);
+            memcpy(g_rb, tmp + first, (size_t)n - first);
+            g_rbFill += (size_t)n;
+            if (g_rbFill > g_rbHigh) g_rbHigh = g_rbFill;
+            pthread_cond_signal(&g_rbCond);
+        }
+        pthread_mutex_unlock(&g_rbMutex);
+        if (overflow) {
+            LOG("socket: reader buffer full (%zu KB behind) t=%llu.%03llu",
+                kReaderBufBytes / 1024u, T_ARGS(now_us()));
+            break;
+        }
+    }
+    free(tmp);
+    pthread_mutex_lock(&g_rbMutex);
+    g_rbClosed = true;
+    pthread_cond_broadcast(&g_rbCond);
+    pthread_mutex_unlock(&g_rbMutex);
+    return NULL;
+}
+
+/* Decoder side: like recv(), 0 once the reader has finished and the buffer is empty. */
+static ssize_t reader_take(uint8_t* out, size_t max, size_t* backlog) {
+    pthread_mutex_lock(&g_rbMutex);
+    while (g_rbFill == 0 && !g_rbClosed && g_running) pthread_cond_wait(&g_rbCond, &g_rbMutex);
+    size_t n = g_rbFill < max ? g_rbFill : max;
+    size_t first = kReaderBufBytes - g_rbHead < n ? kReaderBufBytes - g_rbHead : n;
+    memcpy(out, g_rb + g_rbHead, first);
+    memcpy(out + first, g_rb, n - first);
+    g_rbHead = (g_rbHead + n) % kReaderBufBytes;
+    g_rbFill -= n;
+    *backlog = g_rbFill;
+    pthread_mutex_unlock(&g_rbMutex);
+    return (ssize_t)n;
+}
+
 static void* DecoderThreadFunc(void* arg) {
     (void)arg;
     LOG("decoder: background worker thread active");
@@ -765,6 +864,10 @@ static void* DecoderThreadFunc(void* arg) {
     bool hasDecodedKeyframe = false;
     bool hasRenderedWarmupFrame = false;
     bool gotData = false;
+    bool behind = false;
+    pthread_t readerThread;
+    bool readerRunning = false;
+    uint64_t nextReaderLogUs = 0;
 
     while (g_running) {
         int sock = -1;
@@ -830,9 +933,49 @@ static void* DecoderThreadFunc(void* arg) {
             }
         }
 
+        if (is_socket && sock >= 0 && g_bufferedReader && !readerRunning) {
+            if (!g_rb) g_rb = (uint8_t*)malloc(kReaderBufBytes);
+            g_rbHead = g_rbFill = 0;
+            g_rbClosed = false;
+            if (g_rb && pthread_create(&readerThread, NULL, ReaderThreadFunc, (void*)(intptr_t)sock) == 0) {
+                readerRunning = true;
+                LOG("socket: buffered reader on (%zu KB)", kReaderBufBytes / 1024u);
+            } else {
+                LOG("socket: buffered reader unavailable; reading directly");
+            }
+        }
+
         while (g_running) {
             ssize_t bytes_read = 0;
-            if (is_socket) {
+            if (readerRunning) {
+                size_t backlog = 0;
+                bytes_read = reader_take(inbuf, 131072, &backlog);
+                if (bytes_read == 0) break; /* the reader logged why */
+                if (!gotData) {
+                    gotData = true;
+                    LOG("socket: first data t=%llu.%03llu", T_ARGS(now_us()));
+                }
+                if (!behind && backlog > kReaderBehindOn) {
+                    behind = true;
+                    ++g_rbBehindEpisodes;
+                    codecCtx->skip_loop_filter = AVDISCARD_ALL;
+                    if (g_rbBehindEpisodes <= 20)
+                        LOG("decoder: %zu KB behind, loop filter off to catch up t=%llu.%03llu",
+                            backlog / 1024u, T_ARGS(now_us()));
+                } else if (behind && backlog < kReaderBehindOff) {
+                    behind = false;
+                    codecCtx->skip_loop_filter = (AVDiscard)g_ffmpegSkipLoopFilter;
+                    if (g_rbBehindEpisodes <= 20)
+                        LOG("decoder: caught up t=%llu.%03llu", T_ARGS(now_us()));
+                }
+                uint64_t now = now_us();
+                if (now >= nextReaderLogUs) {
+                    if (nextReaderLogUs)
+                        LOG("socket: reader backlog now %zu KB, most %zu KB, catch-ups %llu",
+                            backlog / 1024u, g_rbHigh / 1024u, (unsigned long long)g_rbBehindEpisodes);
+                    nextReaderLogUs = now + 30000000ULL;
+                }
+            } else if (is_socket) {
                 bytes_read = recv(sock, inbuf, 131072, 0);
                 if (bytes_read < 0) {
                     if (errno == EINTR) continue;
@@ -996,6 +1139,15 @@ static void* DecoderThreadFunc(void* arg) {
             }
         }
 
+        if (readerRunning) {
+            /* Unblock the reader's recv() before joining it. */
+            if (sock >= 0) shutdown(sock, SHUT_RDWR);
+            pthread_cond_broadcast(&g_rbCond);
+            pthread_join(readerThread, NULL);
+            readerRunning = false;
+            LOG("socket: reader backlog most %zu KB, catch-ups %llu",
+                g_rbHigh / 1024u, (unsigned long long)g_rbBehindEpisodes);
+        }
         if (sock >= 0) { g_streamSock = -1; close(sock); sock = -1; }
         if (infile) { fclose(infile); infile = NULL; }
         if (is_socket) {
@@ -1159,6 +1311,18 @@ static void load_player_config() {
             } else if (strcmp(key, "GAL_PLAYER_NVSS_OUTPUT") == 0) {
                 int o = atoi(val);
                 if (o == 0 || o == 1) g_nvssOutput = (unsigned)o;
+            } else if (strcmp(key, "GAL_VC_CONTEXT") == 0) {
+                int v = atoi(val);
+                if (v > 0 && v < 1000) g_vcContext = (unsigned)v;
+            } else if (strcmp(key, "GAL_VC_DISPLAY") == 0) {
+                int v = atoi(val);
+                if (v > 0 && v < 1000) g_vcDisplay = (unsigned)v;
+            } else if (strcmp(key, "GAL_VC_DISPLAYABLE_ID") == 0) {
+                int v = atoi(val);
+                if (v > 0 && v < 1000) g_vcDisplayable = (unsigned)v;
+            } else if (strcmp(key, "GAL_VC_RESTORE_DISPLAYABLE_ID") == 0) {
+                int v = atoi(val);
+                if (v > 0 && v < 1000) g_vcRestore = (unsigned)v;
             } else if (strcmp(key, "GAL_PLAYER_STATS") == 0) {
                 /* 0 drops the once-a-second STATS line; everything else is still logged. */
                 g_verbose = atoi(val) != 0;
@@ -1167,6 +1331,10 @@ static void load_player_config() {
         fclose(f);
         break; // Stop at first found config file
     }
+    build_dmdt_args();
+    if (g_vcContext != 70u || g_vcDisplay != 4u || g_vcDisplayable != 3u || g_vcRestore != 33u)
+        LOG("dmdt: cockpit context %u on display %u, player displayable %u, stock map %u (from the settings)",
+            g_vcContext, g_vcDisplay, g_vcDisplayable, g_vcRestore);
 
     // Environment variables override config file
     const char* env_threads = getenv("GAL_PLAYER_THREADS");
@@ -1248,6 +1416,7 @@ int main(int argc, char* argv[]) {
 #if defined(__QNX__) || defined(__linux__)
             g_noAck = true;
 #endif
+            g_bufferedReader = true;
         } else if (strncmp(argv[i], "--size=", 7) == 0) {
             /* Window size; overrides GAL_PLAYER_WINDOW. For testing. */
             int w = 0, h = 0;
