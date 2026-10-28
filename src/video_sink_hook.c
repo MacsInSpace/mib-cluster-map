@@ -11,6 +11,7 @@
 #include "vc_player_mgr.h"
 #include "focus_ctl.h"
 #include "firmware_profiles.h"
+#include "nav_translate.h"
 
 #include <dlfcn.h>
 #include <pthread.h>
@@ -2106,6 +2107,25 @@ static const void *iobuffer_bytes(const void *buffer, unsigned *out_bytes)
 }
 
 /*
+ * Shorten an inbound IoBuffer to its first n bytes, after the caller has
+ * written a smaller message over the start of it (nav_translate).
+ */
+static int iobuffer_set_length(const void *buffer, unsigned n)
+{
+    const void *io = NULL;
+    uint32_t offset, limit;
+
+    if (buffer == NULL) return 0;
+    memcpy(&io, (const unsigned char *)buffer + 4, sizeof(io));
+    if (io == NULL) return 0;
+    offset = load_u32(io, 8);
+    limit  = load_u32(io, 12);
+    if (limit < offset || n > limit - offset) return 0;
+    store_u32((void *)(uintptr_t)io, 12, offset + n);
+    return 1;
+}
+
+/*
  * Does the recovered payload actually start an H.264 access unit?
  *
  * encoded_payload() locates the payload by skipping `length` header bytes,
@@ -2591,6 +2611,49 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
                 gal_hook_logf("event=aap.nav_msg channel=%u msg_id=0x%04x bytes=%u n=%u hex=%s",
                               (unsigned)channel, g_channel_last_id[channel],
                               nb, logged[slot], hex);
+            }
+        }
+    }
+    /*
+     * ...and translated into the old pair, so they are no longer lost
+     * (src/nav_translate.c). Only messages a 1.6+ phone sends are changed,
+     * so at the shipped 1.5 this does nothing. GAL_DUALSCREEN_NAV_TRANSLATE=0
+     * turns it off.
+     */
+    if (strstr(g_service_class[channel], "NavigationStatus") != NULL &&
+        (g_channel_last_id[channel] == 0x8003u || g_channel_last_id[channel] == 0x8006u ||
+         g_channel_last_id[channel] == 0x8007u)) {
+        static int translate = -1;
+        static unsigned long translated;
+        if (translate < 0) {
+            const char *v = getenv("GAL_DUALSCREEN_NAV_TRANSLATE");
+            translate = (v != NULL && (strcmp(v, "0") == 0 || strcmp(v, "false") == 0 ||
+                                       strcmp(v, "no") == 0)) ? 0 : 1;
+            gal_hook_logf("event=nav.translate enabled=%d", translate);
+        }
+        if (translate) {
+            unsigned nb = 0u;
+            unsigned char *m = (unsigned char *)(uintptr_t)iobuffer_bytes(buffer, &nb);
+            unsigned char out[256];
+            int n = m != NULL ? nav_translate(m, nb, out, sizeof out) : NAV_TRANSLATE_PASS;
+            const nav_translate_info *t = nav_translate_last();
+            if (n == NAV_TRANSLATE_DROP) {
+                if (translated < 10ul)
+                    gal_hook_logf("event=nav.translate from=0x%04x action=dropped reason=nothing_usable",
+                                  g_channel_last_id[channel]);
+                fc_run_mailbox();
+                return;
+            }
+            if (n > 0 && (unsigned)n <= nb) {
+                if (iobuffer_set_length(buffer, (unsigned)n)) {
+                    memcpy(m, out, (size_t)n);
+                    g_channel_last_id[channel] = (unsigned short)t->to_id;
+                    ++translated;
+                    if (translated <= 10ul || translated % 200ul == 0ul)
+                        gal_hook_logf("event=nav.translate from=0x%04x to=0x%04x bytes=%u->%d event=%u side=%u road_len=%u meters=%u seconds=%u status=%d n=%lu",
+                                      t->from_id, t->to_id, nb, n, t->event, t->side,
+                                      t->road_len, t->meters, t->seconds, t->status, translated);
+                }
             }
         }
     }
