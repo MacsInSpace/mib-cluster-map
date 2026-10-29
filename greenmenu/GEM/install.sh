@@ -14,6 +14,28 @@ if [ -f $ENGDEFS/aa-cluster-map.esd ] && [ -f $ENGDEFS/cluster-map.esd ]; then
 fi
 echo "Head unit: $FAMILY"
 echo "Firmware train: $TRAIN"
+# VWG11 before K3342 (S2125): NavActiveIgnore stopped Android Auto there and
+# the map went at every route (#39). Owners who updated to K3342 have it
+# working, so say that instead of installing or collecting, even with a
+# trial line.
+case "$TRAIN" in
+    *_VWG11_S*)
+        echo
+        echo "=================================================================="
+        echo "NOT SUPPORTED: $TRAIN (VW Discover Pro 8 in, original firmware)."
+        echo "Nothing was changed."
+        echo
+        echo "On this firmware the map is lost when a route starts, and the fix"
+        echo "for that stopped Android Auto (#39). Update the unit to"
+        echo "  MHI2_ER_VWG11_K3342_1_AIO_MU1427"
+        echo "(through a VW dealer or a firmware package you trust), check the"
+        echo "train and MU in the green menu, then run this update again with"
+        echo "CLUSTERMAP_ADD_NAVIGNORE=1. Owners' Passat B8s work that way (#39)."
+        echo "Updating firmware is at your own risk."
+        echo "=================================================================="
+        echo "CLUSTERMAP_UPDATE_FIRMWARE_FIRST"
+        exit 0 ;;
+esac
 if train_supported; then
     echo "Compatibility: $SUPPORT_NOTE"
     echo "Installing: the Android Auto map on the cluster"

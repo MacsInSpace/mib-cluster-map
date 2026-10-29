@@ -63,6 +63,10 @@ receiver_path() { lib_path $RECEIVER_NAMES; }
 airplay_path()  { lib_path $AIRPLAY_NAMES; }
 train_supported()
 {
+    # VWG11 before K3342: not supported, update first (#39; install.sh).
+    case "$TRAIN" in
+        *_VWG11_S*) SUPPORT_NOTE="not supported: update to MHI2_ER_VWG11_K3342_1_AIO_MU1427 first (#39)"; return 1 ;;
+    esac
     for t in $SUPPORTED_TRAINS; do
         case "$TRAIN" in
             *${t}*) SUPPORT_NOTE="tested firmware"; return 0 ;;
