@@ -111,7 +111,7 @@ vc_setting()
     for f in "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" "$CARD_ROOT/gal_dualscreen.conf"; do
         [ -r "$f" ] || continue
         v=`sed -n "s/^$1=\([0-9][0-9]*\)[ 	]*\r*$/\1/p" "$f" 2>/dev/null | tail -1`
-        [ -n "$v" ] && break
+        if [ -n "$v" ]; then break; fi
     done
     echo "${v:-$2}"
 }

@@ -677,8 +677,14 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
         '') ;;
         *) echo "CarPlay map: CLUSTERMAP_CARPLAY_CARD_POSITION=$v not understood (left, right or top); ignored" ;;
     esac
-    [ -n "$CP_QUERY" ] && : > "$CP_NAV-query.enabled"
-    [ -n "$CP_VIEW$CP_QUERY" ] && echo "CarPlay map: view ${CP_VIEW:-full};${CP_QUERY:- iPhone defaults}"
+    # if, not "[ ] &&": as the last command of this block a false test would
+    # end the install under set -e (beta14, #52).
+    if [ -n "$CP_QUERY" ]; then
+        : > "$CP_NAV-query.enabled"
+    fi
+    if [ -n "$CP_VIEW$CP_QUERY" ]; then
+        echo "CarPlay map: view ${CP_VIEW:-full};${CP_QUERY:- iPhone defaults}"
+    fi
 fi
 
 mount -ur "$APP_MOUNT" 2>/dev/null || true
@@ -1026,20 +1032,20 @@ NAVIGNORE_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SKG13_P4526 MH
 # may not start (see docs/Install.md, Safety and recovery).
 NAVIGNORE_ASKED=`sed -n 's/^CLUSTERMAP_ADD_NAVIGNORE=\([01]\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
-# Never on the older MIB2 High generation (VWG11, and Audi AUG22 with the
-# same Android Auto receiver): with it, Android Auto stopped working on an
-# S2125 (#39) and the cockpit froze on "Initialising navigation" on a K3342
-# (#28). The Audi K3346 kept its map through a route without it (#14).
+# Never on VWG11 S-trains or Audi AUG22: with it, Android Auto stopped
+# working on an S2125 (#39, FAILED_NO_GAL_DEVICE). Owners updated to
+# MHI2_ER_VWG11_K3342 run it fine (#39, #28; the #28 freeze was an edited
+# gal.json). The Audi K3346 kept its map through a route without it (#14).
 NAVIGNORE_NEVER=0
-case "$TRAIN" in *_VWG11_*|*_AUG22_*) NAVIGNORE_NEVER=1 ;; esac
+case "$TRAIN" in *_VWG11_S*|*_AUG22_*) NAVIGNORE_NEVER=1 ;; esac
 echo
 if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo "WARNING: cannot check the Java interface ($LSD_SH or lsd_jar.sh missing)." >&2
 else
     if sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar && [ "$NAVIGNORE_NEVER" -eq 1 ]; then
         echo "WARNING: NavActiveIgnore is loaded. On firmware $TRAIN it has stopped" >&2
-        echo "         Android Auto (#39) or frozen the cockpit (#28). If either" >&2
-        echo "         happens, remove it with the toolbox or this package's uninstall." >&2
+        echo "         Android Auto (#39). If it does, remove it with the toolbox or" >&2
+        echo "         this package's uninstall, or update to MHI2_ER_VWG11_K3342." >&2
     elif sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar; then
         echo "Java check: NavActiveIgnore is loaded (required)."
     elif sh "$CARD_ROOT/lsd_jar.sh" loaded CarPlayNavigationPatch.jar; then
@@ -1047,7 +1053,10 @@ else
         echo "Java check: CarPlayNavigationPatch is loaded (the same patch as NavActiveIgnore)."
     elif [ "$NAVIGNORE_NEVER" -eq 1 ]; then
         echo "Java check: NavActiveIgnore is not loaded, and is never added on $TRAIN"
-        [ "$NAVIGNORE_ASKED" = 1 ] && echo "            (CLUSTERMAP_ADD_NAVIGNORE=1 ignored: it broke Android Auto on this generation, #39, #28)."
+        if [ "$NAVIGNORE_ASKED" = 1 ]; then
+            echo "            (CLUSTERMAP_ADD_NAVIGNORE=1 ignored: it broke Android Auto on this firmware, #39)."
+            echo "            Owners updated to MHI2_ER_VWG11_K3342 have it working (#39, #28)."
+        fi
     elif [ "$KEEP_NAVIGNORE" -eq 1 ]; then
         echo "Java check: NavActiveIgnore is NOT loaded and was left alone (--no-navignore)."
         echo "            The cluster will drop its map when the phone navigates."
