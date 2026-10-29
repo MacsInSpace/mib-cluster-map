@@ -145,6 +145,22 @@ static const gal_profile k_profiles[] = {
         0x78u, 0x7cu, 40u,
         0x34u, 0x58u, 59u
     },
+    /*
+     * VW Discover Pro 8" MIB2 High (VWG11), K3342 MU1427. Car-tested by Cmelko
+     * on a Passat B8 with this trial line on beta12, NavActiveIgnore added
+     * (issue #39), and confirmed by three owners on beta11 (#28). Owners on
+     * the original S2125 update to K3342 first; S2125's gal does not match
+     * this fingerprint, so it is never applied there. Settings fields are
+     * P4521's, which the trial line used.
+     */
+    {
+        "MHI2_ER_VWG11_K3342", 1,
+        0x0022cd64u, 0x00229340u, 0x00229250u,
+        0x001d69b8u, 0xe92d4ff0u, 0xe8u,
+        0x88u, 0xb8u,
+        0x78u, 0x7cu, 40u,
+        0x34u, 0x58u, 59u
+    },
 };
 
 #define GAL_PROFILE_COUNT (sizeof(k_profiles) / sizeof(k_profiles[0]))
