@@ -82,7 +82,8 @@ if [ "$MODE" = install ]; then
             echo "  does not show the Green Developer Menu, switch it on with VCDS/OBDeleven: 5F," >> "$RESULT"
             echo "  adaptation, developer mode on. The ClusterMap screen is then in that menu." >> "$RESULT"
         fi
-    elif grep -q "NOT SUPPORTED" "$RESULT"; then
+    elif grep -q "NOT SUPPORTED" "$RESULT" &&
+         ! grep -q "CLUSTERMAP_UPDATE_FIRMWARE_FIRST" "$RESULT"; then
         # Nothing was installed. Gather what a port to this firmware needs, so
         # the owner does not have to do anything else to help.
         echo >> "$RESULT"
