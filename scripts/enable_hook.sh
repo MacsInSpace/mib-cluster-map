@@ -391,9 +391,10 @@ fi
 # by exported symbol name (AirPlayReceiverSessionStart and nine others), not
 # by address, and it compares the first eight bytes of every function it
 # trampolines before touching it -- "prologue mismatch" in its log, and
-# CarPlay stays stock. So a stated size allows an attempt that the hook can
-# still refuse, rather than a blind patch of an unknown binary. Asked for in
-# #10 (US P3662, whose CarPlay library is a different build).
+# CarPlay stays stock. That is not proof the build fits: 857735 (Audi K3346,
+# VWG11 K3342) passes both checks with 26 AirPlay functions changed, Setup
+# among them. So nothing suggests this any more; it stays for a developer
+# with a build they have checked. Asked for in #10 (US P3662, which worked).
 AIRPLAY_TRIAL=`sed -n 's/^CLUSTERMAP_CARPLAY_TRIAL=\([0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 for d in /mnt/app/eso/lib /eso/lib /mnt/app/armle/lib /mnt/app/usr/lib /mnt/app/root/lib-target; do
@@ -403,6 +404,12 @@ AIRPLAY_NOW=`wc -c < $AIRPLAY_LIB 2>/dev/null | sed 's/ //g'`
 AIRPLAY_ALLOWED=0
 [ "$AIRPLAY_NOW" = "$AIRPLAY_SIZE" ] && AIRPLAY_ALLOWED=1
 [ -n "$AIRPLAY_TRIAL" ] && [ "$AIRPLAY_NOW" = "$AIRPLAY_TRIAL" ] && AIRPLAY_ALLOWED=1
+# CLUSTERMAP_CARPLAY=0: the Android Auto map only. CarPlay's preload and
+# firewall rule are left out, for wireless adapters that do not get along
+# with them (#55, #56). The same as --no-carplay, from the card.
+if [ "`sed -n 's/^CLUSTERMAP_CARPLAY=\([01]\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`" = 0 ]; then
+    CARPLAY=0
+fi
 
 TRAIN=unknown
 for f in /net/rcc/dev/shmem/version.txt /dev/shmem/version.txt; do
@@ -443,6 +450,7 @@ MAP_SIZE=`( cd /eso && LD_PRELOAD="$PRELOAD_WRITE_DIR/libdmdt_flush.so" \
 MAP_SET=`sed -n 's/^GAL_PLAYER_WINDOW=\([0-9]*x[0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 MAP_FROM="display manager"
+MAP_GUESSED=
 if [ -z "$MAP_SIZE" ] && [ -n "$MAP_SET" ]; then
     MAP_SIZE=$MAP_SET
     MAP_FROM="GAL_PLAYER_WINDOW in gal_dualscreen.conf"
@@ -450,12 +458,20 @@ fi
 if [ -z "$MAP_SIZE" ] && [ -n "$CAR_WINDOW" ]; then
     MAP_SIZE=$CAR_WINDOW
     MAP_FROM="usual size on $CAR_MAKE; the display manager did not list it"
+    MAP_GUESSED=1
 fi
 MAP_W=`echo "$MAP_SIZE" | sed -n 's/^\([0-9][0-9]*\)x[0-9][0-9]*$/\1/p'`
 MAP_H=`echo "$MAP_SIZE" | sed -n 's/^[0-9][0-9]*x\([0-9][0-9]*\)$/\1/p'`
 if [ -n "$MAP_W" ] && [ -n "$MAP_H" ] && [ "$MAP_W" -ge 320 ] && [ "$MAP_W" -le 1920 ] && \
    [ "$MAP_H" -ge 160 ] && [ "$MAP_H" -le 1080 ]; then
     echo "Cluster map window: ${MAP_W}x${MAP_H} (from the $MAP_FROM)"
+    if [ -n "$MAP_GUESSED" ]; then
+        # #52: a VW cockpit with a 1010x376 window took the 800x480 guess.
+        echo "  This size is a guess, and not every $CAR_MAKE cockpit has it. If the map"
+        echo "  does not appear, put the cockpit in map view with the car's own"
+        echo "  navigation and install again, or set GAL_PLAYER_WINDOW in"
+        echo "  gal_dualscreen.conf (dmdt_gd.txt in Save logs lists window 33)."
+    fi
 else
     MAP_W=800; MAP_H=480
     echo "Cluster map window: not reported by the display manager; using 800x480."
@@ -549,7 +565,7 @@ fi
 # The CarPlay map, when this unit's CarPlay library is the one the hook knows.
 CARPLAY_WHY=
 if [ "$CARPLAY" -eq 0 ]; then
-    CARPLAY_WHY="not requested (--no-carplay)"
+    CARPLAY_WHY="turned off (--no-carplay or CLUSTERMAP_CARPLAY=0)"
 elif [ ! -r "$CARD_ROOT/carplay/libcarplay_cluster.so" ] || [ ! -r "$CARD_ROOT/carplay/carplay_cluster.sh" ]; then
     CARPLAY_WHY="its files are not in this package"
 elif [ "$AIRPLAY_ALLOWED" -ne 1 ]; then
@@ -558,7 +574,7 @@ elif [ "$AIRPLAY_ALLOWED" -ne 1 ]; then
     elif [ -n "$AIRPLAY_TRIAL" ]; then
         CARPLAY_WHY="this unit's CarPlay library is a different build ($AIRPLAY_NOW bytes), and CLUSTERMAP_CARPLAY_TRIAL says $AIRPLAY_TRIAL"
     else
-        CARPLAY_WHY="this unit's CarPlay library is a different build ($AIRPLAY_NOW bytes); CLUSTERMAP_CARPLAY_TRIAL=$AIRPLAY_NOW would allow an attempt"
+        CARPLAY_WHY="this unit's CarPlay library is a different build ($AIRPLAY_NOW bytes), which needs a port"
     fi
 elif [ -d "$APP_MOUNT/carplaymaps" ] || grep -q carplaymaps "$APP_MOUNT/eso/bin/apps/dio_manager" 2>/dev/null; then
     CARPLAY_WHY="CarPlay Maps VC is installed; uninstall it first to use this one"
@@ -572,9 +588,10 @@ else
         echo "Installed the CarPlay map files to: $PRELOAD_WRITE_DIR"
         if [ "$AIRPLAY_NOW" != "$AIRPLAY_SIZE" ]; then
             echo "CarPlay map: UNTESTED CarPlay library ($AIRPLAY_NOW bytes), allowed by"
-            echo "             CLUSTERMAP_CARPLAY_TRIAL. The hook checks the functions it"
-            echo "             attaches to and leaves CarPlay stock if they differ; look for"
-            echo "             'missing symbol' or 'prologue mismatch' in carplay/altscreen111.log."
+            echo "             CLUSTERMAP_CARPLAY_TRIAL. The hook checks the names and first"
+            echo "             bytes of the functions it attaches to. That does not prove this"
+            echo "             build fits: if CarPlay misbehaves, remove the line and install"
+            echo "             again."
         fi
     else
         rm -f "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new"
@@ -590,6 +607,12 @@ fi
 # 100 the UI is larger. The frame stays the window's size, so it costs no
 # decoding time (#19; ipaifix/mst2-carplay-scale and DiPlay found the same
 # on the main screen).
+#
+# CLUSTERMAP_CARPLAY_FRAME_SCALE=<percent>, 100 to 200: the beta13 way, asked
+# for by testers who preferred it (#10). The iPhone is asked for a frame that
+# much larger, at the same pixel density, and the player shrinks it into the
+# window. More map, smaller everything, at a cost in decoding time: the
+# player decodes in software (#19). It replaces CLUSTERMAP_CARPLAY_SCALE.
 CP_SCALE=`sed -n 's/^CLUSTERMAP_CARPLAY_SCALE=\([0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 case "$CP_SCALE" in
@@ -597,10 +620,24 @@ case "$CP_SCALE" in
 esac
 [ "$CP_SCALE" -lt 70 ] && CP_SCALE=70
 [ "$CP_SCALE" -gt 200 ] && CP_SCALE=200
+CP_FRAME=`sed -n 's/^CLUSTERMAP_CARPLAY_FRAME_SCALE=\([0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+case "$CP_FRAME" in
+    '') CP_FRAME=100 ;;
+esac
+[ "$CP_FRAME" -gt 200 ] && CP_FRAME=200
 CP_W=$MAP_W; CP_H=$MAP_H
+# Even sizes: H.264 frames are encoded in 2x2 chroma blocks.
+if [ "$CP_FRAME" -gt 100 ]; then
+    CP_SCALE=$CP_FRAME
+    CP_W=`expr $MAP_W \* $CP_FRAME / 200 \* 2`
+    CP_H=`expr $MAP_H \* $CP_FRAME / 200 \* 2`
+fi
 CP_W_MM=`expr 200 \* $CP_SCALE / 100`
 CP_H_MM=`expr $CP_W_MM \* $CP_H / $CP_W`
-if [ "$CARPLAY_OK" -eq 1 ] && [ "$CP_SCALE" -ne 100 ]; then
+if [ "$CARPLAY_OK" -eq 1 ] && [ "$CP_FRAME" -gt 100 ]; then
+    echo "CarPlay map: frame ${CP_W}x${CP_H} (${CP_FRAME} %), shown in the ${MAP_W}x${MAP_H} window"
+elif [ "$CARPLAY_OK" -eq 1 ] && [ "$CP_SCALE" -ne 100 ]; then
     echo "CarPlay map: display declared as ${CP_W_MM}x${CP_H_MM} mm (${CP_SCALE} %) for the ${MAP_W}x${MAP_H} window"
 fi
 
@@ -1065,7 +1102,7 @@ else
         NAV_WHY="firmware $TRAIN"
         for t in $NAVIGNORE_TRAINS; do case "$TRAIN" in *${t}*) NAV_OK=1 ;; esac; done
         if [ "$NAV_OK" -eq 0 ] && [ "$NAVIGNORE_ASKED" = 1 ]; then
-            NAV_OK=1; NAV_WHY="asked for by CLUSTERMAP_ADD_NAVIGNORE=1 on untested firmware $TRAIN"
+            NAV_OK=1; NAV_WHY="asked for by CLUSTERMAP_ADD_NAVIGNORE=1 on $TRAIN"
         fi
         if [ "$NAV_OK" -eq 1 ]; then
             echo "Java check: NavActiveIgnore is not loaded; adding it ($NAV_WHY)."

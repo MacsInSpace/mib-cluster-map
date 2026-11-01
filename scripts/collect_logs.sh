@@ -6,11 +6,8 @@ PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/
 export PATH
 # The folder this script sits in is the package folder; logs go beside it.
 HERE=`cd "\`dirname "$0"\`" && pwd`
-case "$HERE" in
-    */fs/sdb0*) SD=/fs/sdb0 ;;
-    *) SD=/fs/sda0 ;;
-esac
-mount -uw $SD 2>/dev/null
+SD=`dirname "$HERE"`
+mount -uw "$SD" 2>/dev/null
 N=1
 while [ -e "$HERE/run_logs/$N" ]; do N=`expr $N + 1`; done
 OUT=$HERE/run_logs/$N

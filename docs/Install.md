@@ -77,7 +77,7 @@ the update, then move it back:
 | Marker | Folder | The update then |
 |---|---|---|
 | `UNINSTALL.txt` | `to uninstall, move this file up one folder` | removes everything and restores the original state |
-| `COLLECT.txt` | `to only check compatibility, move this file up one folder` | changes nothing: writes the status check to `update_result.txt` and collects the porting files. Only the menu screen file is copied to the unit |
+| `COLLECT.txt` | `to only check compatibility, move this file up one folder` | installs nothing: writes the status check to `update_result.txt` and collects the porting files. Only the menu screen file is copied to the unit |
 
 ## Route 2: green menu
 
@@ -138,9 +138,22 @@ while the phone sends it.
 | `/mnt/system/etc/pf*.conf` | CarPlay map only: one firewall rule letting the iPhone's cluster video (TCP 6031) in on its USB CarPlay link, marked `# clustermap carplay map`; originals kept as `.clustermap.original` |
 | `/mnt/app/root/mibr-carplay111-safearea.conf` | CarPlay map only: the part of the window clear of the dials, from `GAL_SECONDARY_INSETS` |
 
-Uninstall puts all of it back, except that the engineering menu stays
-switched on, which is harmless. Run the status check afterwards: it should say
-the hook is not installed.
+Uninstall puts all of it back and removes the menu screen. Three things stay,
+all harmless: the engineering menu stays switched on, the unused backup copies
+of the files it edited stay beside them, and any fault the SD update logged
+stays (see [Fault B201A00](#fault-b201a00)). Run the status check before the
+reboot: it should say the hook is not installed. To use the green menu again
+later, run the update with `COLLECT.txt`.
+
+### Fault B201A00
+
+Any software update run from SD can log `B201A00 Check Software Version
+Management` in the head unit (5F), even when this package then installs
+nothing. One owner's scan shows it, with a sporadic `U10CF00`, at the minute of
+the SD update and before anything of this project ran (#10). Uninstalling does
+not clear it. It is the head unit reporting a software change; a workshop can
+clear it with a diagnostic tool's installation-change confirmation. Whether it
+has any other effect is not known.
 
 ## Cluster map window
 
@@ -169,12 +182,14 @@ the unit's copy is refreshed, and reboot. The file documents every key.
 | `GAL_SECONDARY_INSETS` | auto | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. `auto` is SEAT `105,127,127,127`, Skoda `40,127,127,127`, VW `52,82,127,127`, Audi A4 B9 and otherwise `40,40,127,127`. They also set where CarPlay keeps its card. See the settings owners have settled on, below |
 | `GAL_SECONDARY_UI_THEME` | 0 (follows the headlights) | you want the cluster map always dark (2) or always light (1). Waze stays dark whatever is set |
 | `GAL_DUALSCREEN_AAP_MINOR` | 5 | the Android Auto version the unit claims (1.x). The map shows at 2 to 7. At 6 or higher Google Maps sends newer navigation messages this unit cannot read; the hook translates them into the old ones (`GAL_DUALSCREEN_NAV_TRANSLATE`, on), so the arrows jar should keep its turn pictograms. Not yet car-tested above 5 (#4) |
-| `GAL_PLAYER_WINDOW` | unset | the installer says the cluster map window was not listed and guessed wrong. It assumes `1010x376` on SEAT and Skoda and `800x480` on VW |
+| `GAL_PLAYER_WINDOW` | unset | the installer says the cluster map window was not listed and guessed wrong. It assumes `1010x376` on SEAT and Skoda and `800x480` on VW, but some VW cockpits are `1010x376` (#52) |
 | `GAL_VC_CONTEXT` | 70 | the cockpit map is in another display context. 70 on VW, SEAT and Skoda; on an Audi A4 B9 (`AUG22`) the installer uses 72 by itself (#14) |
 | `CLUSTERMAP_KEEP_ARROWS` | 0 | 1 keeps the turn-arrows jar with the map (adds it if missing): map, arrows and music together on SEAT. Leave it at 0 on VW: the map has gone blank when a route starts, and a Golf `P4521` cockpit switched to its own arrow view after a few presses of OK and stayed there until the arrows were removed. One Tiguan `K4525` reports both working (#44) |
 | `CLUSTERMAP_ADD_NAVIGNORE` | 0 | the map goes as soon as a route starts, on firmware where the installer does not add `NavActiveIgnore` by itself. 1 adds it, with a backup, and uninstall removes it. It edits the script that starts the centre screen, so check SSH works first. Ignored on `VWG11` S-trains (`S2125`, where it stopped Android Auto, #39) and Audi `AUG22`. Works on `VWG11` `K3342` (#39, #28) |
-| `CLUSTERMAP_CARPLAY_TRIAL` | unset | the installer refuses the CarPlay map because this unit's `libairplay.so` is a different build. Put the size it prints here to allow the attempt; the hook still checks every symbol it patches and leaves CarPlay stock if they do not fit. See [CarPlay](CarPlay.md) |
+| `CLUSTERMAP_CARPLAY` | 1 | a wireless CarPlay adapter drops, or loses the cockpit map, with the CarPlay map installed. 0 installs the Android Auto map only and leaves CarPlay stock (#55, #56) |
+| `CLUSTERMAP_CARPLAY_TRIAL` | unset | for developers: allows the CarPlay map on another `libairplay.so` build. The hook's checks do not prove a build fits, so do not use it on `857735` (Audi `K3346`, VWG11 `K3342`). See [CarPlay](CarPlay.md) |
 | `CLUSTERMAP_CARPLAY_SCALE` | 100 | the CarPlay map looks too zoomed in (above 100: smaller text, more map) or too small (below 100). Declares the display this many percent larger in millimetres, which the iPhone sizes its UI from; 70 to 200, try 130 then 160. Remove the `#` in front of the line. DPI does not affect CarPlay |
+| `CLUSTERMAP_CARPLAY_FRAME_SCALE` | 100 | as above, the beta13 way: a larger frame shrunk into the window, 100 to 200. Costs frame rate. Replaces `CLUSTERMAP_CARPLAY_SCALE` when set |
 | `CLUSTERMAP_CARPLAY_VIEW` | unset | CarPlay's card or map is not what you want on the cockpit: `full` (map and card), `map` (map only) or `card` (card only) |
 | `CLUSTERMAP_CARPLAY_SPEEDLIMIT`, `_COMPASS`, `_ETA`, `_CARD_POSITION` | unset | to turn CarPlay's speed limit, compass or arrival time on the cockpit on or off (`yes`/`no`), or move its card (`left`, `right`, `top`). Unset, the iPhone decides |
 | `GAL_PLAYER_DECODER` | sw | `sw` is the tested software decoder. `hw` uses the unit's own video decoder and frees most of a processor core. If it will not open, the player uses software; if it fails while decoding, it stays off until the next reboot. **Not yet car-tested** |

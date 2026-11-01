@@ -70,6 +70,11 @@ int main(void)
     };
     expect("0x8007 unknown distance keeps the last one", unknown, sizeof unknown, (int)sizeof dist, dist);
 
+    /* no time in the message (Waze): not the last app's 30 s */
+    static const unsigned char notime[] = { 0x80, 0x07, 0x0a, 0x05, 0x0a, 0x03, 0x08, 0xc2, 0x03 };
+    static const unsigned char dist0[] = { 0x80, 0x05, 0x08, 0xc2, 0x03, 0x10, 0x00 };
+    expect("0x8007 without a time drops the old time", notime, sizeof notime, (int)sizeof dist0, dist0);
+
     static const unsigned char reroute[] = { 0x80, 0x03, 0x08, 0x03 };
     static const unsigned char active[] = { 0x80, 0x03, 0x08, 0x01 };
     expect("0x8003 rerouting -> active", reroute, sizeof reroute, (int)sizeof active, active);

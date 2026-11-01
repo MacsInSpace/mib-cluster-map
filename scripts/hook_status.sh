@@ -131,7 +131,7 @@ check   "secondary sink registered"                     'event=secondary.registe
 check   "second display announced to the phone"         'event=discovery.metadata result=success role=secondary\|event=discovery.rewrite result=success'
 reached "secondary AAP setup"                           'event=aap.setup.complete role=secondary'
 reached "secondary AAP media configuration"             'event=aap.media_config role=secondary'
-check   "cockpit showed its map view (window 33)"       'event=kombi.ready'
+check   "unit reported the cockpit map window (33)"     'event=kombi.ready'
 check   "cluster stream started for the player"         'event=aap.playback action=start role=secondary'
 check   "frames acknowledged to the phone"              'event=own.ack count='
 
@@ -210,7 +210,7 @@ echo "       ack log lines: $ACKS (logged at 1,2,3 then every 300th)"
 fi
 
 echo
-echo "This checklist reflects what the hook's own log claims about itself. It"
-echo "does not confirm the decoded image on the physical cockpit screen is"
-echo "correct, or that the primary/main-HMI screen is unaffected -- verify"
-echo "both visually before treating a run as validated."
+echo "This checklist reflects what the hook's own log claims about itself. Every"
+echo "line can pass with the cockpit showing its own map or nothing, for example"
+echo "when the window is the wrong size. Only the cockpit itself shows whether it"
+echo "worked, and that the main screen is unaffected."
