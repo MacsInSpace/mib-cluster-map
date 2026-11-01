@@ -1,11 +1,11 @@
 #!/bin/sh
-. /fs/sda0/ClusterMap/GEM/common.sh 2>/dev/null || . `dirname "$0"`/common.sh
+. "`dirname "$0"`/common.sh"
 CONFIG=/mnt/system/etc/eso/production/smartphone_integrator.json
 echo "Switch to turn-by-turn arrows (removes the cluster map)"
 echo "Firmware train: $TRAIN"
 if ! tbt_supported; then
     echo "NOT SUPPORTED: the turn-by-turn jar is only known to work on"
-    echo "$TBT_TRAINS. Nothing was changed."
+    echo "$TBT_TRAINS. The cluster map was left as it is."
     exit 0
 fi
 if grep -q 'libgal_hook.so' "$CONFIG" 2>/dev/null; then

@@ -1,5 +1,6 @@
-# Sourced by the green menu entries. Finds the package folder on the SD card,
-# makes the card writable and checks the firmware train.
+# Sourced by the green menu entries. Finds the package folder, on whichever
+# card or USB stick these scripts run from, makes it writable and checks the
+# firmware train.
 PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/sbin:/mnt/app/armle/usr/bin:/mnt/app/armle/usr/sbin:$PATH
 export PATH
 # Firmware trains with a car-tested profile in the hook, space separated.
@@ -9,12 +10,20 @@ export PATH
 SUPPORTED_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_VWG13_P4512 MHI2_ER_SEG11_P4708 MHI2_ER_SEG11_P4709 MHI2_ER_SKG13_P4526 MHI2_ER_AUG22_K3346 MHI2_ER_VWG11_K3342"
 SUPPORTED_TRAIN="$SUPPORTED_TRAINS"
 
+# The scripts' own folder first: the update can run from a USB stick (#24)
+# or the second SD slot, and a card that is not /fs/sda0 must not be missed.
 PKG=
-for v in /fs/sda0 /fs/sdb0 /net/mmx/fs/sda0 /net/mmx/fs/sdb0; do
-    if [ -f "$v/ClusterMap/enable_hook.sh" ]; then PKG="$v/ClusterMap"; VOLUME="$v"; break; fi
-done
+HERE=`cd "\`dirname "$0"\`" 2>/dev/null && pwd`
+if [ -f "$HERE/../enable_hook.sh" ]; then
+    PKG=`cd "$HERE/.." && pwd`
+    VOLUME=`dirname "$PKG"`
+else
+    for v in /fs/sda0 /fs/sdb0 /fs/usb0_0 /fs/usb1_0 /net/mmx/fs/sda0 /net/mmx/fs/sdb0; do
+        if [ -f "$v/ClusterMap/enable_hook.sh" ]; then PKG="$v/ClusterMap"; VOLUME="$v"; break; fi
+    done
+fi
 if [ -z "$PKG" ]; then
-    echo "ClusterMap folder not found on the SD card."
+    echo "ClusterMap folder not found on the SD card or USB stick."
     exit 0
 fi
 mount -uw "$VOLUME" 2>/dev/null
@@ -108,6 +117,16 @@ tbt_supported()
         case "$TRAIN" in *${t}*) return 0 ;; esac
     done
     return 1
+}
+
+# What a run that installs nothing has still left behind, said plainly: #10
+# found B201A00 and a sporadic U10CF00 logged at the minute of the SD update,
+# before anything of this project ran.
+nothing_installed()
+{
+    echo "Nothing was installed. The green menu screen was added, which Uninstall"
+    echo "removes. A software update from SD can also log fault B201A00 (Check"
+    echo "Software Version Management) in the head unit; see docs/Install.md."
 }
 
 # The head unit family, from the train name, for messages only.

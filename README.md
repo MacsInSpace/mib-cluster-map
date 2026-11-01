@@ -12,7 +12,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 It installs from an SD card as a software update. No toolbox, laptop or
 command line is needed. The installer checks the unit and installs what fits
 it: the map, the arrows, or nothing. If nothing fits, it collects the files
-needed to add your unit and changes nothing.
+needed to add your unit and installs nothing.
 
 No VNC and no app on the phone. The phone sends its own cluster video stream,
 and the head unit passes it to the cluster the same way it sends the built-in

@@ -225,7 +225,7 @@ static int g_have_distance;
 static int parse_position(pb s)
 {
     unsigned f, w, df, dw, nf, nw, v;
-    int got = 0;
+    int got = 0, got_time = 0;
     while (pb_tag(&s, &f, &w)) {
         pb d, n;
         if (!(f == 1u && w == 2u)) { pb_skip(&s, w); continue; }
@@ -244,12 +244,14 @@ static int parse_position(pb s)
                 }
             } else if (df == 2u && dw == 0u) {
                 v = pb_var(&d);
-                if (v <= 1000000u) { g_seconds = v; got = 1; }
+                if (v <= 1000000u) { g_seconds = v; got = got_time = 1; }
             } else {
                 pb_skip(&d, dw);
             }
         }
     }
+    /* Waze sends no time: a figure from the app before it would be stale. */
+    if (!got_time) g_seconds = 0u;
     if (got) g_have_distance = 1;
     return g_have_distance;
 }

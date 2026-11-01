@@ -42,15 +42,22 @@ iPhone video → hook in the CarPlay program (dio_manager) → stream-player →
   binaries and should not be posted publicly.
 - **Trying it on another build.** `CLUSTERMAP_CARPLAY_TRIAL=<size>` in
   `gal_dualscreen.conf` lets the installer accept a stated `libairplay.so`
-  size; the message it prints when it refuses gives the number to use. This
-  is weaker than it sounds, in the safe direction: the hook attaches by
-  exported symbol name (`AirPlayReceiverSessionStart` and nine others), not
-  by address, and compares the first eight bytes of every function it
-  trampolines, so it refuses a build that does not fit on its own. After a
-  trial install, read `carplay/altscreen111.log` from **Save logs to SD**:
-  `missing symbol <name>` means that build does not export what the hook
-  needs, `prologue mismatch` means the function is not the shape it patches,
-  and neither leaves CarPlay altered. Asked for in #10 (US `P3662`).
+  size. It is for developers. The hook attaches by exported symbol name
+  (`AirPlayReceiverSessionStart` and nine others) and compares the first
+  eight bytes of every function it trampolines, and that does not prove a
+  build fits: `857735` (Audi `K3346`, VWG11 `K3342`) passes both checks with
+  26 AirPlay functions changed, so do not use it there. `missing symbol
+  <name>` or `prologue mismatch` in `carplay/altscreen111.log` means the hook
+  stood down. Asked for in #10 (US `P3662`, where it worked).
+- **Turning it off.** `CLUSTERMAP_CARPLAY=0` installs the Android Auto map
+  only and leaves CarPlay stock, without the preload or the firewall rule.
+  Some wireless adapters drop or lose the cockpit map with the CarPlay map
+  installed (#55, #56); wired CarPlay is the tested path.
+- **Android boxes and T-Box adapters.** A real iPhone sets up stream type 111,
+  the cluster stream. The boxes in #25 and #34 only ever set up the main
+  screen (110) and audio (101), so there is nothing to show on the cockpit
+  and it stays on the car's map or says navigation is on the mobile device.
+  `carplay/altscreen111.log` shows which it is: look for `types=111`.
 - **Source, not binary:** the hook is built here from harman-f's published
   development source (`thirdparty/mhi2_altscreen_carplay/`, provenance in its
   `PROVENANCE.md`), not from their car-tested binary, for which no exact
@@ -124,9 +131,11 @@ costs no decoding time. On a SEAT, 130 declares 260x96 mm for the 1010x376
 window. Whether iOS treats the cluster display like the main screen here
 still has to be shown on a car.
 
-(v1.1.1-beta13 instead asked for a larger frame and shrank it in the player.
-That made everything smaller by the same amount and cost frame rate; beta14
-replaced it.)
+`CLUSTERMAP_CARPLAY_FRAME_SCALE=<percent>` (100 to 200) is the beta13 way,
+kept as an option: the iPhone is asked for a larger frame and the player
+shrinks it into the window. Everything gets smaller by the same amount and it
+costs frame rate, because the player decodes in software. It replaces
+`CLUSTERMAP_CARPLAY_SCALE` when set.
 
 What the iPhone draws there can be chosen too, through settings harman-f's
 hook already reads (`gal_dualscreen.conf` documents them):

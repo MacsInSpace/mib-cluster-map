@@ -743,6 +743,33 @@ static bool connect_retry_allowed() {
 }
 
 /* Reader side: drain the socket into g_rb until it closes or the buffer fills. */
+/*
+ * The last SPS and PPS the stream carried. CarPlay sends them once, so a
+ * parser restarted at a keyframe would never see them again: "non-existing
+ * PPS 0 referenced" at every frame from then on (a Leon on beta14, 11194
+ * lines in 11 minutes). Only the parser loses them, the decoder keeps its own.
+ */
+static uint8_t g_paramSets[1024];
+static size_t  g_paramSetsLen = 0;
+
+static void remember_param_sets(const uint8_t* p, size_t n) {
+    for (size_t i = 0; i + 3 < n; i++) {
+        if (p[i] != 0 || p[i + 1] != 0 || p[i + 2] != 1) continue;
+        int type = p[i + 3] & 0x1f;
+        if (type != 7 && type != 8) continue;
+        size_t end = i + 3;
+        while (end + 2 < n && !(p[end] == 0 && p[end + 1] == 0 && p[end + 2] <= 1)) end++;
+        if (end + 2 >= n) return; /* runs past this read; the next set will do */
+        size_t len = end - i;
+        if (type == 7) g_paramSetsLen = 0; /* a new SPS starts a new set */
+        if (g_paramSetsLen + len <= sizeof g_paramSets) {
+            memcpy(g_paramSets + g_paramSetsLen, p + i, len);
+            g_paramSetsLen += len;
+        }
+        i = end - 1;
+    }
+}
+
 static void* ReaderThreadFunc(void* arg) {
     int sock = (int)(intptr_t)arg;
     uint8_t* tmp = (uint8_t*)malloc(131072);
@@ -1020,12 +1047,20 @@ static void* DecoderThreadFunc(void* arg) {
                 size_t backlog = 0, skipped = 0;
                 bytes_read = reader_take(inbuf, 131072, &backlog, &skipped);
                 if (bytes_read == 0) break; /* the reader logged why */
+                remember_param_sets(inbuf, (size_t)bytes_read);
                 if (skipped > 0) {
                     /* Start clean at the keyframe: no half picture from before it. */
                     av_parser_close(parser);
                     parser = av_parser_init(codec->id);
                     if (!parser) { LOGE("avcodec: parser init failed"); g_running = false; break; }
                     avcodec_flush_buffers(codecCtx);
+                    if (g_paramSetsLen > 0) {
+                        uint8_t* unused = NULL;
+                        int unusedSize = 0;
+                        av_parser_parse2(parser, codecCtx, &unused, &unusedSize,
+                                         g_paramSets, (int)g_paramSetsLen,
+                                         AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
+                    }
                     if (++g_rbJumps <= 50)
                         LOG("decoder: keyframe arrived; skipped %zu KB queued before it, the picture jumps to the present t=%llu.%03llu",
                             skipped / 1024u, T_ARGS(now_us()));

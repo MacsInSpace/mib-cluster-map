@@ -2645,6 +2645,26 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
                 return;
             }
             if (n > 0 && (unsigned)n <= nb) {
+                /*
+                 * Every change of manoeuvre, as the phone sent it: the road
+                 * tests are about one roundabout or "continue" step in a
+                 * drive, and the first dozen messages never reach it.
+                 */
+                if (t->to_id == 0x8004u) {
+                    static unsigned last_event = 0xffffffffu, last_side, last_road;
+                    static unsigned long changes;
+                    if ((t->event != last_event || t->side != last_side ||
+                         t->road_len != last_road) && changes < 200ul) {
+                        char hex[2 * 240 + 1];
+                        ++changes;
+                        hex_preview(m, nb < 240u ? nb : 240u, hex, sizeof hex);
+                        gal_hook_logf("event=nav.step n=%lu from=0x%04x event=%u side=%u road_len=%u bytes=%u hex=%s",
+                                      changes, t->from_id, t->event, t->side, t->road_len, nb, hex);
+                    }
+                    last_event = t->event;
+                    last_side = t->side;
+                    last_road = t->road_len;
+                }
                 if (iobuffer_set_length(buffer, (unsigned)n)) {
                     memcpy(m, out, (size_t)n);
                     g_channel_last_id[channel] = (unsigned short)t->to_id;

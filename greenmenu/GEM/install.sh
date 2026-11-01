@@ -1,5 +1,5 @@
 #!/bin/sh
-. /fs/sda0/ClusterMap/GEM/common.sh 2>/dev/null || . `dirname "$0"`/common.sh
+. "`dirname "$0"`/common.sh"
 # The one install entry for every unit. It picks the best this firmware can do:
 #   1. the Android Auto map on the cluster, where the hook has a profile;
 #   2. otherwise the turn-by-turn arrows, where that jar is known to work;
@@ -23,7 +23,7 @@ case "$TRAIN" in
         echo
         echo "=================================================================="
         echo "NOT SUPPORTED: $TRAIN (VW Discover Pro 8 in, original firmware)."
-        echo "Nothing was changed."
+        nothing_installed
         echo
         echo "On this firmware the map is lost when a route starts, and the fix"
         echo "for that stopped Android Auto (#39). Update the unit to"
@@ -65,7 +65,8 @@ if tbt_supported; then
     exit 0
 fi
 echo "NOT SUPPORTED: neither the cluster map nor the turn-by-turn arrows are known"
-echo "to work on $TRAIN. Nothing was changed."
+echo "to work on $TRAIN."
+nothing_installed
 case "$TRAIN" in
     MHI2Q_*) echo "For Audi MHI2Q units see github.com/kamgurgul/mib2q-carplay (CarPlay and Android Auto)." ;;
     MST2_*)  echo "MIB2 Standard units are a different design; nothing in this package applies." ;;
