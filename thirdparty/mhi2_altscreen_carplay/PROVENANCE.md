@@ -21,10 +21,11 @@ change the commit above.
 
 ## Local changes
 
-Both marked `mib-cluster-map` in `libaltscreen111_gen2.c`:
+All marked `mib-cluster-map` in `libaltscreen111_gen2.c`:
 
-- The cluster's display entry no longer carries the main screen's
-  `nightMode`, so the iPhone applies the car's day/night setting to it
-  (finding from luka-dev/mib2q-carplay-rgi, GPL-3.0).
+- The car's day/night reaches the cluster: `AirPlayReceiverSessionSetNightMode`
+  is interposed and the value repeated with the cluster's uuid, as
+  luka-dev/mib2q-carplay-rgi (GPL-3.0) does. This replaces beta14's removal of
+  the cluster's `nightMode`, which did not change the picture on a car (#10).
 - With the navigation query on and no manoeuvre layout set, the URL leaves
   `maneuverLayout` out instead of sending it empty.

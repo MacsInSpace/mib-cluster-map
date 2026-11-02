@@ -4,8 +4,9 @@ CONFIG=/mnt/system/etc/eso/production/smartphone_integrator.json
 echo "Switch to turn-by-turn arrows (removes the cluster map)"
 echo "Firmware train: $TRAIN"
 if ! tbt_supported; then
-    echo "NOT SUPPORTED: the turn-by-turn jar is only known to work on"
-    echo "$TBT_TRAINS. The cluster map was left as it is."
+    echo "NOT SUPPORTED: the turn-by-turn jar is only known to work on these trains:"
+    sed -n 's/^train \([^ ]*\) .*arrows.*/  \1/p' "$PKG/profiles.conf"
+    echo "The cluster map was left as it is."
     exit 0
 fi
 if grep -q 'libgal_hook.so' "$CONFIG" 2>/dev/null; then

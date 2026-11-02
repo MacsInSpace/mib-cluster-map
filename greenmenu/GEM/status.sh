@@ -24,7 +24,7 @@ echo "Java patch lines:"
 grep -n 'Xbootclasspath/p' "$LSD" 2>/dev/null | sed 's|.*/p:||; s|\$BASE_DIR/lsd/jars/||g; s|"$||; s|^|  |'
 if [ -r /tmp/gal_dualscreen.log ]; then
     echo "Last hook events:"
-    grep -E "event=(init |firmware.verify|secondary.register|focus.state|player.spawn|focus.loss)" /tmp/gal_dualscreen.log | tail -6 | sed 's/^gal_dualscreen //' | cut -c1-110
+    grep -E "event=(init |firmware.verify|secondary.register|focus.state|player.spawn|focus.loss)" /tmp/gal_dualscreen.log | tail -6 | sed -e 's/^gal_dualscreen //' -e 's/^\(.\{110\}\).*/\1/'
 else
     echo "No hook log yet (connect a phone after rebooting)."
 fi

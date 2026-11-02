@@ -14,6 +14,18 @@ if [ -f $ENGDEFS/aa-cluster-map.esd ] && [ -f $ENGDEFS/cluster-map.esd ]; then
 fi
 echo "Head unit: $FAMILY"
 echo "Firmware train: $TRAIN"
+# Before anything changes: a unit without a command the scripts need stops
+# here and says which, instead of failing half way through.
+unit_tools
+[ -z "$UNIT_ABSENT" ] || echo "Not on this unit:$UNIT_ABSENT"
+if [ -n "$UNIT_MISSING" ]; then
+    echo
+    echo "NOT INSTALLED: this unit has no$UNIT_MISSING, which the installer needs."
+    nothing_installed
+    echo "Please post this message in a new issue."
+    echo "CLUSTERMAP_TOOLS_MISSING$UNIT_MISSING"
+    exit 0
+fi
 # VWG11 before K3342 (S2125): NavActiveIgnore stopped Android Auto there and
 # the map went at every route (#39). Owners who updated to K3342 have it
 # working, so say that instead of installing or collecting, even with a
@@ -37,6 +49,7 @@ case "$TRAIN" in
         exit 0 ;;
 esac
 if train_supported; then
+    [ -z "$PROBE_OUT" ] || echo "$PROBE_OUT"
     echo "Compatibility: $SUPPORT_NOTE"
     echo "Installing: the Android Auto map on the cluster"
     sh "$PKG/enable_hook.sh"

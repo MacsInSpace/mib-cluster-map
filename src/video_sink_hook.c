@@ -306,17 +306,18 @@ static void add_configuration(void *sink, int resolution, int fps,
 
 static const gal_profile *g_profile;
 static gal_profile g_trial_profile;
-static char g_trial_name[48];
+static gal_profile g_profiles[GAL_PROFILE_MAX];
+static unsigned g_profile_count;
 
 /*
  * GAL_PROFILE_TRIAL: a profile supplied in gal_dualscreen.conf, for testing a
  * port without rebuilding. Twelve colon-separated fields in the order of
  * struct gal_profile, numbers in hex, without car_tested and the three
- * settings fields (which take the first built-in profile's values):
+ * settings fields (which take the values every profile so far has used):
  *
  *   name:controller:impl_vt:cb_vt:ctor:first_word:size:ctl_cfg:ctl_creator:h_count:h_data:entry
  *
- * It is used only when no built-in profile matches, and only if its three
+ * It is used only when no profile in profiles.conf matches, and only if its three
  * fingerprint addresses equal what this gal actually exports -- so a trial
  * line left in the file cannot be applied to a different build.
  */
@@ -324,7 +325,7 @@ static const gal_profile *parse_trial_profile(void)
 {
     const char *v = getenv("GAL_PROFILE_TRIAL");
     unsigned f[11];
-    char name[sizeof g_trial_name];
+    char name[GAL_PROFILE_NAME_MAX];
 
     if (v == NULL || *v == '\0') return NULL;
     if (sscanf(v, "%47[^:]:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x:%x", name,
@@ -332,10 +333,11 @@ static const gal_profile *parse_trial_profile(void)
         gal_hook_logf("event=firmware.trial result=rejected reason=parse value=%s", v);
         return NULL;
     }
-    g_trial_profile = k_profiles[0];          /* settings fields */
-    (void)snprintf(g_trial_name, sizeof g_trial_name, "%s", name);
-    g_trial_profile.name = g_trial_name;
-    g_trial_profile.car_tested = 0;
+    memset(&g_trial_profile, 0, sizeof g_trial_profile);
+    (void)snprintf(g_trial_profile.name, sizeof g_trial_profile.name, "%s", name);
+    g_trial_profile.settings_first = 0x34u;
+    g_trial_profile.settings_last = 0x58u;
+    g_trial_profile.stock_displayable = 59u;
     g_trial_profile.controller_slot = f[0];
     g_trial_profile.impl_vtable = f[1];
     g_trial_profile.cbhandler_vtable = f[2];
@@ -388,8 +390,25 @@ static int verify_firmware_abi(void)
     cb_vtable_symbol = dlsym(RTLD_DEFAULT,
                              "_ZTVN3gal25CVideoSinkCallbackHandlerE");
 
-    for (i = 0u; i < GAL_PROFILE_COUNT; ++i) {
-        const gal_profile *p = &k_profiles[i];
+    {
+        static const char *const paths[] = {
+            "/eso/lib/gal_dualscreen/profiles.conf",
+            "/mnt/app/eso/lib/gal_dualscreen/profiles.conf",
+            "/fs/sda0/ClusterMap/profiles.conf",
+            "/fs/sdb0/ClusterMap/profiles.conf",
+        };
+        unsigned rejected = 0u, n;
+        for (n = 0u; n < sizeof paths / sizeof paths[0] && g_profile_count == 0u; ++n) {
+            g_profile_count = gal_hook_profile_load(paths[n], g_profiles, GAL_PROFILE_MAX, &rejected);
+            if (g_profile_count != 0u)
+                gal_hook_logf("event=firmware.profiles result=loaded path=%s profiles=%u rejected=%u",
+                              paths[n], g_profile_count, rejected);
+        }
+        if (g_profile_count == 0u)
+            gal_hook_logf("event=firmware.profiles result=missing action=leave_stock_gal_untouched");
+    }
+    for (i = 0u; i < g_profile_count; ++i) {
+        const gal_profile *p = &g_profiles[i];
         if ((uintptr_t)g_controller_instance_slot == p->controller_slot &&
             (uintptr_t)vtable_symbol == p->impl_vtable &&
             (uintptr_t)cb_vtable_symbol == p->cbhandler_vtable) {
@@ -415,7 +434,7 @@ static int verify_firmware_abi(void)
          */
         gal_hook_logf(
             "event=firmware.verify result=failed reason=no_profile profiles=%u fingerprint=controller:0x%08x,impl_vtable:0x%08x,cbhandler_vtable:0x%08x action=leave_stock_gal_untouched",
-            (unsigned)GAL_PROFILE_COUNT,
+            g_profile_count,
             (unsigned)(uintptr_t)g_controller_instance_slot,
             (unsigned)(uintptr_t)vtable_symbol,
             (unsigned)(uintptr_t)cb_vtable_symbol);

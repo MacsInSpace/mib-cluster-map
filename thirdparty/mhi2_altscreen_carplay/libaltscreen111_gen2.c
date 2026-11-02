@@ -2208,6 +2208,18 @@ static void log_stock_url_capability(CFDictionaryRef stock_display, const char *
     }
 }
 
+/*
+ * mib-cluster-map: the car's day/night (#10, #59). The cluster display declares
+ * its own nightMode, so the un-addressed command the car sends does not reach
+ * it, and the value is repeated with the cluster's uuid. dio_manager calls
+ * AirPlayReceiverSessionSetNightMode across the library boundary, which is
+ * where it is caught, and /info seeds the value until the first such call. Same
+ * approach as luka-dev/mib2q-carplay-rgi (GPL-3.0).
+ */
+static volatile int g2_night_mode = -1;     /* -1 not known yet */
+static volatile int g2_night_from_car;      /* set by the car, /info is stale */
+static volatile int g2_night_send;          /* the worker owes the iPhone one */
+
 CFDictionaryRef AirPlayCopyServerInfo(AirPlayReceiverSessionRef session, CFArrayRef properties, uint8_t *mac, OSStatus *outErr)
 {
     CFDictionaryRef base,stock_display;
@@ -2275,14 +2287,22 @@ CFDictionaryRef AirPlayCopyServerInfo(AirPlayReceiverSessionRef session, CFArray
         remove_key(alt,"yOffset");
         remove_key(alt,"windowWidth");
         remove_key(alt,"windowHeight");
-        /*
-         * mib-cluster-map: a display that declares its own nightMode is
-         * skipped by the car's un-addressed SetNightMode, so the cloned
-         * main-screen value froze the cluster in one appearance (#10).
-         * Without it the cluster follows the car's day/night, as described
-         * by luka-dev/mib2q-carplay-rgi.
-         */
-        remove_key(alt,"nightMode");
+        {
+            /* mib-cluster-map: see g2_night_mode. */
+            OSStatus night_err = 0;
+            CFStringRef night_key = s_cf("nightMode");
+            int64_t night = p_CFDictionaryGetInt64(info, night_key, &night_err);
+            p_CFRelease(night_key);
+            if (g2_night_from_car) {
+                night = g2_night_mode;
+                set_i64(info, "nightMode", night);
+            } else {
+                if (night_err) night = 0;
+                g2_night_mode = night ? 1 : 0;
+                g2_night_send = 1;
+            }
+            set_i64(alt, "nightMode", night ? 1 : 0);
+        }
 
         /*
          * Coherent GEN2 no-HID profile. Do not inherit main-display touch
@@ -2335,6 +2355,17 @@ static CFMutableDictionaryRef command_force_keyframe(void)
     CFMutableDictionaryRef req=dict_new(), params=dict_new();
     if(!req||!params){if(req)p_CFRelease(req);if(params)p_CFRelease(params);return NULL;}
     set_str(req,"type","forceKeyFrame"); set_str(params,"uuid",g_alt_uuid);
+    { CFStringRef k=s_cf("params"); p_CFDictionarySetValue(req,k,params); p_CFRelease(k); }
+    p_CFRelease(params); return req;
+}
+
+/* mib-cluster-map: see g2_night_mode. */
+static CFMutableDictionaryRef command_night_mode(int night)
+{
+    CFMutableDictionaryRef req=dict_new(), params=dict_new();
+    if(!req||!params){if(req)p_CFRelease(req);if(params)p_CFRelease(params);return NULL;}
+    set_str(req,"type","setNightMode"); set_str(params,"uuid",g_alt_uuid);
+    set_i64(params,"nightMode",night?1:0);
     { CFStringRef k=s_cf("params"); p_CFDictionarySetValue(req,k,params); p_CFRelease(k); }
     p_CFRelease(params); return req;
 }
@@ -2777,6 +2808,18 @@ static void gen2_resync_poll(void)
 
 static void gen2_process_diag_markers(void)
 {
+    /* mib-cluster-map: once the iPhone has the cluster UI up, see g2_night_mode. */
+    if(g2_night_send && g2_night_mode>=0){
+        unsigned shown;
+        pthread_mutex_lock(&g2_core_lock);
+        shown=g2_control.shown_ack;
+        pthread_mutex_unlock(&g2_core_lock);
+        if(shown){
+            g2_night_send=0;
+            logf_u2("gen2 cluster nightMode=%d from_car=%d",g2_night_mode,g2_night_from_car);
+            gen2_dispatch_diag_command("setNightMode",command_night_mode(g2_night_mode));
+        }
+    }
     if(access(g2_diag_keyframe_marker,F_OK)==0){
         unlink(g2_diag_keyframe_marker);
         logf_u2("gen2 DIAG marker keyframe-only");
@@ -3284,6 +3327,8 @@ static OSStatus mibr_session_setup(AirPlayReceiverSessionRef s, CFDictionaryRef 
 
 static OSStatus mibr_session_start(AirPlayReceiverSessionRef s, void *info)
 {
+    /* mib-cluster-map: a new session starts from what the car said last. */
+    if(g2_night_mode>=0)g2_night_send=1;
     OSStatus e=call_stock_start(s,info);
     if(e==K_NO_ERR && g_enabled) {
         set_active_session(s);
@@ -3369,6 +3414,28 @@ static void mibr_session_teardown(AirPlayReceiverSessionRef s, CFDictionaryRef r
         set_active_session(NULL);
         clear_master_key();
     }
+}
+
+/* mib-cluster-map: see g2_night_mode. A failure on the cluster must never
+ * disturb the main screen, so only the stock result is returned. */
+typedef OSStatus (*fn_set_night_mode_t)(AirPlayReceiverSessionRef, int, void *, void *);
+OSStatus AirPlayReceiverSessionSetNightMode(AirPlayReceiverSessionRef s, int night,
+                                            void *completion, void *context)
+{
+    static fn_set_night_mode_t real;
+    OSStatus rc;
+
+    if(!real)real=(fn_set_night_mode_t)dlsym(RTLD_NEXT,"AirPlayReceiverSessionSetNightMode");
+    if(!real){
+        logf_u2("SetNightMode: stock function not found");
+        return -1;
+    }
+    rc=real(s,night,completion,context);
+    g2_night_mode=night?1:0;
+    g2_night_from_car=1;
+    g2_night_send=1;
+    logf_u2("car SetNightMode night=%d rc=%d",night?1:0,(int)rc);
+    return rc;
 }
 
 OSStatus AirPlayReceiverSessionSetup(AirPlayReceiverSessionRef s, CFDictionaryRef request, CFDictionaryRef *outResponse)
