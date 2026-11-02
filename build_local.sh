@@ -51,6 +51,8 @@ build_hook() {
         $A/src/alt111_video.c $A/src/alt111_resync.c carplay/carplay_launcher.c \
         -Wl,-soname,libcarplay_cluster.so -lsocket -o build/libcarplay_cluster.so
     $P-strip --strip-debug build/libcarplay_cluster.so
+    $P-gcc -O2 -Wall -Wextra -I./src tools/profile_check.c src/profile_table.c -o build/profile_check
+    $P-strip -s build/profile_check
   '
 }
 
@@ -91,7 +93,7 @@ package() {
   #   Custom/GreenMenu/*.esd        menu screen (copied to the unit by the toolbox)
   S="$ROOT/dist/sdcard"; D="$S/ClusterMap"
   rm -rf "$S"; mkdir -p "$D/scripts" "$D/lib" "$D/GEM" "$D/docs" "$S/Custom/GreenMenu"
-  cp "$ROOT/build/libgal_hook.so" "$ROOT/build/stream-player" "$D/"
+  cp "$ROOT/build/libgal_hook.so" "$ROOT/build/stream-player" "$ROOT/build/profile_check" "$D/"
   cp "$ROOT/build/libdmdt_flush.so" "$D/lib/"
   mkdir -p "$D/carplay"
   cp "$ROOT/build/libcarplay_cluster.so" "$ROOT/carplay/carplay_cluster.sh" "$D/carplay/"
@@ -102,7 +104,8 @@ package() {
   mkdir -p "$D/thirdparty" && cp "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAuto.jar "$D/thirdparty/" && \
      cp "$ROOT"/thirdparty/mib2-android-auto-vc/LICENSE "$D/thirdparty/VCAndroidAuto.LICENSE"
   cp "$ROOT"/thirdparty/mib2-toolbox/NavActiveIgnore.jar "$D/thirdparty/" && cp "$ROOT"/thirdparty/mib2-toolbox/LICENSE "$D/thirdparty/NavActiveIgnore.LICENSE"
-  cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" "$D/scripts/"
+  cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" \
+     "$ROOT/scripts/lib_unit.sh" "$ROOT/scripts/window_fix.sh" "$D/scripts/"
   cp "$ROOT"/greenmenu/GEM/*.sh "$D/GEM/"
   cp "$ROOT/greenmenu/cluster-map.esd" "$S/Custom/GreenMenu/"
   # Software-update route: the same screen, copied to the unit by the update
@@ -118,12 +121,14 @@ package() {
   # update by itself when the card goes in (no service menu). Off by default.
   : > "$S/_Swdlautorun.txt"
   cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
+  cp "$ROOT/config/profiles.conf" "$D/profiles.conf"
   cp "$ROOT/README.md" "$ROOT/docs/Install.md" "$D/docs/"
   cp "$ROOT/LICENSE" "$D/LICENSE"
   # The unit's shell needs LF line endings and plain ASCII in everything it runs.
+  python3 "$ROOT/tools/check_scripts.py" "$D" || { echo "REJECTED: scripts use something units lack"; exit 1; }
   bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/GEM/*.sh "$D"/final/*.sh "$D"/carplay/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
   [ -z "$bad" ] || { echo "REJECTED: CR or non-ASCII in: $bad"; exit 1; }
-  (cd "$D" && shasum -a 256 libgal_hook.so stream-player lib/libdmdt_flush.so carplay/libcarplay_cluster.so > SHA256SUMS.txt)
+  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so > SHA256SUMS.txt)
   python3 "$ROOT/tools/make_metainfo.py" "$S" "${RELEASE_VERSION:-$BUILD_ID}"
   VER=${RELEASE_VERSION:-$BUILD_ID}
   Z="$ROOT/dist/mib-cluster-map_$VER.zip"

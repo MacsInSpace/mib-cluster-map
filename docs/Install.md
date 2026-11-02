@@ -155,6 +155,14 @@ not clear it. It is the head unit reporting a software change; a workshop can
 clear it with a diagnostic tool's installation-change confirmation. Whether it
 has any other effect is not known.
 
+One owner cleared it themselves in 5F with the adaptation "Confirmation of
+installation change", using a key from a third-party tool (#10). We have not
+tried that route.
+
+If the update stops on another module, for example "device not responding"
+naming the instrument cluster, pressing Skip let the install finish on one car
+(#40).
+
 ## Cluster map window
 
 The cluster only shows the head unit's map window at that window's own size:
@@ -171,10 +179,28 @@ anything else). The install
 output and the unit's copy of the settings (`GAL_PLAYER_WINDOW`,
 `GAL_SECONDARY_MARGINS`) show what was chosen.
 
+The display manager only lists window 33 once the cockpit has shown it, so
+the installer can be left with a guess. The player therefore reads the size
+again each time it starts. If it differs, it opens the window at the real size
+and corrects the two settings for the next start. Until then the picture can
+have black bars. CarPlay's size only changes on the next install.
+
 ## Settings
 
 Edit `ClusterMap/gal_dualscreen.conf` on the card, run the install again so
 the unit's copy is refreshed, and reboot. The file documents every key.
+
+**A line that starts with `#` is switched off.** Many settings ship that way.
+To use one, delete the `#` at the very start of the line, and keep only one
+active line per setting:
+
+```ini
+#CLUSTERMAP_CARPLAY_CARD_POSITION=left    <- off: no effect, whatever the value
+CLUSTERMAP_CARPLAY_CARD_POSITION=top      <- on
+```
+
+The same goes for any line you were asked to add, such as `GAL_PROFILE_TRIAL=`:
+it must start at the beginning of the line, with no `#` in front.
 
 | Setting | Shipped | Change it when |
 |---|---|---|

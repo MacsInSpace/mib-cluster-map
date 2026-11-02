@@ -48,6 +48,7 @@ CARPLAY=1
 # it only at /eso/lib would otherwise be reported as having no CarPlay at all.
 AIRPLAY_LIB=/mnt/app/eso/lib/libairplay.so
 AIRPLAY_SIZE=703688
+PROFILES=$CARD_ROOT/profiles.conf
 CARPLAY_PRELOAD=/mnt/app/eso/lib/gal_dualscreen/libcarplay_cluster.so
 CARPLAY_OK=0
 
@@ -68,6 +69,12 @@ else
     echo "ERROR: lib_app_mount.sh not found in $CARD_ROOT" >&2
     exit 1
 fi
+
+if [ ! -r "$CARD_ROOT/scripts/lib_unit.sh" ] || [ ! -r "$PROFILES" ]; then
+    echo "ERROR: scripts/lib_unit.sh or profiles.conf not found in $CARD_ROOT" >&2
+    exit 1
+fi
+. "$CARD_ROOT/scripts/lib_unit.sh"
 
 finish()
 {
@@ -367,6 +374,15 @@ if [ -r "$CARD_ROOT/lib/libdmdt_flush.so" ]; then
     echo "Installed dmdt flush interposer to: $PRELOAD_WRITE_DIR/libdmdt_flush.so"
 fi
 
+# The profiles the hook matches gal against, and the script the player runs
+# when the cockpit's map window is not the size in the settings.
+cp "$PROFILES" "$PRELOAD_WRITE_DIR/profiles.conf" && chmod 644 "$PRELOAD_WRITE_DIR/profiles.conf" || {
+    echo "Could not copy profiles.conf to $PRELOAD_WRITE_DIR" >&2
+    exit 1
+}
+cp "$CARD_ROOT/scripts/window_fix.sh" "$PRELOAD_WRITE_DIR/window_fix.sh" 2>/dev/null || true
+chmod 755 "$PRELOAD_WRITE_DIR/window_fix.sh" 2>/dev/null || true
+
 # Internal copy of the settings file: the hook reads the SD card first and
 # falls back to this one, so the tuned values still apply without the card.
 if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
@@ -423,13 +439,7 @@ done
 # DPI and insets. Used for "auto" in gal_dualscreen.conf (#41) and, for the
 # window, when the display manager does not list it (#15, #19: a SEAT and a
 # Skoda drew stripes in an 800x480 window). Values: docs/Install.md.
-case "$TRAIN" in
-    *_SEG*) CAR_MAKE=SEAT;  CAR_WINDOW=1010x376; CAR_DPI=125; CAR_INSETS=105,127,127,127 ;;
-    *_SKG*) CAR_MAKE=Skoda; CAR_WINDOW=1010x376; CAR_DPI=125; CAR_INSETS=40,127,127,127 ;;
-    *_VW*)  CAR_MAKE=VW;    CAR_WINDOW=800x480;  CAR_DPI=138; CAR_INSETS=52,82,127,127 ;;
-    *_AUG22_*) CAR_MAKE=Audi; CAR_WINDOW=1440x455; CAR_DPI=140; CAR_INSETS=40,40,127,127 ;;
-    *)      CAR_MAKE=;      CAR_WINDOW=;         CAR_DPI=125; CAR_INSETS=40,40,127,127 ;;
-esac
+unit_make "$PROFILES" "$TRAIN" || :
 
 # The cluster map window. The cluster's encoder expects the window it shows
 # to be this size; an 800x480 window on a cluster whose map window is, say,
@@ -525,15 +535,15 @@ if [ "$CONF_DPI" = auto ] || [ "$CONF_INSETS" = auto ]; then
 fi
 # Audi A4 B9 (AUG22) shows its cockpit map in context 72, not 70 (#14). The
 # shipped 70 is changed in the installed copy; any other number is kept.
-if [ "$CAR_MAKE" = Audi ] &&
+if [ "$CAR_CONTEXT" != 70 ] &&
    grep -q '^GAL_VC_CONTEXT=70[ 	]*$' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null; then
-    if sed 's/^GAL_VC_CONTEXT=70[ 	]*$/GAL_VC_CONTEXT=72/' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" \
+    if sed "s/^GAL_VC_CONTEXT=70[ 	]*$/GAL_VC_CONTEXT=$CAR_CONTEXT/" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" \
            > "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" &&
        mv "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf"; then
-        echo "Cockpit context: 72 (Audi)"
+        echo "Cockpit context: $CAR_CONTEXT ($CAR_MAKE)"
     else
         rm -f "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new"
-        echo "WARNING: could not set GAL_VC_CONTEXT=72 for Audi; set it in gal_dualscreen.conf." >&2
+        echo "WARNING: could not set GAL_VC_CONTEXT=$CAR_CONTEXT; set it in gal_dualscreen.conf." >&2
     fi
 fi
 [ "$CONF_DPI" = auto ] && echo "Map DPI: $CAR_DPI ($AUTO_FROM)" || echo "Map DPI: ${CONF_DPI:-built-in} (from gal_dualscreen.conf)"
@@ -1055,13 +1065,10 @@ NAVIGNORE_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_navignore_added
 # Firmware where the bundled NavActiveIgnore.jar has been seen working. It is a
 # Java patch: on a firmware it does not fit, the centre screen may not start,
 # so it is never added automatically anywhere else.
-# P4526: two Skoda owners applied this same jar from the MIB2 Toolbox (it is
-# bundled here unmodified) and both reported the map staying up with a route,
-# with no effect on the centre screen -- #15.
-# P4512, US P3662, P4709: owners applied the toolbox's copy by hand, and the
-# logs they sent show it loaded. Those logs were saved from the green menu,
-# which only runs once the centre screen has started -- so the patch fits.
-NAVIGNORE_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SKG13_P4526 MHI2_ER_VWG13_P4512 MHI2_US_VWG13_P3662 MHI2_ER_SEG11_P4709"
+# Where it is added without being asked is "navignore" in profiles.conf: trains
+# where owners ran this same jar, or the toolbox's copy of it, and sent logs
+# showing it loaded (#15). Those logs came from the green menu, which only runs
+# once the centre screen has started, so the patch fits.
 # CLUSTERMAP_ADD_NAVIGNORE=1 in gal_dualscreen.conf: add it on any other
 # firmware too, when the owner asks. It is the same jar the toolbox applies,
 # but done here it gets lsd.sh.before_* backups and is removed again by
@@ -1069,12 +1076,12 @@ NAVIGNORE_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SKG13_P4526 MH
 # may not start (see docs/Install.md, Safety and recovery).
 NAVIGNORE_ASKED=`sed -n 's/^CLUSTERMAP_ADD_NAVIGNORE=\([01]\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
-# Never on VWG11 S-trains or Audi AUG22: with it, Android Auto stopped
+# Never where profiles.conf says "nonavignore": with it, Android Auto stopped
 # working on an S2125 (#39, FAILED_NO_GAL_DEVICE). Owners updated to
 # MHI2_ER_VWG11_K3342 run it fine (#39, #28; the #28 freeze was an edited
 # gal.json). The Audi K3346 kept its map through a route without it (#14).
 NAVIGNORE_NEVER=0
-case "$TRAIN" in *_VWG11_S*|*_AUG22_*) NAVIGNORE_NEVER=1 ;; esac
+if train_has "$PROFILES" "$TRAIN" nonavignore; then NAVIGNORE_NEVER=1; fi
 echo
 if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo "WARNING: cannot check the Java interface ($LSD_SH or lsd_jar.sh missing)." >&2
@@ -1100,7 +1107,7 @@ else
     else
         NAV_OK=0
         NAV_WHY="firmware $TRAIN"
-        for t in $NAVIGNORE_TRAINS; do case "$TRAIN" in *${t}*) NAV_OK=1 ;; esac; done
+        if train_has "$PROFILES" "$TRAIN" navignore; then NAV_OK=1; fi
         if [ "$NAV_OK" -eq 0 ] && [ "$NAVIGNORE_ASKED" = 1 ]; then
             NAV_OK=1; NAV_WHY="asked for by CLUSTERMAP_ADD_NAVIGNORE=1 on $TRAIN"
         fi
@@ -1124,9 +1131,7 @@ else
         fi
     fi
     TBT_OK=0
-    for t in `sed -n 's/^TBT_TRAINS="\(.*\)"/\1/p' "$CARD_ROOT/GEM/common.sh" 2>/dev/null`; do
-        case "$TRAIN" in *${t}*) TBT_OK=1 ;; esac
-    done
+    if train_has "$PROFILES" "$TRAIN" arrows; then TBT_OK=1; fi
     if [ "$WITH_ARROWS" -eq 1 ] && ! sh "$CARD_ROOT/lsd_jar.sh" loaded VCAndroidAuto.jar; then
         if [ "$TBT_OK" -eq 1 ]; then
             echo "Java check: adding VCAndroidAuto.jar beside the map (CLUSTERMAP_KEEP_ARROWS=1)."

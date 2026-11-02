@@ -149,11 +149,14 @@ can read ARM disassembly.
    `secondary.video_config result=success`, `secondary.register result=success`
    and `aap.frame.framing ... annex_b=yes`. A wrong profile can crash `gal`,
    which the unit restarts; nothing else is touched.
-4. **Make it permanent:** add the entry to `k_profiles[]` with
-   `car_tested = 0`, the train to `SUPPORTED_TRAINS` in
-   `greenmenu/GEM/common.sh`, and open a pull request with the tool output and
-   log lines. It becomes `car_tested = 1` after a drive: map up, route
-   started, phone unplugged and replugged.
+4. **Make it permanent:** this is data, not code. Add one line to
+   `config/profiles.conf` with TESTED 0, and open a pull request with the tool
+   output and log lines. TESTED becomes 1 after a drive: map up, route started,
+   phone unplugged and replugged. Then add a `train` line with `map`, plus
+   `navignore` or `arrows` once owners have shown those work. The hook, the
+   installer and `profile_check` all read this one file; nothing is rebuilt. A
+   train whose `gal` matches an existing profile needs no change to install,
+   only a `train` line to be listed as tested.
 
 The turn-arrows jar is a separate port: it replaces Java classes of the
 unit's interface and has to be rebuilt against that firmware's `lsd.jxe`
@@ -162,7 +165,7 @@ unit's interface and has to be rebuilt against that firmware's `lsd.jxe`
 [adi961's project](https://github.com/adi961/mib2-android-auto-vc), which
 adi961 no longer maintains. Its README lists our changes; the bundled jar is
 the fork's release, built against `P4521` and car-tested there. adi961's
-builds worked on the other `TBT_TRAINS` in `common.sh`; the fork's changes
+builds worked on the other `arrows` trains in `config/profiles.conf`; the fork's changes
 still need a test on those. Keep the unit's `lsd.jxe` out of git: it is
 firmware.
 

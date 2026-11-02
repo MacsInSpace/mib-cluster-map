@@ -430,6 +430,82 @@ static void* display_switch_thread(void* arg) {
     return NULL;
 }
 
+#ifdef __QNX__
+#include <signal.h>
+#include <sys/select.h>
+#include <sys/wait.h>
+/*
+ * The settings hold the map window's size as the installer read it, and the
+ * display manager only lists the window once the cockpit has shown it, so that
+ * can be a guess (#52, #56). When the player starts the cockpit is up: use the
+ * real size, because a wrong one arrives on the cockpit as stripes. This run's
+ * picture was laid out for the old size and is drawn centred at its own shape;
+ * window_fix.sh corrects the settings for the next start.
+ */
+static bool g_windowFromArgs = false;
+static void check_map_window() {
+    char cmd[256], out[4096], type[32];
+    int fds[2], w = 0, h = 0, found = 0;
+    size_t used = 0u;
+    pid_t pid;
+    if (g_windowFromArgs) return;
+    if (pipe(fds) != 0) return;
+    pid = fork();
+    if (pid < 0) {
+        close(fds[0]);
+        close(fds[1]);
+        return;
+    }
+    if (pid == 0) {
+        dup2(fds[1], 1);
+        close(fds[0]);
+        close(fds[1]);
+        execl("/bin/sh", "sh", "-c",
+              "cd /eso && LD_PRELOAD=/eso/lib/gal_dualscreen/libdmdt_flush.so "
+              "LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production "
+              "exec ./bin/apps/dmdt gd 2>/dev/null", (char*)NULL);
+        _exit(127);
+    }
+    close(fds[1]);
+    /* Two seconds at most: a stuck display tool must not cost the map. */
+    for (int waited = 0; waited < 20 && used + 1u < sizeof(out);) {
+        struct timeval tv = { 0, 100000 };
+        fd_set rd;
+        FD_ZERO(&rd);
+        FD_SET(fds[0], &rd);
+        int ready = select(fds[0] + 1, &rd, NULL, NULL, &tv);
+        if (ready == 0) { ++waited; continue; }
+        if (ready < 0) break;
+        ssize_t n = read(fds[0], out + used, sizeof(out) - 1u - used);
+        if (n <= 0) break;
+        used += (size_t)n;
+    }
+    close(fds[0]);
+    kill(pid, SIGKILL);
+    waitpid(pid, NULL, 0);
+    out[used] = 0;
+    for (char* line = strtok(out, "\r\n"); line; line = strtok(NULL, "\r\n")) {
+        unsigned id = 0u;
+        int lw = 0, lh = 0;
+        if (sscanf(line, " %u %31s %d x %d", &id, type, &lw, &lh) == 4 && id == g_vcRestore) {
+            w = lw; h = lh; found = 1;
+        }
+    }
+    if (!found || w < 320 || w > 1920 || h < 160 || h > 1080) {
+        LOG("display: window %u not listed, keeping %dx%d from the settings",
+            g_vcRestore, windowWidth, windowHeight);
+        return;
+    }
+    if (w == windowWidth && h == windowHeight) return;
+    LOG("display: the cockpit's map window is %dx%d, the settings say %dx%d; using %dx%d and correcting the settings for the next start",
+        w, h, windowWidth, windowHeight, w, h);
+    windowWidth = w;
+    windowHeight = h;
+    snprintf(cmd, sizeof(cmd), "sh /eso/lib/gal_dualscreen/window_fix.sh %d %d >/dev/null 2>&1 &", w, h);
+    if (system(cmd) != 0) LOG("display: could not start window_fix.sh");
+}
+#endif
+
 /* Decoder thread, at the phone's first keyframe; once per player. */
 static void request_display_switch() {
     pthread_mutex_lock(&g_switchLock);
@@ -1550,6 +1626,9 @@ int main(int argc, char* argv[]) {
                 w >= 320 && w <= 1920 && h >= 160 && h <= 1080) {
                 windowWidth = w;
                 windowHeight = h;
+#ifdef __QNX__
+                g_windowFromArgs = true;
+#endif
             }
         } else if (strcmp(argv[i], "--loop") == 0) {
             g_loopFile = true;
@@ -1605,6 +1684,9 @@ int main(int argc, char* argv[]) {
      * This thread only reports statistics and waits for the end of the
      * stream; the decoder thread decodes, switches the cluster and ACKs.
      */
+#ifdef __QNX__
+    check_map_window();
+#endif
     /* The hardware decoder fills the window with the frame, so it is used
      * only when the two are the same size. */
     if (g_hwDecoder && (windowWidth != 800 || windowHeight != 480)) {

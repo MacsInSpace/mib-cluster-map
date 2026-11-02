@@ -10,6 +10,10 @@ OUT="$PKG/porting_$NAME"
 mkdir -p "$OUT" || { echo "Cannot write to the SD card."; exit 0; }
 INFO="$OUT/info.txt"
 echo "train=$TRAIN" > "$INFO"
+# What a port needs first, and works on any unit.
+unit_tools
+unit_gal_check "$PKG"
+{ echo "tools missing:$UNIT_MISSING"; echo "tools absent:$UNIT_ABSENT"; echo "$PROBE_OUT"; } >> "$INFO" 2>&1
 
 say() { echo "$1"; echo "$1" >> "$INFO"; }
 take()   # take <source file> : copy one file and record its size
@@ -64,8 +68,8 @@ if ! take_lib 'the Android Auto receiver' 'libautoreceive*' $RECEIVER_NAMES; the
     # the library differently can still be ported. Joined with the shell, not
     # with tr: some units have no tr binary (issue #28).
     needs=
-    for n in `grep -a -o 'lib[A-Za-z0-9_-]*\.so[.0-9]*' /mnt/app/eso/bin/apps/gal 2>/dev/null | sort -u`; do
-        needs="$needs $n"
+    for n in `grep -a -o 'lib[A-Za-z0-9_-]*\.so[.0-9]*' /mnt/app/eso/bin/apps/gal 2>/dev/null`; do
+        case " $needs " in *" $n "*) ;; *) needs="$needs $n" ;; esac
     done
     [ -n "$needs" ] && say "gal asks for:$needs"
 fi

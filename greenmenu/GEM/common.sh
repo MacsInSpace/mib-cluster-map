@@ -3,12 +3,6 @@
 # firmware train.
 PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/sbin:/mnt/app/armle/usr/bin:/mnt/app/armle/usr/sbin:$PATH
 export PATH
-# Firmware trains with a car-tested profile in the hook, space separated.
-# Matched as substrings, so re-releases such as MHI2_ER_VWG13_P4521_2 count;
-# the hook still checks the real addresses when it loads. K4525 runs the
-# P4521 profile unchanged (two owners, issue #5).
-SUPPORTED_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_VWG13_P4512 MHI2_ER_SEG11_P4708 MHI2_ER_SEG11_P4709 MHI2_ER_SKG13_P4526 MHI2_ER_AUG22_K3346 MHI2_ER_VWG11_K3342"
-SUPPORTED_TRAIN="$SUPPORTED_TRAINS"
 
 # The scripts' own folder first: the update can run from a USB stick (#24)
 # or the second SD slot, and a card that is not /fs/sda0 must not be missed.
@@ -27,6 +21,12 @@ if [ -z "$PKG" ]; then
     exit 0
 fi
 mount -uw "$VOLUME" 2>/dev/null
+# A failed "." ends the shell, and with it the whole install, so check first.
+if [ ! -r "$PKG/scripts/lib_unit.sh" ] || [ ! -r "$PKG/profiles.conf" ]; then
+    echo "This ClusterMap folder is incomplete: unpack the release zip again."
+    exit 0
+fi
+. "$PKG/scripts/lib_unit.sh"
 
 TRAIN=unknown
 for f in /net/rcc/dev/shmem/version.txt /dev/shmem/version.txt; do
@@ -36,12 +36,11 @@ for f in /net/rcc/dev/shmem/version.txt /dev/shmem/version.txt; do
     fi
 done
 
-# The tested train, or an untested train whose two Android Auto binaries have
-# exactly the sizes of the tested ones. The hook checks the real addresses
-# itself when it loads and leaves Android Auto stock on any mismatch, so this
-# gate only exists to stop an install that cannot work.
-GAL_SIZE=1269211
-RECEIVER_SIZE=1067402
+# Whether the map can be installed. profiles.conf holds the car-tested trains;
+# any other train counts when its gal is a build we have a profile for, which
+# profile_check reads from the file. The hook checks the same addresses itself
+# when it loads and leaves Android Auto stock on any mismatch, so this gate only
+# exists to stop an install that cannot work.
 SUPPORT_NOTE=
 # The two phone libraries this project attaches to, and where units keep them.
 #
@@ -76,18 +75,19 @@ train_supported()
     case "$TRAIN" in
         *_VWG11_S*) SUPPORT_NOTE="not supported: update to MHI2_ER_VWG11_K3342_1_AIO_MU1427 first (#39)"; return 1 ;;
     esac
-    for t in $SUPPORTED_TRAINS; do
-        case "$TRAIN" in
-            *${t}*) SUPPORT_NOTE="tested firmware"; return 0 ;;
-        esac
-    done
+    # PROBE_OUT is also what tells us about a unit that is not supported.
+    unit_gal_check "$PKG" || PROBE_OUT=
+    if train_has "$PKG/profiles.conf" "$TRAIN" map; then
+        SUPPORT_NOTE="tested firmware"
+        return 0
+    fi
+    if [ -n "$PROBE_MATCH" ]; then
+        SUPPORT_NOTE="this train is not listed, but its Android Auto program is the $PROBE_MATCH build"
+        return 0
+    fi
     g=`wc -c < /mnt/app/eso/bin/apps/gal 2>/dev/null | sed 's/ //g'`
     RECEIVER_FOUND=`receiver_path`
     r=`wc -c < "$RECEIVER_FOUND" 2>/dev/null | sed 's/ //g'`
-    if [ "$g" = "$GAL_SIZE" ] && [ "$r" = "$RECEIVER_SIZE" ]; then
-        SUPPORT_NOTE="UNTESTED firmware, but its Android Auto files match the tested ones in size"
-        return 0
-    fi
     # A trial profile for this train in the settings file (as find_profile.py
     # prints it): installed for testing. The hook checks the real addresses
     # when it loads and does nothing if they differ.
@@ -105,19 +105,11 @@ train_supported()
     return 1
 }
 
-# Firmware where adi961's turn-arrows jar (VCAndroidAuto.jar) is known to
-# work: the jar author's two VW trains, and the two SEAT trains its owners
-# report working (issue #3). The jar replaces Java classes of the unit's
-# interface; on a firmware it does not fit, the centre screen may not start,
-# so it is never installed on any other train.
-TBT_TRAINS="MHI2_ER_VWG13_P4521 MHI2_ER_VWG13_K4525 MHI2_ER_SEG11_P4708 MHI2_ER_SEG11_P4709"
-tbt_supported()
-{
-    for t in $TBT_TRAINS; do
-        case "$TRAIN" in *${t}*) return 0 ;; esac
-    done
-    return 1
-}
+# Firmware where adi961's turn-arrows jar (VCAndroidAuto.jar) is known to work
+# ("arrows" in profiles.conf). The jar replaces Java classes of the unit's
+# interface; on a firmware it does not fit, the centre screen may not start, so
+# it is never installed on any other train.
+tbt_supported() { train_has "$PKG/profiles.conf" "$TRAIN" arrows; }
 
 # What a run that installs nothing has still left behind, said plainly: #10
 # found B201A00 and a sporadic U10CF00 logged at the minute of the SD update,

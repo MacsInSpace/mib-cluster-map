@@ -29,13 +29,22 @@ for c in gs gd; do
     ( cd /eso && LD_PRELOAD="$HERE/lib/libdmdt_flush.so" LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib \
       IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt $c ) > $OUT/dmdt_$c.txt 2>&1
 done
-# The cockpit display (context 70, window 33) only appears in 'gs' while the
-# cockpit is in map view. Say so in the file, so a capture taken in another
-# view is not read as a unit that cannot show a map.
-if grep -q 'context id: 70' $OUT/dmdt_gs.txt 2>/dev/null; then
-    echo "NOTE: the cockpit display (context 70) is registered." >> $OUT/dmdt_gs.txt
+# What this unit is: which commands it lacks, and its gal against the profiles.
+if [ -r "$HERE/scripts/lib_unit.sh" ]; then
+    . "$HERE/scripts/lib_unit.sh"
+    unit_tools
+    unit_gal_check "$HERE"
+    { echo "missing:$UNIT_MISSING"; echo "absent:$UNIT_ABSENT"; echo "$PROBE_OUT"; } > $OUT/unit_check.txt 2>&1
+fi
+# The cockpit display (window 33) only appears in 'gs' while the cockpit is in
+# map view. Say so in the file, so a capture taken in another view is not read
+# as a unit that cannot show a map. Audi uses context 72 (profiles.conf).
+CTX=`sed -n 's/^GAL_VC_CONTEXT=\([0-9]*\).*/\1/p' /eso/lib/gal_dualscreen/gal_dualscreen.conf 2>/dev/null | head -1`
+[ -n "$CTX" ] || CTX=70
+if grep -q "context id: $CTX" $OUT/dmdt_gs.txt 2>/dev/null; then
+    echo "NOTE: the cockpit display (context $CTX) is registered." >> $OUT/dmdt_gs.txt
 else
-    echo "NOTE: no cockpit display (context 70) at this moment. That is normal" >> $OUT/dmdt_gs.txt
+    echo "NOTE: no cockpit display (context $CTX) at this moment. That is normal" >> $OUT/dmdt_gs.txt
     echo "unless the cockpit was in map view when these logs were saved." >> $OUT/dmdt_gs.txt
 fi
 # CarPlay map: the supervisor, its player, and harman-f's hook state.

@@ -94,12 +94,16 @@ fi
 check()
 {
     label=$1
-    pattern=$2
-    if grep -q "$pattern" "$LOG"; then
-        echo "[PASS] $label"
-    else
-        echo "[    ] $label"
-    fi
+    shift
+    # Each further argument is an alternative: not grep "a\|b", which the
+    # unit's grep takes as literal text.
+    for pattern in "$@"; do
+        if grep -q "$pattern" "$LOG"; then
+            echo "[PASS] $label"
+            return
+        fi
+    done
+    echo "[    ] $label"
 }
 
 # Like check(), but for events whose result is only ever logged as a raw
@@ -128,7 +132,7 @@ check   "primary sink registered"                       'event=primary.register 
 check   "secondary sink registered"                     'event=secondary.register result=success'
 # VWG11's receiver has no unknown-field strings, so its second display is
 # announced by rewriting the encoded message (discovery.rewrite) instead.
-check   "second display announced to the phone"         'event=discovery.metadata result=success role=secondary\|event=discovery.rewrite result=success'
+check   "second display announced to the phone"         'event=discovery.metadata result=success role=secondary' 'event=discovery.rewrite result=success'
 reached "secondary AAP setup"                           'event=aap.setup.complete role=secondary'
 reached "secondary AAP media configuration"             'event=aap.media_config role=secondary'
 check   "unit reported the cockpit map window (33)"     'event=kombi.ready'
@@ -161,7 +165,9 @@ fi
 # The own/own-ack output modes decode inside GAL into a private NvSS
 # instance. The shipped mode is withhold (stream-player), so this section is
 # only printed when one of those modes was actually used.
-grep -q 'event=own\.\(open\|decode\|codec_config\|suppress\)' "$LOG" || OWN_MODE_UNUSED=1
+grep -q 'event=own\.open' "$LOG" || grep -q 'event=own\.decode' "$LOG" ||
+    grep -q 'event=own\.codec_config' "$LOG" || grep -q 'event=own\.suppress' "$LOG" ||
+    OWN_MODE_UNUSED=1
 if [ -z "${OWN_MODE_UNUSED:-}" ]; then
 echo
 echo "Own-decode path (GAL_DUALSCREEN_OUTPUT=own / own-ack)"
