@@ -1,11 +1,14 @@
 # MIB Cluster Map
 
+[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-support-FFDD00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/macsinspace)
+If this saves you a dealer visit, a [coffee](https://buymeacoffee.com/macsinspace) helps pay for the AI tokens that build it.
+
 Puts your phone's map on the digital cluster of Volkswagen-group cars with a
 Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 
 | Phone | On the cluster | State |
 |---|---|---|
-| Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521`, `K4525` and `P4512` (Golf R, Passat B8), VW `MHI2_ER_VWG11_K3342` (Discover Pro 8 in, Passat B8), SEAT `MHI2_ER_SEG11_P4708` and `P4709`, Skoda `MHI2_ER_SKG13_P4526` and `P4523`, Audi A4 B9 `MHI2_ER_AUG22_K3346`, VW `MHI2_ER_VWG11_P3301`, US `MHI2_US_VWG13_P3662` |
+| Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521`, `K4525`, `P4512` and `P4174` (Golf R, Passat B8, Passat R wagon, Golf Alltrack), VW `MHI2_ER_VWG11_K3342` (Discover Pro 8 in, Passat B8), SEAT `MHI2_ER_SEG11_P4708` and `P4709`, Skoda `MHI2_ER_SKG13_P4526` and `P4523`, Audi A4 B9 `MHI2_ER_AUG22_K3346`, Audi A3/S3 8V `MHI2_ER_AU37x_P5089`, VW `MHI2_ER_VWG11_P3301`, US `MHI2_US_VWG13_P3662` |
 | Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc), [our fork](https://github.com/MacsInSpace/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
 | Apple CarPlay | The Apple Maps or Google Maps map, live | **Working** on a Golf R (`P4512`), a SEAT (`P4709`) and a Golf (`K4525`). It can switch back to the car's own map while driving, under investigation (#19, #43). See [CarPlay](docs/CarPlay.md) |
 
@@ -37,18 +40,21 @@ VW map.
    ├── ClusterMap/
    ├── Custom/
    ├── metainfo2.txt
-   └── _Swdlautorun.txt
+   └── Swdlautorun.txt
    ```
 
    Put it in **SD slot 1**, with the other slot empty.
-2. **Run the update.** Engine running or a charger connected. Hold **MENU**
-   until the service screen appears, then `Software updates/versions` >
-   `Update` > the SD card > **`MIB Cluster Map`**. Let it finish (a
-   "Version back documentation" screen at the end is normal: press
-   `Cancel`), then hold the power button for ten seconds to reboot. Audi:
-   the update menu is **BACK + upper-left** button and needs developer mode
-   switched on in the head unit (5F). An autorun file on the card starts the
-   update without the menu: tested on a VW, untested on Audi (see the
+2. **Run the update.** Engine running or a charger connected. On most units
+   the card starts the update by itself within a couple of minutes
+   (`Swdlautorun.txt`; the installer switches it off again when it
+   finishes). If it does not, hold **MENU** until the service screen
+   appears, then `Software updates/versions` > `Update` > the SD card >
+   **`MIB Cluster Map`**. Let it finish (a "Version back documentation"
+   screen at the end is normal: press `Cancel`), then hold the power button
+   for ten seconds to reboot. Audi: the update menu is **BACK + upper-left**
+   button and needs developer mode switched on in the head unit (5F). To
+   stop the card starting on its own, rename `Swdlautorun.txt` to
+   `_Swdlautorun.txt` (see the
    [Install guide](docs/Install.md#route-1-software-update)).
 3. **Use it.** Plug in the phone, start a map, and switch the cluster to its
    map view with the steering wheel buttons. iPhone: once after installing,
@@ -165,7 +171,7 @@ phone is unplugged and plugged in again.
 | Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Fails on the car and falls back to software decoding; under investigation |
 | CarPlay map | Shown on a car (Golf R, iPhone over USB) after a firewall fix; layout between the dials under test |
 | Long drives, reverse camera, waking from sleep | Road-tested on `K4525`; otherwise little testing |
-| Autorun install without the service menu (`Swdlautorun.txt`) | Tested on a car (Golf `P4521`); Audi untested |
+| Autorun install without the service menu (`Swdlautorun.txt`, on by default) | Tested on a car (Golf `P4521`); Audi untested |
 
 Showing the arrows and the map together works on SEAT with
 `CLUSTERMAP_KEEP_ARROWS=1`. On VW leave it at 0: the map has gone blank when
@@ -215,6 +221,9 @@ addresses.
   included from source under GPL-3.0.
 - **Mr-MIBonk** ([M.I.B.](https://github.com/Mr-MIBonk/M.I.B._More-Incredible-Bash)):
   the `Swdlautorun.txt` trigger for installing without the service menu.
+- **AMDFX60** ([Skoda fork](https://github.com/AMDFX60/mib-cluster-map)):
+  the sharper-map full-frame mode, the fix for insets above 127 and the
+  player priority setting, car-tested on his Superb and merged back here.
 - **kkrvch** ([mib-std2-kombibridge](https://github.com/kkrvch/mib-std2-kombibridge)):
   the Android Auto 1.7 navigation decoder for MIB2 Standard. Its message
   layout and manoeuvre table are ported into `src/nav_translate.c`, with the
