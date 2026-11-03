@@ -482,8 +482,19 @@ int gal_hook_init(const gal_secondary_config *config)
      * its scale and the turn card its place, and the extra lines go into
      * detail instead of more map. 10000 (square, the margin band) changes
      * nothing.
+     *
+     * The configured insets count from the edge of the whole frame, the
+     * band's margins included (91 lines top and bottom on 1010x376). Full
+     * frame has no margins, so those lines are taken off top and bottom
+     * before scaling; the safe area then keeps the same share of the window
+     * as in margin mode. The band height follows from the ratio: 800 * 10000
+     * / ratio lines, rounded to even as the installer does.
+     *
+     * Only ratios above 10000 (windows wider than 5:3). The installer never
+     * asks for less, and on a narrower window full frame keeps the margin
+     * band's scale, so DPI and insets would need no change.
      */
-    if (g_config.pixel_aspect_ratio_e4 > 0u && g_config.pixel_aspect_ratio_e4 != 10000u &&
+    if (g_config.pixel_aspect_ratio_e4 > 10000u &&
         g_config.pixel_aspect_ratio_e4 <= 80000u && g_config.dpi <= 0x3fffu &&
         g_config.insets_top <= 0x3fffu && g_config.insets_bottom <= 0x3fffu &&
         g_config.insets_left <= 0x3fffu && g_config.insets_right <= 0x3fffu) {
@@ -491,13 +502,16 @@ int gal_hook_init(const gal_secondary_config *config)
         unsigned dpi = g_config.dpi;
         unsigned top = g_config.insets_top, bottom = g_config.insets_bottom;
         unsigned left = g_config.insets_left, right = g_config.insets_right;
+        unsigned band_margin_half = (480u - 2u * ((2400000u + par / 2u) / par)) / 2u;
+        unsigned band_top = top > band_margin_half ? top - band_margin_half : 0u;
+        unsigned band_bottom = bottom > band_margin_half ? bottom - band_margin_half : 0u;
         g_config.dpi = (dpi * par + 5000u) / 10000u;
-        g_config.insets_top = (top * par + 5000u) / 10000u;
-        g_config.insets_bottom = (bottom * par + 5000u) / 10000u;
+        g_config.insets_top = (band_top * par + 5000u) / 10000u;
+        g_config.insets_bottom = (band_bottom * par + 5000u) / 10000u;
         g_config.insets_left = (left * par + 5000u) / 10000u;
         g_config.insets_right = (right * par + 5000u) / 10000u;
-        gal_hook_logf("event=config.full_frame result=scaled pixel_aspect_e4=%u dpi=%u->%u insets=%u,%u,%u,%u->%u,%u,%u,%u",
-                      par, dpi, g_config.dpi, top, bottom, left, right,
+        gal_hook_logf("event=config.full_frame result=scaled pixel_aspect_e4=%u band_margin=%u dpi=%u->%u insets=%u,%u,%u,%u->%u,%u,%u,%u",
+                      par, 2u * band_margin_half, dpi, g_config.dpi, top, bottom, left, right,
                       g_config.insets_top, g_config.insets_bottom,
                       g_config.insets_left, g_config.insets_right);
     }

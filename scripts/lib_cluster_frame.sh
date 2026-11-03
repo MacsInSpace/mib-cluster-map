@@ -11,9 +11,21 @@
 # (16117 on 1010x376): the phone draws on all 480 lines, squeezed, and the
 # player stretches the frame to the window.
 
+# frame_full_ok W H
+# True when full frame can apply: only on windows wider than the frame's 5:3.
+# On 5:3 every line carries map already, and on a narrower window the hook
+# keeps DPI and insets as they are (src/gal_hook.c).
+frame_full_ok()
+{
+    [ `expr $1 \* 480` -gt `expr $2 \* 800` ]
+}
+
 # frame_geometry W H FULL
 # Sets BAND_MARGIN_W/H (the margins of the band, whatever FULL says: the
 # insets are measured in it) and MARGIN_W/H and PIXEL_ASPECT_E4 for FULL.
+# FULL=1 on a window that is not wider than 5:3 gives the margins, as 0 does;
+# CLUSTERMAP_FULL_FRAME is still written as asked, so a later correction of
+# the window (window_fix.sh) can apply it.
 # "|| :" because expr exits 1 when the answer is 0, and callers run under
 # set -e.
 frame_geometry()
@@ -25,7 +37,7 @@ frame_geometry()
         BAND_MARGIN_W=`expr 800 - \( 480 \* $1 + $2 \) / \( 2 \* $2 \) \* 2 || :`
         BAND_MARGIN_H=0
     fi
-    if [ "$3" = 1 ]; then
+    if [ "$3" = 1 ] && frame_full_ok $1 $2; then
         MARGIN_W=0
         MARGIN_H=0
         PIXEL_ASPECT_E4=`expr \( 6000 \* $1 + $2 / 2 \) / $2`

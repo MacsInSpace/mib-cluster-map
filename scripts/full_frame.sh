@@ -2,8 +2,10 @@
 # The green menu's sharper-map switch: CLUSTERMAP_FULL_FRAME on or off in the
 # unit's own copy of the settings, so it can be tried in the car without
 # editing the card and installing again. Changes only the window lines of
-# that copy (lib_cluster_frame.sh); takes effect at the next reboot. An
-# install from the card writes the card's setting again.
+# that copy (lib_cluster_frame.sh); takes effect at the next reboot: gal
+# reads the settings once at its start and hands the same frame values to
+# every player it starts until then. An install from the card writes the
+# card's setting again.
 # From AMDFX60's fork (GPL-3.0).
 #
 #   full_frame.sh on|off
@@ -32,9 +34,17 @@ if [ -z "$MAP_W" ] || [ -z "$MAP_H" ] || [ "$MAP_W" -lt 320 ] || [ "$MAP_W" -gt 
     echo "card (with the cockpit in map view), then use this switch."
     exit 1
 fi
-if [ `expr $MAP_W \* 480` -eq `expr $MAP_H \* 800` ]; then
-    echo "The cluster map window is ${MAP_W}x${MAP_H}, the shape of Android Auto's"
-    echo "frame: it already uses every line, so there is nothing to switch."
+# Written only by an installer that has the full-frame hook and player; an
+# older install would take the settings and draw a squeezed map.
+if ! grep -q "^$FRAME_CONF_MARK\$" "$CONF" 2>/dev/null; then
+    echo "The cluster map on the unit was installed by an older release, which"
+    echo "cannot draw the sharper map. Choose \"Install cluster map\" from this"
+    echo "card first, then use this switch. Nothing changed."
+    exit 1
+fi
+if [ "$WANT" = 1 ] && ! frame_full_ok $MAP_W $MAP_H; then
+    echo "The cluster map window is ${MAP_W}x${MAP_H}, not wider than Android Auto's"
+    echo "5:3 frame: the map already uses every line, so there is nothing to switch."
     exit 3
 fi
 

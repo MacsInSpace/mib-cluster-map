@@ -392,10 +392,25 @@ void vc_player_start(void)
     argv[2] = NULL;
 
     {
+        /*
+         * The frame the phone was told about, from gal's start. The settings
+         * file can change before the next reboot (the green menu's
+         * sharper-map switch, window_fix.sh), and a player that read it
+         * would crop or stretch for a frame the phone is not drawing.
+         */
+        const gal_secondary_config *cfg = gal_hook_config();
+        char margins_env[48];
+        char aspect_env[56];
+        (void)snprintf(margins_env, sizeof(margins_env), "GAL_SECONDARY_MARGINS=%ux%u",
+                       cfg->margin_width, cfg->margin_height);
+        (void)snprintf(aspect_env, sizeof(aspect_env), "GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4=%u",
+                       cfg->pixel_aspect_ratio_e4 ? cfg->pixel_aspect_ratio_e4 : 10000u);
         char *envp[] = {
             (char *)"IPL_CONFIG_DIR=/etc/eso/production",
             (char *)"LD_LIBRARY_PATH=/proc/boot:/lib:/lib/dll:/usr/lib:/mnt/app/root/lib-target:/mnt/app/usr/lib:/mnt/app/armle/lib:/mnt/app/armle/lib/dll:/mnt/app/armle/usr/lib:/eso/lib:/mnt/app/eso/lib:/fs/sdb0/lib",
             (char *)"PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/eso/bin:/mnt/app/eso/bin:/fs/sdb0/bin:/mnt/app/navigation",
+            margins_env,
+            aspect_env,
             NULL
         };
         int log_fd = use_spawn ? open_player_log() : -1;
