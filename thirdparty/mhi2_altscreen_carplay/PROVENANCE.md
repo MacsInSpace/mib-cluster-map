@@ -29,3 +29,6 @@ All marked `mib-cluster-map` in `libaltscreen111_gen2.c`:
   the cluster's `nightMode`, which did not change the picture on a car (#10).
 - With the navigation query on and no manoeuvre layout set, the URL leaves
   `maneuverLayout` out instead of sending it empty.
+- `ALTSCREEN111_ZOOM_FACTOR` (installer: `CLUSTERMAP_CARPLAY_ZOOM`), off by
+  default: adds `zoomFactor` to the cluster display, as the SEAT MU1409 port
+  by RandomGenerated543/seat-cupra-mu1409-carplay (GPL-3.0) does.
