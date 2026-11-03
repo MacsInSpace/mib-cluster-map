@@ -735,10 +735,17 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
         esac
     done
     v=`cp_setting CARD_POSITION`
+    # Unset on SEAT: top. With a route the iPhone otherwise puts the card on
+    # the left and the car under the right dial; owners found top keeps the
+    # car centred (#19). "iphone" leaves it to the iPhone, as before.
+    if [ -z "$v" ] && [ "$CAR_MAKE" = SEAT ]; then
+        v=top
+        echo "CarPlay map: card at the top by default on SEAT (CLUSTERMAP_CARPLAY_CARD_POSITION=iphone to leave it to the iPhone)"
+    fi
     case "$v" in
         left|right|top) echo "$v" > "$CP_NAV.maneuverLayout"; CP_QUERY="$CP_QUERY card=$v" ;;
-        '') ;;
-        *) echo "CarPlay map: CLUSTERMAP_CARPLAY_CARD_POSITION=$v not understood (left, right or top); ignored" ;;
+        ''|iphone) ;;
+        *) echo "CarPlay map: CLUSTERMAP_CARPLAY_CARD_POSITION=$v not understood (left, right, top or iphone); ignored" ;;
     esac
     # if, not "[ ] &&": as the last command of this block a false test would
     # end the install under set -e (beta14, #52).
