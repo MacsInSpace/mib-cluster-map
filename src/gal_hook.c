@@ -472,6 +472,35 @@ int gal_hook_init(const gal_secondary_config *config)
     } else {
         load_environment();
     }
+    /*
+     * DPI and insets are set for the margin band. With pixels wider than tall
+     * (CLUSTERMAP_FULL_FRAME) the phone draws a wider display of square
+     * pixels, 800 x ratio by 480, and squeezes it into the frame: on the car
+     * (AMDFX60's Skoda, whose fork this is from) the map came out the same
+     * shape but zoomed out, every pixel of it smaller on the cluster by the
+     * ratio. So DPI and all four insets are scaled up by it: the map keeps
+     * its scale and the turn card its place, and the extra lines go into
+     * detail instead of more map. 10000 (square, the margin band) changes
+     * nothing.
+     */
+    if (g_config.pixel_aspect_ratio_e4 > 0u && g_config.pixel_aspect_ratio_e4 != 10000u &&
+        g_config.pixel_aspect_ratio_e4 <= 80000u && g_config.dpi <= 0x3fffu &&
+        g_config.insets_top <= 0x3fffu && g_config.insets_bottom <= 0x3fffu &&
+        g_config.insets_left <= 0x3fffu && g_config.insets_right <= 0x3fffu) {
+        unsigned par = g_config.pixel_aspect_ratio_e4;
+        unsigned dpi = g_config.dpi;
+        unsigned top = g_config.insets_top, bottom = g_config.insets_bottom;
+        unsigned left = g_config.insets_left, right = g_config.insets_right;
+        g_config.dpi = (dpi * par + 5000u) / 10000u;
+        g_config.insets_top = (top * par + 5000u) / 10000u;
+        g_config.insets_bottom = (bottom * par + 5000u) / 10000u;
+        g_config.insets_left = (left * par + 5000u) / 10000u;
+        g_config.insets_right = (right * par + 5000u) / 10000u;
+        gal_hook_logf("event=config.full_frame result=scaled pixel_aspect_e4=%u dpi=%u->%u insets=%u,%u,%u,%u->%u,%u,%u,%u",
+                      par, dpi, g_config.dpi, top, bottom, left, right,
+                      g_config.insets_top, g_config.insets_bottom,
+                      g_config.insets_left, g_config.insets_right);
+    }
     g_enabled = environment_flag("GAL_DUALSCREEN_ENABLE");
     g_debug = environment_flag("GAL_DUALSCREEN_DEBUG");
     g_second_sink = environment_flag_default_on("GAL_DUALSCREEN_SECOND_SINK");

@@ -1,5 +1,7 @@
 #define _GNU_SOURCE
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -1415,6 +1417,13 @@ static void *tee_accept_thread(void *arg)
         {
             int flags = fcntl(c, F_GETFL, 0);
             if (flags >= 0) (void)fcntl(c, F_SETFL, flags | O_NONBLOCK);
+        }
+        {
+            /* Only this local renderer socket, never the iPhone's: without it
+             * Nagle batches the small H.264 AUs and the cluster runs behind.
+             * (harman-f added the same upstream.) */
+            int one = 1;
+            (void)setsockopt(c, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
         }
         pthread_mutex_lock(&g_lock);
         tee_drop_client_locked();

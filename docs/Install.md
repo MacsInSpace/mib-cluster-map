@@ -32,7 +32,7 @@ way back into the unit if the centre screen ever fails to start.
    ├── ClusterMap/      installer, programs, settings
    ├── Custom/          the menu screen, for route 2 via the toolbox
    ├── metainfo2.txt    makes the card a software update
-   └── _Swdlautorun.txt off; rename to start the update without the menu (below)
+   └── Swdlautorun.txt  starts the update by itself when the card goes in (below)
    ```
 3. Put it in **SD slot 1**, with slot 2 empty.
 
@@ -48,13 +48,14 @@ way back into the unit if the centre screen ever fails to start.
    restarts once more.
 4. Back at the home screen, hold the power button for ten seconds to reboot.
 
-**Without the service menu (for cars where it is hard to reach, such as an
-Audi without developer mode; tested on a VW Golf, untested on Audi):** rename
-`_Swdlautorun.txt`, at the top of the card, to `Swdlautorun.txt` and insert
-the card. Units that honour it start this update by themselves (the trigger
-M.I.B. uses); the Golf started it straight away. The update renames the file back, so it does not start again after the
-restart. If nothing happens within two minutes, the unit does not honour it:
-use the menu.
+**Autorun (on by default):** `Swdlautorun.txt`, at the top of the card, makes
+units that honour it start this update by themselves when the card goes in
+(the trigger M.I.B. uses; a Golf started it straight away, Audi untested).
+The update renames the file to `_Swdlautorun.txt` when it finishes, so it
+does not start again after the restart; installing on a second car means
+renaming it back first. If nothing happens within two minutes, the unit does
+not honour it: use the menu above. To keep the card from ever starting on
+its own, rename the file to `_Swdlautorun.txt` before inserting it.
 
 What it does, without asking:
 
@@ -206,7 +207,9 @@ it must start at the beginning of the line, with no `#` in front.
 |---|---|---|
 | `GAL_SECONDARY_DPI` | auto | map text and turn card too big (lower) or too small (higher). `auto` is the value owners settled on for your make: SEAT 125, Skoda 125, VW 138, Audi A4 B9 140, otherwise 125. A number here is kept as it is |
 | `GAL_SECONDARY_INSETS` | auto | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. `auto` is SEAT `105,127,127,127`, Skoda `40,127,127,127`, VW `52,82,127,127`, Audi A4 B9 and otherwise `40,40,127,127`. They also set where CarPlay keeps its card. See the settings owners have settled on, below |
-| `GAL_SECONDARY_UI_THEME` | 0 (follows the headlights) | you want the cluster map always dark (2) or always light (1). Waze stays dark whatever is set |
+| `GAL_SECONDARY_UI_THEME` | 0 (follows the headlights) | you want the cluster map always dark (2) or always light (1). Waze stays dark whatever is set. 1 or 2 costs two bytes of the insets message, so fewer insets can go above 127 |
+| `CLUSTERMAP_FULL_FRAME` | 0 | the map looks soft on a wide window (SEAT, Skoda, Audi). 1 has the phone draw on the whole 800×480 frame with wide pixels instead of leaving margins: more detail, same layout. Also a green-menu switch ("Sharper map"), so it can be tried in the car. From AMDFX60's fork, car-tested on his Skoda Superb (#56) |
+| `GAL_PLAYER_PRIORITY` | unset | the cluster map stutters when the unit is busy. 12 raises the player a little above the default 10; it never lowers it. Not car-tested |
 | `GAL_DUALSCREEN_AAP_MINOR` | 5 | the Android Auto version the unit claims (1.x). The map shows at 2 to 7. At 6 or higher Google Maps sends newer navigation messages this unit cannot read; the hook translates them into the old ones (`GAL_DUALSCREEN_NAV_TRANSLATE`, on), so the arrows jar should keep its turn pictograms. Not yet car-tested above 5 (#4) |
 | `GAL_PLAYER_WINDOW` | unset | the installer says the cluster map window was not listed and guessed wrong. It assumes `1010x376` on SEAT and Skoda and `800x480` on VW, but some VW cockpits are `1010x376` (#52) |
 | `GAL_VC_CONTEXT` | 70 | the cockpit map is in another display context. 70 on VW, SEAT and Skoda; on an Audi A4 B9 (`AUG22`) the installer uses 72 by itself (#14) |
@@ -240,6 +243,7 @@ on `auto` follows it without editing anything.
 | VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
 | Skoda 1010×376 (`P4526`), *auto* | 125 | `40,127,127,127` | raskrivuska, #15 |
 | Audi A4 B9 1440×455 (`K3346`), *auto* | 140 | `40,40,127,127` | mariuszhejnold-arch, #14 |
+| Audi A3/S3 8V 1440×455 (`P5089`), *auto* | 140 | `40,40,127,127` | kashavsehra, #51 (window `1440x455`, margins 0×227, context 70) |
 | VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
 | VW 12.3 in Passat B8 2019 (`K4525`), ETA card showing, with `GAL_SECONDARY_UI_THEME=0` | 138 | `56,73,127,127` | danielszyszko-ui, #41 |
 | VW Golf (`P4521`), ETA card showing, Google Maps and Waze, *auto* for VW | 138 | `52,82,127,127` | tvarszegi1, #8, road-tested |

@@ -30,6 +30,14 @@ script
     label   "2. Install cluster map"
 
 script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_on.sh"
+    label   "Sharper map ON (full frame; reboot after)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_off.sh"
+    label   "Sharper map OFF (standard; reboot after)"
+
+script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/uninstall.sh"
     label   "Uninstall and restore original state"
 

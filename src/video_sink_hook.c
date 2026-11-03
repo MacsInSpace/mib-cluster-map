@@ -532,6 +532,10 @@ static size_t build_insets_payload(unsigned char *out, size_t max_out,
     size_t uiconfig_len = 0;
     size_t total_len = 0;
 
+    /* Two varint bytes each at most, so insets[] and uiconfig[] cannot overflow. */
+    if (top > 0x3fffu || bottom > 0x3fffu || left > 0x3fffu || right > 0x3fffu) {
+        return 0;
+    }
     if (top > 0u) {
         insets[insets_len++] = 0x08; /* tag 1: top */
         insets_len += encode_varint(insets + insets_len, top);
@@ -563,9 +567,18 @@ static size_t build_insets_payload(unsigned char *out, size_t max_out,
     uiconfig_len += encode_varint(uiconfig + uiconfig_len, (uint32_t)insets_len);
     memcpy(uiconfig + uiconfig_len, insets, insets_len);
     uiconfig_len += insets_len;
-    /* UiConfig field 4 is UiTheme: 0=automatic, 1=light, 2=dark/night. */
-    uiconfig[uiconfig_len++] = 0x20; /* tag 4: ui_theme, wire type varint */
-    uiconfig[uiconfig_len++] = (unsigned char)(ui_theme <= 2u ? ui_theme : 0u);
+    /*
+     * UiConfig field 4 is UiTheme: 0=automatic, 1=light, 2=dark/night.
+     * Automatic is the protobuf default, so it is left out rather than sent
+     * as 0: the two bytes saved let three of the four insets go above 127
+     * (two varint bytes each) and still fit the 15-byte string. The car's
+     * night-mode sensor then sets day or night, as on the centre screen.
+     * (From AMDFX60's fork.)
+     */
+    if (ui_theme == 1u || ui_theme == 2u) {
+        uiconfig[uiconfig_len++] = 0x20; /* tag 4: ui_theme, wire type varint */
+        uiconfig[uiconfig_len++] = (unsigned char)ui_theme;
+    }
 
     out[total_len++] = 0x5a; /* tag 11: UiConfig */
     total_len += encode_varint(out + total_len, (uint32_t)uiconfig_len);
@@ -611,6 +624,39 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
     } else {
         payload_len = build_insets_payload(payload, 15u, top, bottom, left, right,
                                            ui_theme);
+        /*
+         * Too long for the string: used to send nothing at all, silently, so
+         * the phone fell back to the whole frame. Now cut the smallest value
+         * above 127 to 127 (one byte saved) and try again; that is enough for
+         * SEAT's scaled full-frame insets, 169,205,205,205 -> 127,205,205,205.
+         * Failing that, every inset cut to 127, which always fits. Logged
+         * either way. (After AMDFX60's fork, which cut all four at once.)
+         */
+        if (payload_len == 0u) {
+            uint32_t *v[4];
+            uint32_t *least = NULL;
+            int i;
+            v[0] = &top; v[1] = &bottom; v[2] = &left; v[3] = &right;
+            gal_hook_logf("event=video.insets result=too_long tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u",
+                          context_tag, top, bottom, left, right, ui_theme);
+            for (i = 0; i < 4; ++i) {
+                if (*v[i] > 127u && (least == NULL || *v[i] < *least)) least = v[i];
+            }
+            if (least != NULL) {
+                *least = 127u;
+                payload_len = build_insets_payload(payload, 15u, top, bottom, left, right,
+                                                   ui_theme);
+            }
+            if (payload_len == 0u) {
+                for (i = 0; i < 4; ++i) {
+                    if (*v[i] > 127u) *v[i] = 127u;
+                }
+                payload_len = build_insets_payload(payload, 15u, top, bottom, left, right,
+                                                   ui_theme);
+            }
+            gal_hook_logf("event=video.insets result=clamped tag=%s top=%u bottom=%u left=%u right=%u len=%zu",
+                          context_tag, top, bottom, left, right, payload_len);
+        }
     }
 
     if (payload_len > 0u && payload_len <= 15u) {
@@ -618,8 +664,8 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
         memcpy(obj + 0x08, payload, payload_len);
         obj[0x08 + payload_len] = 0;
         store_u32(vconf, 0x18u, (uint32_t)payload_len);
-        gal_hook_logf("event=video.insets result=success tag=%s top=%u bottom=%u left=%u right=%u len=%zu",
-                      context_tag, top, bottom, left, right, payload_len);
+        gal_hook_logf("event=video.insets result=success tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u len=%zu",
+                      context_tag, top, bottom, left, right, ui_theme, payload_len);
     }
 }
 

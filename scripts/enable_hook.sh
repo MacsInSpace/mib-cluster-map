@@ -70,11 +70,13 @@ else
     exit 1
 fi
 
-if [ ! -r "$CARD_ROOT/scripts/lib_unit.sh" ] || [ ! -r "$PROFILES" ]; then
-    echo "ERROR: scripts/lib_unit.sh or profiles.conf not found in $CARD_ROOT" >&2
+if [ ! -r "$CARD_ROOT/scripts/lib_unit.sh" ] || [ ! -r "$PROFILES" ] || \
+   [ ! -r "$CARD_ROOT/scripts/lib_cluster_frame.sh" ]; then
+    echo "ERROR: scripts/lib_unit.sh, lib_cluster_frame.sh or profiles.conf not found in $CARD_ROOT" >&2
     exit 1
 fi
 . "$CARD_ROOT/scripts/lib_unit.sh"
+. "$CARD_ROOT/scripts/lib_cluster_frame.sh"
 
 finish()
 {
@@ -493,22 +495,28 @@ else
     echo "  gal_dualscreen.conf, e.g. GAL_PLAYER_WINDOW=1010x376 on SEAT and Skoda."
 fi
 # Android Auto's frame is always 800x480: the phone is asked to leave
-# margins so the rest has the window's shape (none for an 800x480 window).
-# "|| :" because expr exits 1 when the answer is 0, and this runs under set -e.
-if [ `expr $MAP_W \* 480` -gt `expr $MAP_H \* 800` ]; then
-    MARGIN_W=0
-    MARGIN_H=`expr 480 - \( 800 \* $MAP_H + $MAP_W \) / \( 2 \* $MAP_W \) \* 2 || :`
-else
-    MARGIN_W=`expr 800 - \( 480 \* $MAP_W + $MAP_H \) / \( 2 \* $MAP_H \) \* 2 || :`
-    MARGIN_H=0
+# margins so the rest (the band) has the window's shape, none for an 800x480
+# window, or with CLUSTERMAP_FULL_FRAME=1 a pixel aspect ratio, so it draws
+# on the whole frame (scripts/lib_cluster_frame.sh). The green menu's
+# sharper-map switch changes the same lines later without a new install.
+FULL_FRAME=`sed -n 's/^CLUSTERMAP_FULL_FRAME=\([01]\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+[ "$FULL_FRAME" = 1 ] || FULL_FRAME=0
+if [ "$FULL_FRAME" = 1 ] && [ `expr $MAP_W \* 480` -eq `expr $MAP_H \* 800` ]; then
+    echo "CLUSTERMAP_FULL_FRAME: the ${MAP_W}x${MAP_H} window has the frame's shape, so every line carries map already; nothing to switch."
+    FULL_FRAME=0
 fi
-if [ "$MARGIN_W" -gt 0 ] || [ "$MARGIN_H" -gt 0 ]; then
+if ! frame_write_conf "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" $MAP_W $MAP_H $FULL_FRAME; then
+    if [ "$FULL_FRAME" = 1 ]; then
+        echo "WARNING: could not edit the settings copy; CLUSTERMAP_FULL_FRAME ignored, using margins."
+    fi
+    FULL_FRAME=0
+    frame_geometry $MAP_W $MAP_H 0
+fi
+if [ "$FULL_FRAME" = 1 ]; then
+    echo "Android Auto: whole 800x480 frame, pixel aspect ${PIXEL_ASPECT_E4}/10000, stretched to the window (CLUSTERMAP_FULL_FRAME; car-tested only on AMDFX60's Skoda Superb)."
+elif [ "$MARGIN_W" -gt 0 ] || [ "$MARGIN_H" -gt 0 ]; then
     echo "Android Auto: 800x480 with ${MARGIN_W}x${MARGIN_H} margins, scaled to fill the window."
-fi
-if [ -w "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" ]; then
-    { echo; echo "# Written by the installer from the cluster map window it read."
-      echo "GAL_PLAYER_WINDOW=${MAP_W}x${MAP_H}"
-      echo "GAL_SECONDARY_MARGINS=${MARGIN_W}x${MARGIN_H}"; } >> "$PRELOAD_WRITE_DIR/gal_dualscreen.conf"
 fi
 
 # "auto" DPI and insets: the values owners settled on for this make and
@@ -662,17 +670,20 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
     INSETS=`sed -n 's/^GAL_SECONDARY_INSETS=\([0-9]*\),\([0-9]*\),\([0-9]*\),\([0-9]*\)[ 	]*$/\1 \2 \3 \4/p' \
         "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
     set -- ${INSETS:-40 40 127 127}
-    # The insets count from the edge of the whole 800x480 frame, margins
-    # included; CarPlay has no margins, so take them off first (SEAT and
-    # Skoda: 91 px top and bottom, which had made the safe area too small).
-    IN_T=`expr $1 - $MARGIN_H / 2 || :`; [ "$IN_T" -lt 0 ] && IN_T=0
-    IN_B=`expr $2 - $MARGIN_H / 2 || :`; [ "$IN_B" -lt 0 ] && IN_B=0
-    IN_L=`expr $3 - $MARGIN_W / 2 || :`; [ "$IN_L" -lt 0 ] && IN_L=0
-    IN_R=`expr $4 - $MARGIN_W / 2 || :`; [ "$IN_R" -lt 0 ] && IN_R=0
-    SAFE_Y=`expr $IN_T \* $CP_H / \( 480 - $MARGIN_H \) || :`
-    SAFE_B=`expr $IN_B \* $CP_H / \( 480 - $MARGIN_H \) || :`
-    SAFE_X=`expr $IN_L \* $CP_W / \( 800 - $MARGIN_W \) || :`
-    SAFE_R=`expr $IN_R \* $CP_W / \( 800 - $MARGIN_W \) || :`
+    # The insets count from the edge of the whole 800x480 frame, margins of
+    # the band included; CarPlay has no margins, so take them off first (SEAT
+    # and Skoda: 91 px top and bottom, which had made the safe area too
+    # small). BAND_MARGIN, not MARGIN: with CLUSTERMAP_FULL_FRAME the Android
+    # Auto margins are 0, but the insets are still set for the band, and
+    # CarPlay knows nothing of full frame.
+    IN_T=`expr $1 - $BAND_MARGIN_H / 2 || :`; [ "$IN_T" -lt 0 ] && IN_T=0
+    IN_B=`expr $2 - $BAND_MARGIN_H / 2 || :`; [ "$IN_B" -lt 0 ] && IN_B=0
+    IN_L=`expr $3 - $BAND_MARGIN_W / 2 || :`; [ "$IN_L" -lt 0 ] && IN_L=0
+    IN_R=`expr $4 - $BAND_MARGIN_W / 2 || :`; [ "$IN_R" -lt 0 ] && IN_R=0
+    SAFE_Y=`expr $IN_T \* $CP_H / \( 480 - $BAND_MARGIN_H \) || :`
+    SAFE_B=`expr $IN_B \* $CP_H / \( 480 - $BAND_MARGIN_H \) || :`
+    SAFE_X=`expr $IN_L \* $CP_W / \( 800 - $BAND_MARGIN_W \) || :`
+    SAFE_R=`expr $IN_R \* $CP_W / \( 800 - $BAND_MARGIN_W \) || :`
     SAFE_W=`expr $CP_W - $SAFE_X - $SAFE_R || :`
     SAFE_H=`expr $CP_H - $SAFE_Y - $SAFE_B || :`
     # echo, not printf: some units have no printf binary
@@ -1031,7 +1042,11 @@ echo "  preload target: $PRELOAD_SO_ALIAS"
 echo "    on the internal /mnt/app partition, not the SD card -- avoids the"
 echo "    SD-card mount-timing race at GAL's boot-time launch."
 echo "  output mode: $OUTPUT (video forwarded to stream-player)"
-echo "  cluster: Android Auto 800x480 @ 30 fps (margins ${MARGIN_W}x${MARGIN_H}), DPI $EFFECTIVE_DPI, ${MAP_W}x${MAP_H} window"
+if [ "$FULL_FRAME" = 1 ]; then
+    echo "  cluster: Android Auto 800x480 @ 30 fps (full frame, pixel aspect ${PIXEL_ASPECT_E4}/10000), DPI $EFFECTIVE_DPI, ${MAP_W}x${MAP_H} window"
+else
+    echo "  cluster: Android Auto 800x480 @ 30 fps (margins ${MARGIN_W}x${MARGIN_H}), DPI $EFFECTIVE_DPI, ${MAP_W}x${MAP_H} window"
+fi
 if [ "$CARPLAY_OK" -eq 1 ]; then echo "  CarPlay map: installed, ${MAP_W}x${MAP_H}"; else echo "  CarPlay map: no ($CARPLAY_WHY)"; fi
 echo "  debug logs: $DEBUG"
 echo "  second sink: $SECOND_SINK   inject metadata: $INJECT_META"

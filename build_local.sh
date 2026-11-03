@@ -11,7 +11,9 @@ set -euo pipefail
 IMG=${QNX_IMAGE:-qnx65-armv7-toolchain:8.5}
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 WHAT=${1:-all}
-BUILD_ID=$(git -C "$ROOT" describe --always --dirty 2>/dev/null || echo local)
+# RELEASE_VERSION first: a release build is usually made before its tag
+# exists, and beta17 shipped a hook that called itself beta16-dirty.
+BUILD_ID=${RELEASE_VERSION:-$(git -C "$ROOT" describe --always --dirty 2>/dev/null || echo local)}
 # Packaging needs no compiler, so only the build steps require the image. Docker
 # Desktop's inspect call has failed transiently here while the image was present,
 # so fall back to the image list before giving up.
@@ -105,7 +107,8 @@ package() {
      cp "$ROOT"/thirdparty/mib2-android-auto-vc/LICENSE "$D/thirdparty/VCAndroidAuto.LICENSE"
   cp "$ROOT"/thirdparty/mib2-toolbox/NavActiveIgnore.jar "$D/thirdparty/" && cp "$ROOT"/thirdparty/mib2-toolbox/LICENSE "$D/thirdparty/NavActiveIgnore.LICENSE"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" \
-     "$ROOT/scripts/lib_unit.sh" "$ROOT/scripts/window_fix.sh" "$D/scripts/"
+     "$ROOT/scripts/lib_unit.sh" "$ROOT/scripts/window_fix.sh" \
+     "$ROOT/scripts/lib_cluster_frame.sh" "$ROOT/scripts/full_frame.sh" "$D/scripts/"
   cp "$ROOT"/greenmenu/GEM/*.sh "$D/GEM/"
   cp "$ROOT/greenmenu/cluster-map.esd" "$S/Custom/GreenMenu/"
   # Software-update route: the same screen, copied to the unit by the update
@@ -117,9 +120,12 @@ package() {
   printf 'While a file whose name starts with UNINSTALL is in the ClusterMap folder,\r\nrunning the update from this card REMOVES the cluster map and restores the\r\noriginal state. Move this file back here (or delete it) to install again.\r\n' > "$D/to uninstall, move this file up one folder/UNINSTALL.txt"
   mkdir -p "$D/to only check compatibility, move this file up one folder"
   printf 'While a file whose name starts with COLLECT is in the ClusterMap folder,\r\nrunning the update from this card INSTALLS NOTHING. It writes a compatibility\r\ncheck to update_result.txt and copies the files a port needs to porting_<train>/.\r\nOnly the menu screen file is copied to the unit. Move this file back here to install.\r\n' > "$D/to only check compatibility, move this file up one folder/COLLECT.txt"
-  # Empty, as in M.I.B.: renamed to Swdlautorun.txt, the unit starts this
-  # update by itself when the card goes in (no service menu). Off by default.
-  : > "$S/_Swdlautorun.txt"
+  # Empty, as in M.I.B.: with this name the unit starts the update by itself
+  # when the card goes in (no service menu). On by default; update_run.sh
+  # renames it to _Swdlautorun.txt when the install finishes, so the update
+  # does not start again with the card still in. Rename it back to
+  # _Swdlautorun.txt to switch autorun off.
+  : > "$S/Swdlautorun.txt"
   cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
   cp "$ROOT/config/profiles.conf" "$D/profiles.conf"
   cp "$ROOT/README.md" "$ROOT/docs/Install.md" "$D/docs/"
@@ -133,7 +139,7 @@ package() {
   VER=${RELEASE_VERSION:-$BUILD_ID}
   Z="$ROOT/dist/mib-cluster-map_$VER.zip"
   rm -f "$ROOT"/dist/*.zip "$ROOT"/dist/*.sha256
-  (cd "$S" && zip -qr -X "$Z" ClusterMap Custom metainfo2.txt _Swdlautorun.txt -x '*.DS_Store' -x '._*')
+  (cd "$S" && zip -qr -X "$Z" ClusterMap Custom metainfo2.txt Swdlautorun.txt -x '*.DS_Store' -x '._*')
   (cd "$ROOT/dist" && shasum -a 256 "$(basename "$Z")" > "$(basename "$Z").sha256")
   echo "Packaged: $S"; echo "Archive:  $Z"
   (cd "$S" && find . -type f | sort)
