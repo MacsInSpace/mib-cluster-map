@@ -2325,6 +2325,19 @@ CFDictionaryRef AirPlayCopyServerInfo(AirPlayReceiverSessionRef session, CFArray
         set_i64(alt,"heightPixels",(int64_t)g2_profile.height);
         set_i64(alt,"widthPhysical",(int64_t)g2_profile.width_mm);
         set_i64(alt,"heightPhysical",(int64_t)g2_profile.height_mm);
+        /*
+         * mib-cluster-map: optional cockpit zoomFactor (percent), as the SEAT
+         * MU1409 port by RandomGenerated543 (GPL-3.0) advertises it, 70 there
+         * by default. Omitted unless ALTSCREEN111_ZOOM_FACTOR is 50..200; what
+         * the iPhone makes of it is up to iOS and the app.
+         */
+        {
+            int zf=env_i("ALTSCREEN111_ZOOM_FACTOR",0);
+            if(zf>=50 && zf<=200){
+                set_i64(alt,"zoomFactor",(int64_t)zf);
+                logf_u2("cluster zoomFactor=%d advertised",zf);
+            }
+        }
         set_str(alt,"uuid",g_alt_uuid);
         set_str(alt,"initialURL",active_url);
         add_alt_suggest_ui_urls(alt);

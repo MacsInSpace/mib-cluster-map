@@ -656,6 +656,15 @@ if [ "$CP_FRAME" -gt 100 ]; then
     CP_W=`expr $MAP_W \* $CP_FRAME / 200 \* 2`
     CP_H=`expr $MAP_H \* $CP_FRAME / 200 \* 2`
 fi
+# CLUSTERMAP_CARPLAY_ZOOM=<percent>, 50 to 200: the cockpit display's
+# zoomFactor, as RandomGenerated543's SEAT port sends it (70 there). Unset:
+# not sent, as before.
+CP_ZOOM=`sed -n 's/^CLUSTERMAP_CARPLAY_ZOOM=\([0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+case "$CP_ZOOM" in
+    '') ;;
+    *) { [ "$CP_ZOOM" -lt 50 ] || [ "$CP_ZOOM" -gt 200 ]; } && CP_ZOOM= ;;
+esac
 CP_W_MM=`expr 200 \* $CP_SCALE / 100`
 CP_H_MM=`expr $CP_W_MM \* $CP_H / $CP_W`
 if [ "$CARPLAY_OK" -eq 1 ] && [ "$CP_FRAME" -gt 100 ]; then
@@ -921,7 +930,11 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
     CP_ADDED=3
     if [ "$CP_SCALE" -ne 100 ]; then
         CP_INJECTION="$CP_INJECTION\"ALTSCREEN111_WIDTH_MM=$CP_W_MM\", \"ALTSCREEN111_HEIGHT_MM=$CP_H_MM\", "
-        CP_ADDED=5
+        CP_ADDED=`expr $CP_ADDED + 2`
+    fi
+    if [ -n "$CP_ZOOM" ]; then
+        CP_INJECTION="$CP_INJECTION\"ALTSCREEN111_ZOOM_FACTOR=$CP_ZOOM\", "
+        CP_ADDED=`expr $CP_ADDED + 1`
     fi
     CP_EXISTING=`awk '
     BEGIN { in_children=0; in_cp=0 }
