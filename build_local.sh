@@ -108,7 +108,8 @@ package() {
   cp "$ROOT"/thirdparty/mib2-toolbox/NavActiveIgnore.jar "$D/thirdparty/" && cp "$ROOT"/thirdparty/mib2-toolbox/LICENSE "$D/thirdparty/NavActiveIgnore.LICENSE"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" \
      "$ROOT/scripts/lib_unit.sh" "$ROOT/scripts/window_fix.sh" \
-     "$ROOT/scripts/lib_cluster_frame.sh" "$ROOT/scripts/full_frame.sh" "$D/scripts/"
+     "$ROOT/scripts/lib_cluster_frame.sh" "$ROOT/scripts/full_frame.sh" \
+     "$ROOT/scripts/lib_keep_settings.sh" "$D/scripts/"
   cp "$ROOT"/greenmenu/GEM/*.sh "$D/GEM/"
   cp "$ROOT/greenmenu/cluster-map.esd" "$S/Custom/GreenMenu/"
   # Software-update route: the same screen, copied to the unit by the update
@@ -127,6 +128,9 @@ package() {
   # _Swdlautorun.txt to switch autorun off.
   : > "$S/Swdlautorun.txt"
   cp "$ROOT/config/gal_dualscreen.conf" "$D/gal_dualscreen.conf"
+  # The shipped settings, untouched: the installer compares the card's copy
+  # with it to find the owner's own lines (scripts/lib_keep_settings.sh).
+  cp "$ROOT/config/gal_dualscreen.conf" "$D/scripts/gal_dualscreen.default.conf"
   cp "$ROOT/config/profiles.conf" "$D/profiles.conf"
   cp "$ROOT/README.md" "$ROOT/docs/Install.md" "$D/docs/"
   cp "$ROOT/LICENSE" "$D/LICENSE"

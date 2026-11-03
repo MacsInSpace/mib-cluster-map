@@ -387,12 +387,67 @@ chmod 755 "$PRELOAD_WRITE_DIR/window_fix.sh" 2>/dev/null || true
 cp "$CARD_ROOT/scripts/lib_cluster_frame.sh" "$PRELOAD_WRITE_DIR/lib_cluster_frame.sh" 2>/dev/null || true
 chmod 644 "$PRELOAD_WRITE_DIR/lib_cluster_frame.sh" 2>/dev/null || true
 
+TRAIN=unknown
+for f in /net/rcc/dev/shmem/version.txt /dev/shmem/version.txt; do
+    if [ -r "$f" ]; then
+        TRAIN=`grep "Current train" "$f" | sed 's/Current train = //' | sed -e 's|["'"'"']||g' | sed 's/\r//'`
+        break
+    fi
+done
+
+# The settings owners have tested, by make (profiles.conf): read here, before
+# the settings copy, which needs the make's "auto" values; used again below.
+unit_make "$PROFILES" "$TRAIN" || :
+
 # Internal copy of the settings file: the hook reads the SD card first and
 # falls back to this one, so the tuned values still apply without the card.
+# The owner's own lines from the last install are put back where this card
+# still has the shipped default (scripts/lib_keep_settings.sh).
+CONF_COPY="$PRELOAD_WRITE_DIR/gal_dualscreen.conf"
+OWNER_SAVED="$PRELOAD_WRITE_DIR/gal_dualscreen.owner.conf"
+CONF_DEFAULT="$CARD_ROOT/scripts/gal_dualscreen.default.conf"
 if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
-    cp "$CARD_ROOT/gal_dualscreen.conf" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null || true
-    chmod 644 "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null || true
-    echo "Installed settings copy: $PRELOAD_WRITE_DIR/gal_dualscreen.conf"
+    KEEP_SETTINGS=`sed -n 's/^CLUSTERMAP_KEEP_SETTINGS=\([01]\)[ 	]*$/\1/p' "$CARD_ROOT/gal_dualscreen.conf" 2>/dev/null | tail -1`
+    KEEP_FROM=
+    if [ "$KEEP_SETTINGS" != 0 ] && [ -r "$CONF_DEFAULT" ] && [ -r "$CARD_ROOT/scripts/lib_keep_settings.sh" ]; then
+        . "$CARD_ROOT/scripts/lib_keep_settings.sh"
+        if [ -r "$OWNER_SAVED" ]; then
+            cp "$OWNER_SAVED" /tmp/clustermap_owner_prev.conf 2>/dev/null && KEEP_FROM=saved
+        elif [ -r "$CONF_COPY" ]; then
+            # Installed by beta18 or older, which saved no owner lines: take
+            # them from the unit's copy, less what that installer wrote into
+            # it itself (window lines, "auto" values, the make's context).
+            keep_owner_lines "$CONF_COPY" "$CONF_DEFAULT" 2>/dev/null | while IFS='=' read -r K V; do
+                case "$K" in
+                    GAL_PLAYER_WINDOW|GAL_SECONDARY_MARGINS|GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4|CLUSTERMAP_FULL_FRAME) continue ;;
+                    GAL_SECONDARY_DPI) [ "$V" = "$CAR_DPI" ] && continue ;;
+                    GAL_SECONDARY_INSETS) [ "$V" = "$CAR_INSETS" ] && continue ;;
+                    GAL_VC_CONTEXT) [ "$V" = "$CAR_CONTEXT" ] && continue ;;
+                esac
+                echo "$K=$V"
+            done > /tmp/clustermap_owner_prev.conf && KEEP_FROM="the previous settings copy"
+        fi
+    fi
+    cp "$CARD_ROOT/gal_dualscreen.conf" "$CONF_COPY" 2>/dev/null || true
+    chmod 644 "$CONF_COPY" 2>/dev/null || true
+    echo "Installed settings copy: $CONF_COPY"
+    if [ -n "$KEEP_FROM" ]; then
+        KEPT=`keep_apply "$CONF_COPY" /tmp/clustermap_owner_prev.conf "$CONF_DEFAULT"` || {
+            KEPT=; echo "WARNING: could not carry over your previous settings; using the card's as they are." >&2; }
+        if [ -n "$KEPT" ]; then
+            echo "Kept from your previous install (change them on the card to override, or CLUSTERMAP_KEEP_SETTINGS=0 for a clean install):"
+            echo "$KEPT" | sed 's/^/  /'
+        fi
+    elif [ "$KEEP_SETTINGS" = 0 ]; then
+        echo "CLUSTERMAP_KEEP_SETTINGS=0: installed the card's settings only."
+    fi
+    rm -f /tmp/clustermap_owner_prev.conf 2>/dev/null
+    # The owner's lines for the next install, before this installer adds its own.
+    if [ -r "$CONF_DEFAULT" ] && [ -r "$CARD_ROOT/scripts/lib_keep_settings.sh" ]; then
+        . "$CARD_ROOT/scripts/lib_keep_settings.sh"
+        keep_owner_lines "$CONF_COPY" "$CONF_DEFAULT" > "$OWNER_SAVED.new" 2>/dev/null &&
+            mv "$OWNER_SAVED.new" "$OWNER_SAVED" 2>/dev/null || rm -f "$OWNER_SAVED.new" 2>/dev/null
+    fi
 else
     echo "NOTE: no gal_dualscreen.conf beside this script; the hook will run on built-in defaults."
 fi
@@ -431,19 +486,11 @@ if [ "`sed -n 's/^CLUSTERMAP_CARPLAY=\([01]\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/ga
     CARPLAY=0
 fi
 
-TRAIN=unknown
-for f in /net/rcc/dev/shmem/version.txt /dev/shmem/version.txt; do
-    if [ -r "$f" ]; then
-        TRAIN=`grep "Current train" "$f" | sed 's/Current train = //' | sed -e 's|["'"'"']||g' | sed 's/\r//'`
-        break
-    fi
-done
-
-# The settings owners have tested, by make: the cockpit map window, then
-# DPI and insets. Used for "auto" in gal_dualscreen.conf (#41) and, for the
-# window, when the display manager does not list it (#15, #19: a SEAT and a
-# Skoda drew stripes in an 800x480 window). Values: docs/Install.md.
-unit_make "$PROFILES" "$TRAIN" || :
+# The settings owners have tested, by make (unit_make above): the cockpit
+# map window, then DPI and insets. Used for "auto" in gal_dualscreen.conf
+# (#41) and, for the window, when the display manager does not list it (#15,
+# #19: a SEAT and a Skoda drew stripes in an 800x480 window). Values:
+# docs/Install.md.
 
 # The cluster map window. The cluster's encoder expects the window it shows
 # to be this size; an 800x480 window on a cluster whose map window is, say,
