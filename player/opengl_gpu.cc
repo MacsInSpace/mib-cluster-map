@@ -1554,6 +1554,23 @@ static void load_player_config() {
         fclose(f);
         break; // Stop at first found config file
     }
+    /*
+     * gal passes the frame it asked the phone for; it wins over the file,
+     * which may have been switched since gal started (full_frame.sh).
+     */
+    env_val = getenv("GAL_SECONDARY_MARGINS");
+    if (env_val) {
+        int w = 0, h = 0;
+        if (sscanf(env_val, "%dx%d", &w, &h) == 2 && w >= 0 && w <= 400 && h >= 0 && h <= 240) {
+            g_marginW = w & ~1;
+            g_marginH = h & ~1;
+        }
+    }
+    env_val = getenv("GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4");
+    if (env_val) {
+        int e4 = atoi(env_val);
+        if (e4 >= 1000 && e4 <= 80000) g_pixelAspectE4 = e4;
+    }
     build_dmdt_args();
     if (g_vcContext != 70u || g_vcDisplay != 4u || g_vcDisplayable != 3u || g_vcRestore != 33u)
         LOG("dmdt: cockpit context %u on display %u, player displayable %u, stock map %u (from the settings)",

@@ -627,30 +627,25 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
         /*
          * Too long for the string: used to send nothing at all, silently, so
          * the phone fell back to the whole frame. Now cut the smallest value
-         * above 127 to 127 (one byte saved) and try again; that is enough for
-         * SEAT's scaled full-frame insets, 169,205,205,205 -> 127,205,205,205.
-         * Failing that, every inset cut to 127, which always fits. Logged
-         * either way. (After AMDFX60's fork, which cut all four at once.)
+         * above 127 to 127 (one byte saved) and try again, one at a time
+         * until it fits: with theme 0 three values can stay above 127, with
+         * theme 1 or 2 (two more bytes) only one. All four at 127 always
+         * fits. Logged either way. (After AMDFX60's fork, which cut all four
+         * at once.)
          */
         if (payload_len == 0u) {
             uint32_t *v[4];
-            uint32_t *least = NULL;
             int i;
             v[0] = &top; v[1] = &bottom; v[2] = &left; v[3] = &right;
             gal_hook_logf("event=video.insets result=too_long tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u",
                           context_tag, top, bottom, left, right, ui_theme);
-            for (i = 0; i < 4; ++i) {
-                if (*v[i] > 127u && (least == NULL || *v[i] < *least)) least = v[i];
-            }
-            if (least != NULL) {
-                *least = 127u;
-                payload_len = build_insets_payload(payload, 15u, top, bottom, left, right,
-                                                   ui_theme);
-            }
-            if (payload_len == 0u) {
+            while (payload_len == 0u) {
+                uint32_t *least = NULL;
                 for (i = 0; i < 4; ++i) {
-                    if (*v[i] > 127u) *v[i] = 127u;
+                    if (*v[i] > 127u && (least == NULL || *v[i] < *least)) least = v[i];
                 }
+                if (least == NULL) break;
+                *least = 127u;
                 payload_len = build_insets_payload(payload, 15u, top, bottom, left, right,
                                                    ui_theme);
             }

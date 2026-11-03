@@ -384,6 +384,8 @@ cp "$PROFILES" "$PRELOAD_WRITE_DIR/profiles.conf" && chmod 644 "$PRELOAD_WRITE_D
 }
 cp "$CARD_ROOT/scripts/window_fix.sh" "$PRELOAD_WRITE_DIR/window_fix.sh" 2>/dev/null || true
 chmod 755 "$PRELOAD_WRITE_DIR/window_fix.sh" 2>/dev/null || true
+cp "$CARD_ROOT/scripts/lib_cluster_frame.sh" "$PRELOAD_WRITE_DIR/lib_cluster_frame.sh" 2>/dev/null || true
+chmod 644 "$PRELOAD_WRITE_DIR/lib_cluster_frame.sh" 2>/dev/null || true
 
 # Internal copy of the settings file: the hook reads the SD card first and
 # falls back to this one, so the tuned values still apply without the card.
@@ -502,11 +504,14 @@ fi
 FULL_FRAME=`sed -n 's/^CLUSTERMAP_FULL_FRAME=\([01]\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 [ "$FULL_FRAME" = 1 ] || FULL_FRAME=0
-if [ "$FULL_FRAME" = 1 ] && [ `expr $MAP_W \* 480` -eq `expr $MAP_H \* 800` ]; then
-    echo "CLUSTERMAP_FULL_FRAME: the ${MAP_W}x${MAP_H} window has the frame's shape, so every line carries map already; nothing to switch."
+# The owner's choice is saved as it is even where this window cannot use it:
+# when the player finds the real window later, window_fix.sh applies it.
+FULL_FRAME_ASKED=$FULL_FRAME
+if [ "$FULL_FRAME" = 1 ] && ! frame_full_ok $MAP_W $MAP_H; then
+    echo "CLUSTERMAP_FULL_FRAME: the ${MAP_W}x${MAP_H} window is not wider than the frame's 5:3, so it gets no full frame; kept on in case the cockpit's window turns out wider."
     FULL_FRAME=0
 fi
-if ! frame_write_conf "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" $MAP_W $MAP_H $FULL_FRAME; then
+if ! frame_write_conf "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" $MAP_W $MAP_H $FULL_FRAME_ASKED; then
     if [ "$FULL_FRAME" = 1 ]; then
         echo "WARNING: could not edit the settings copy; CLUSTERMAP_FULL_FRAME ignored, using margins."
     fi
