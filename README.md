@@ -116,7 +116,7 @@ no translation at all. The same in nine languages:
 
 | Head unit | Firmware train starts | Today |
 |---|---|---|
-| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367), both road-tested, and `P4512` (Golf R; Passat B8, #47). US `P3662` installs as tested. `P4174` (#49) being ported. Others wanted |
+| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367), both road-tested, and `P4512` (Golf R; Passat B8, #47). US `P3662` installs as tested. `P4174` (Passat R wagon, #49) and `P4521_1` (Golf Alltrack) tested. Others wanted |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` and `P4709` (1010×376 cluster window). **Arrows** on both |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | **Map** on `P4526` (#15) and `P4523` (#56), car-confirmed. Others wanted |
 | VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | **Map** on `K3342` (MU1427), Passat B8, found and road-tested by owners (#39, #28), and `P3301` (#33). Set `CLUSTERMAP_ADD_NAVIGNORE=1` to keep the map during a route. **`S2125`: update to `K3342` first** (see below); on S2125 itself NavActiveIgnore stopped Android Auto, so the map goes when a route starts |
