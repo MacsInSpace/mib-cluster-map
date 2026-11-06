@@ -1250,6 +1250,48 @@ else
     else
         echo "Java check: VCAndroidAuto.jar is not loaded (good)."
     fi
+    # CLUSTERMAP_MUSIC_INFO=1: the track playing (title, artist, cover) on the
+    # cockpit's media screen beside the map, from the music-only build of the
+    # arrows jar (VCAndroidAutoMusic.jar). It sends no turn data, so the map
+    # stays up when a route starts. Never together with VCAndroidAuto.jar,
+    # which carries the same classes and shows the music itself.
+    MUSIC_JAR=VCAndroidAutoMusic.jar
+    MUSIC_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_music_added
+    MUSIC_ASKED=`sed -n 's/^CLUSTERMAP_MUSIC_INFO=\([01]\)[ 	]*$/\1/p' \
+        "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+    FULL_JAR=0
+    if sh "$CARD_ROOT/lsd_jar.sh" loaded VCAndroidAuto.jar; then FULL_JAR=1; fi
+    if [ "$MUSIC_ASKED" = 1 ] && [ "$FULL_JAR" -eq 0 ]; then
+        if [ "$TBT_OK" -ne 1 ]; then
+            echo "WARNING: CLUSTERMAP_MUSIC_INFO=1 ignored: the music jar is not known to" >&2
+            echo "         work on firmware $TRAIN." >&2
+        elif sh "$CARD_ROOT/lsd_jar.sh" loaded $MUSIC_JAR; then
+            echo "Java check: $MUSIC_JAR is loaded (track info on the cockpit)."
+        else
+            echo "Java check: adding $MUSIC_JAR (CLUSTERMAP_MUSIC_INFO=1: track info on the cockpit, no turn data)."
+            if sh "$CARD_ROOT/lsd_jar.sh" add $MUSIC_JAR "$CARD_ROOT/thirdparty/$MUSIC_JAR"; then
+                mount -uw /mnt/app 2>/dev/null && { : > "$MUSIC_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+            else
+                echo "WARNING: could not add $MUSIC_JAR; lsd.sh is unchanged." >&2
+            fi
+        fi
+    elif sh "$CARD_ROOT/lsd_jar.sh" loaded $MUSIC_JAR; then
+        if [ -f "$MUSIC_MARKER" ]; then
+            if [ "$FULL_JAR" -eq 1 ]; then
+                echo "Java check: removing $MUSIC_JAR: VCAndroidAuto.jar is loaded and shows the music itself."
+            else
+                echo "Java check: removing $MUSIC_JAR (CLUSTERMAP_MUSIC_INFO is not 1)."
+            fi
+            if sh "$CARD_ROOT/lsd_jar.sh" remove $MUSIC_JAR; then
+                mount -uw /mnt/app 2>/dev/null && { rm -f "$MUSIC_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+            else
+                echo "WARNING: could not remove $MUSIC_JAR; lsd.sh is unchanged." >&2
+            fi
+        elif [ "$FULL_JAR" -eq 1 ]; then
+            echo "WARNING: both $MUSIC_JAR and VCAndroidAuto.jar are loaded, and this installer" >&2
+            echo "         added neither. Remove one: they carry the same classes." >&2
+        fi
+    fi
 fi
 
 echo
