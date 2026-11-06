@@ -710,10 +710,11 @@ fi
 # not sent, as before.
 CP_ZOOM=`sed -n 's/^CLUSTERMAP_CARPLAY_ZOOM=\([0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
-case "$CP_ZOOM" in
-    '') ;;
-    *) { [ "$CP_ZOOM" -lt 50 ] || [ "$CP_ZOOM" -gt 200 ]; } && CP_ZOOM= ;;
-esac
+# if, not "[ ] &&": a false test ending a case arm stops the install under
+# set -e on the unit (beta14 #52; cpzoom1 failed this way, #19).
+if [ -n "$CP_ZOOM" ]; then
+    if [ "$CP_ZOOM" -lt 50 ] || [ "$CP_ZOOM" -gt 200 ]; then CP_ZOOM=; fi
+fi
 CP_W_MM=`expr 200 \* $CP_SCALE / 100`
 CP_H_MM=`expr $CP_W_MM \* $CP_H / $CP_W`
 if [ "$CARPLAY_OK" -eq 1 ] && [ "$CP_FRAME" -gt 100 ]; then
