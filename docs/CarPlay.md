@@ -1,6 +1,6 @@
 # CarPlay map
 
-**State: in the releases. Working on a Golf R (`P4512`), a SEAT (`P4709`, #19) and a Golf (`K4525`, #43). Open: on the SEAT and the Golf it can switch back to the car's own map while driving (#19, #43).**
+**State: in the releases. Working on a Golf R and a Passat B8 (`P4512`, the Passat on software 1161, #67), a SEAT (`P4709`, #19), a Golf (`K4525`, #43) and a Tiguan (`P4521`). Open: on the SEAT and the Golf it can switch back to the car's own map while driving (#19, #43).**
 
 The goal is one package that puts the phone's map on the cluster for both
 phone types. Only one phone projects at a time, so the two only have to share
@@ -179,6 +179,9 @@ clear of the dials, less Android Auto's margins and scaled to the window
 (800x480 with the default insets: 546x400 at 127,40; SEAT 1010x376: 690x314
 at 160,17). Until beta14 the margins were not taken off, which on SEAT and
 Skoda left too little and the whole window was used.
+`CLUSTERMAP_CARPLAY_INSETS` (same four numbers) replaces
+`GAL_SECONDARY_INSETS` for CarPlay only, for when the arrival line sits under
+the dials but the Android Auto map is right (#19).
 
 An iPhone that knew the car before the install keeps its old idea of the car
 and never asks for the cluster stream (Golf R). Once after installing: on the
