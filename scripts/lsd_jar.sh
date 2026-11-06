@@ -12,6 +12,12 @@
 # removed as one entry of a line, never by deleting a line that lists others. A broken lsd.sh means the centre
 # screen does not start, so every edit is written to a new file, checked, and
 # only then moved into place; the previous file is kept as lsd.sh.before_<Name>.
+#
+# Audi lsd.sh (AU37x P5089, AUG22 K3346) has no such lines: it puts every
+# .jar and .zip under lsd/jars/ on the class path itself, and its launch line
+# is indented. There a jar is loaded when its file is in jars/; "add" only
+# copies it, and "remove" moves it to jars_off/, so lsd.sh is never edited
+# (#51: "No Java launch line found", though the copied jar was already live).
 PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/sbin:/mnt/app/armle/usr/bin:/mnt/app/armle/usr/sbin:$PATH
 export PATH
 set -eu
@@ -35,6 +41,10 @@ case "$NAME" in */*|*' '*) echo "Bad jar name" >&2; exit 2 ;; esac
 [ -r "$LSD" ] || { echo "Missing $LSD" >&2; exit 1; }
 JAR=$LSD_DIR/jars/$NAME
 TAG=`echo "$NAME" | sed 's/\.jar$//'`
+JARS_OFF=$LSD_DIR/jars_off
+# if, not "[ ] &&" (set -e)
+AUTOJARS=0
+if grep -q 'find \$BASE_DIR/lsd/jars' "$LSD"; then AUTOJARS=1; fi
 LINE="BOOTCLASSPATH=\"\$BOOTCLASSPATH -Xbootclasspath/p:\$BASE_DIR/lsd/jars/$NAME\""
 
 # The entries of every patch line, one per line. Lines that are commented out
@@ -50,7 +60,11 @@ entries()
         }' "$1"
 }
 is_ours() { awk -v n="/lsd/jars/$NAME" '{ if (substr($0, length($0) - length(n) + 1) == n) f = 1 } END { exit f ? 0 : 1 }'; }
-loaded() { entries "$LSD" | is_ours; }
+loaded()
+{
+    if [ "$AUTOJARS" -eq 1 ]; then [ -f "$JAR" ]; return; fi
+    entries "$LSD" | is_ours
+}
 others() { entries "$1" | awk -v n="/lsd/jars/$NAME" 'substr($0, length($0) - length(n) + 1) != n'; }
 
 # Every new lsd.sh must pass these before it replaces the old one.
@@ -76,6 +90,14 @@ case "$ACTION" in
         loaded ;;
     remove)
         if ! loaded; then echo "$NAME is not loaded; nothing to remove."; exit 0; fi
+        if [ "$AUTOJARS" -eq 1 ]; then
+            mount -uw $APP; WRITABLE=1
+            mkdir -p "$JARS_OFF"
+            mv "$JAR" "$JARS_OFF/$NAME"
+            sync
+            echo "Moved $NAME out of $LSD_DIR/jars/ (this lsd.sh loads every jar there): $JARS_OFF/$NAME"
+            exit 0
+        fi
         BEFORE=`wc -l < "$LSD"`
         mount -uw $APP; WRITABLE=1
         # Drop the jar's entry from each patch line. A line left with no
@@ -116,7 +138,16 @@ case "$ACTION" in
             mv "$JAR.new" "$JAR"
             echo "Copied $NAME to $LSD_DIR/jars/"
         fi
+        if [ ! -r "$JAR" ] && [ "$AUTOJARS" -eq 1 ] && [ -r "$JARS_OFF/$NAME" ]; then
+            mount -uw $APP; WRITABLE=1
+            mv "$JARS_OFF/$NAME" "$JAR"
+            echo "Moved $NAME back to $LSD_DIR/jars/"
+        fi
         [ -r "$JAR" ] || { echo "Missing $JAR and no source file to copy" >&2; exit 1; }
+        if [ "$AUTOJARS" -eq 1 ]; then
+            echo "$NAME is in $LSD_DIR/jars/, which this lsd.sh loads by itself; lsd.sh not changed."
+            exit 0
+        fi
         if loaded; then echo "$NAME is already loaded; nothing to add."; exit 0; fi
         BEFORE=`wc -l < "$LSD"`
         [ "`grep -c '^\$J9 ' "$LSD"`" -ge 1 ] || { echo "No Java launch line found in $LSD; not changed" >&2; exit 1; }
