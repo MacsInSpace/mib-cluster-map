@@ -53,6 +53,16 @@ iPhone video → hook in the CarPlay program (dio_manager) → stream-player →
   only and leaves CarPlay stock, without the preload or the firewall rule.
   Some wireless adapters drop or lose the cockpit map with the CarPlay map
   installed (#55, #56); wired CarPlay is the tested path.
+- <a id="wireless-adapters"></a>**Wireless adapters.** The cockpit map needs
+  the iPhone's second screen. Many adapters present themselves to the car as
+  a phone with one screen and never open it, so CarPlay works on the centre
+  screen and the cockpit keeps the car's map. Try a cable first: on a Tiguan
+  (`P4521`) a dongle showed nothing and the cable worked. We have not
+  tested adapters ourselves. On Audi MHI2Q units,
+  [mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay#tested-wireless-adapters)
+  reports the cockpit map through a Baseus Safe Journey and a Carlinkit
+  5.0 / 2Air on stock firmware, and through an HW301 only with their custom
+  image. That is a different head unit, so treat it as a lead, not a promise.
 - **Android boxes and T-Box adapters.** A real iPhone sets up stream type 111,
   the cluster stream. The boxes in #25 and #34 only ever set up the main
   screen (110) and audio (101), so there is nothing to show on the cockpit
