@@ -418,11 +418,13 @@ if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
             # them from the unit's copy, less what that installer wrote into
             # it itself (window lines, "auto" values, the make's context).
             keep_owner_lines "$CONF_COPY" "$CONF_DEFAULT" 2>/dev/null | while IFS='=' read -r K V; do
+                # if, not "[ ] &&": a false test ending a case arm stops
+                # the shell under set -e on the unit (beta14 #52, cpzoom1 #19).
                 case "$K" in
                     GAL_PLAYER_WINDOW|GAL_SECONDARY_MARGINS|GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4|CLUSTERMAP_FULL_FRAME) continue ;;
-                    GAL_SECONDARY_DPI) [ "$V" = "$CAR_DPI" ] && continue ;;
-                    GAL_SECONDARY_INSETS) [ "$V" = "$CAR_INSETS" ] && continue ;;
-                    GAL_VC_CONTEXT) [ "$V" = "$CAR_CONTEXT" ] && continue ;;
+                    GAL_SECONDARY_DPI) if [ "$V" = "$CAR_DPI" ]; then continue; fi ;;
+                    GAL_SECONDARY_INSETS) if [ "$V" = "$CAR_INSETS" ]; then continue; fi ;;
+                    GAL_VC_CONTEXT) if [ "$V" = "$CAR_CONTEXT" ]; then continue; fi ;;
                 esac
                 echo "$K=$V"
             done > /tmp/clustermap_owner_prev.conf && KEEP_FROM="the previous settings copy"
