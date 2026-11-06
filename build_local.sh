@@ -103,7 +103,7 @@ package() {
   # The install scripts treat their own folder as the package root.
   cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh \
      "$ROOT"/scripts/turn_by_turn.sh "$ROOT"/scripts/lsd_jar.sh "$D/"
-  mkdir -p "$D/thirdparty" && cp "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAuto.jar "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAutoMusic.jar "$D/thirdparty/" && \
+  mkdir -p "$D/thirdparty" && cp "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAuto.jar "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAutoMusic.jar "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAutoTurns.jar "$D/thirdparty/" && \
      cp "$ROOT"/thirdparty/mib2-android-auto-vc/LICENSE "$D/thirdparty/VCAndroidAuto.LICENSE"
   cp "$ROOT"/thirdparty/mib2-toolbox/NavActiveIgnore.jar "$D/thirdparty/" && cp "$ROOT"/thirdparty/mib2-toolbox/LICENSE "$D/thirdparty/NavActiveIgnore.LICENSE"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" \

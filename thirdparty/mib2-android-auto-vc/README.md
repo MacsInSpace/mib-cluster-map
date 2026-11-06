@@ -31,3 +31,16 @@ navigation focus, so the phone's map stays on the cockpit when a route
 starts. Installed beside the map with `CLUSTERMAP_MUSIC_INFO=1`; never
 together with VCAndroidAuto.jar, which carries the same classes. Not yet
 car-tested.
+
+## VCAndroidAutoTurns.jar
+
+The full jar with the cockpit view left alone (branch `feature/turns-with-map`,
+commit `c953676`, `make turns`), sha256 `5456cb688496dd2b0b10229f61fa370c6bcb1f984709552014af0942af23a754`.
+It differs from a full build of the same commit in two classes only: Variant
+and ActiveRgType. The full jar answers ActiveRgType with 0, the cockpit's
+arrow view, whenever Android Auto guides, and on VW that view replaces the
+phone's map. This build lets the stock logic answer instead (the map while
+the cockpit shows one, otherwise the driver's own choice), while the turn
+data still goes out. It also carries the track info of
+VCAndroidAutoMusic.jar. Installed with `CLUSTERMAP_TURN_INFO=1`; never
+together with the other two jars. Not yet car-tested.
