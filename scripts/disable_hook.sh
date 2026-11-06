@@ -204,5 +204,17 @@ if [ "${1:-}" != "--keep-jar-removed" ] && [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
             echo "WARNING: could not remove the NavActiveIgnore line; lsd.sh is unchanged." >&2
         fi
     fi
+    # The music-only jar goes with the map (CLUSTERMAP_MUSIC_INFO).
+    if [ -f /mnt/app/eso/hmi/lsd/.aacluster_music_added ]; then
+        if sh "$CARD_ROOT/lsd_jar.sh" remove VCAndroidAutoMusic.jar; then
+            mount -uw /mnt/app 2>/dev/null && {
+                rm -f /mnt/app/eso/hmi/lsd/.aacluster_music_added
+                mount -ur /mnt/app 2>/dev/null || true
+            }
+            echo "Removed the music jar the installer had added."
+        else
+            echo "WARNING: could not remove the VCAndroidAutoMusic.jar line; lsd.sh is unchanged." >&2
+        fi
+    fi
 fi
 echo "Reboot the unit to run GAL without the hook."

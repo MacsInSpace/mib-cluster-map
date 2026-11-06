@@ -18,3 +18,14 @@ writes its log to `/tmp/VCAndroidAuto.log`, which green menu "Save logs to
 SD" collects, and it tells the cluster when the turn pictogram changes, which
 0.1.4 did not. For a fuller log, put a file named `MIBLogger` containing
 `DEBUG` in the top folder of the SD card.
+
+## VCAndroidAutoMusic.jar
+
+The music-only build of the same fork (branch `feature/music-only`, commit
+`79955a2`, `make music`), sha256 `c8bad46aa23c2b0c0280877e33b52462d0d02016d9c0a3ad4881763c9de8ef82`. It shows the
+track playing (title, artist, cover) on the cockpit's media screen and
+nothing else: it leaves out the navigation overrides and never changes the
+navigation focus, so the phone's map stays on the cockpit when a route
+starts. Installed beside the map with `CLUSTERMAP_MUSIC_INFO=1`; never
+together with VCAndroidAuto.jar, which carries the same classes. Not yet
+car-tested.
