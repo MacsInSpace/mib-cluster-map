@@ -1250,46 +1250,82 @@ else
     else
         echo "Java check: VCAndroidAuto.jar is not loaded (good)."
     fi
-    # CLUSTERMAP_MUSIC_INFO=1: the track playing (title, artist, cover) on the
-    # cockpit's media screen beside the map, from the music-only build of the
-    # arrows jar (VCAndroidAutoMusic.jar). It sends no turn data, so the map
-    # stays up when a route starts. Never together with VCAndroidAuto.jar,
-    # which carries the same classes and shows the music itself.
-    MUSIC_JAR=VCAndroidAutoMusic.jar
-    MUSIC_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_music_added
-    MUSIC_ASKED=`sed -n 's/^CLUSTERMAP_MUSIC_INFO=\([01]\)[ 	]*$/\1/p' \
-        "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+    # One extra build of the arrows jar beside the map, never together with
+    # VCAndroidAuto.jar (they carry the same classes):
+    #   CLUSTERMAP_TURN_INFO=1  VCAndroidAutoTurns.jar: turn data and track
+    #     info, the cockpit's view (arrows or map) left to the stock logic so
+    #     the map should stay up with the cockpit's arrow beside it.
+    #   CLUSTERMAP_MUSIC_INFO=1 VCAndroidAutoMusic.jar: track info only, no
+    #     turn data.
+    # TURN_INFO wins when both are set. Each jar the installer adds gets a
+    # marker, and only marked jars are ever removed.
+    CONF_FILE="$PRELOAD_WRITE_DIR/gal_dualscreen.conf"
+    TURNS_ASKED=`sed -n 's/^CLUSTERMAP_TURN_INFO=\([01]\)[ 	]*$/\1/p' "$CONF_FILE" 2>/dev/null | tail -1`
+    MUSIC_ASKED=`sed -n 's/^CLUSTERMAP_MUSIC_INFO=\([01]\)[ 	]*$/\1/p' "$CONF_FILE" 2>/dev/null | tail -1`
     FULL_JAR=0
     if sh "$CARD_ROOT/lsd_jar.sh" loaded VCAndroidAuto.jar; then FULL_JAR=1; fi
-    if [ "$MUSIC_ASKED" = 1 ] && [ "$FULL_JAR" -eq 0 ]; then
-        if [ "$TBT_OK" -ne 1 ]; then
-            echo "WARNING: CLUSTERMAP_MUSIC_INFO=1 ignored: the music jar is not known to" >&2
-            echo "         work on firmware $TRAIN." >&2
-        elif sh "$CARD_ROOT/lsd_jar.sh" loaded $MUSIC_JAR; then
-            echo "Java check: $MUSIC_JAR is loaded (track info on the cockpit)."
-        else
-            echo "Java check: adding $MUSIC_JAR (CLUSTERMAP_MUSIC_INFO=1: track info on the cockpit, no turn data)."
-            if sh "$CARD_ROOT/lsd_jar.sh" add $MUSIC_JAR "$CARD_ROOT/thirdparty/$MUSIC_JAR"; then
-                mount -uw /mnt/app 2>/dev/null && { : > "$MUSIC_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
-            else
-                echo "WARNING: could not add $MUSIC_JAR; lsd.sh is unchanged." >&2
-            fi
+    WANT_JAR=
+    WANT_KEY=
+    WANT_WHAT=
+    if [ "$TURNS_ASKED" = 1 ]; then
+        WANT_JAR=VCAndroidAutoTurns.jar
+        WANT_KEY=CLUSTERMAP_TURN_INFO
+        WANT_WHAT="turn info and track info, cockpit view left to the cockpit"
+    elif [ "$MUSIC_ASKED" = 1 ]; then
+        WANT_JAR=VCAndroidAutoMusic.jar
+        WANT_KEY=CLUSTERMAP_MUSIC_INFO
+        WANT_WHAT="track info on the cockpit, no turn data"
+    fi
+    if [ "$FULL_JAR" -eq 1 ] && [ -n "$WANT_JAR" ]; then
+        echo "WARNING: $WANT_KEY=1 ignored: VCAndroidAuto.jar is loaded" >&2
+        echo "         (CLUSTERMAP_KEEP_ARROWS=1) and carries the same classes." >&2
+        WANT_JAR=
+    fi
+    FOREIGN_JAR=
+    for EXTRA_JAR in VCAndroidAutoMusic.jar VCAndroidAutoTurns.jar; do
+        case "$EXTRA_JAR" in
+            VCAndroidAutoMusic.jar) EXTRA_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_music_added ;;
+            *) EXTRA_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_turns_added ;;
+        esac
+        if [ "$EXTRA_JAR" = "$WANT_JAR" ]; then
+            continue
         fi
-    elif sh "$CARD_ROOT/lsd_jar.sh" loaded $MUSIC_JAR; then
-        if [ -f "$MUSIC_MARKER" ]; then
-            if [ "$FULL_JAR" -eq 1 ]; then
-                echo "Java check: removing $MUSIC_JAR: VCAndroidAuto.jar is loaded and shows the music itself."
+        if ! sh "$CARD_ROOT/lsd_jar.sh" loaded $EXTRA_JAR; then
+            continue
+        fi
+        if [ -f "$EXTRA_MARKER" ]; then
+            echo "Java check: removing $EXTRA_JAR (not asked for in gal_dualscreen.conf)."
+            if sh "$CARD_ROOT/lsd_jar.sh" remove $EXTRA_JAR; then
+                mount -uw /mnt/app 2>/dev/null && { rm -f "$EXTRA_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
             else
-                echo "Java check: removing $MUSIC_JAR (CLUSTERMAP_MUSIC_INFO is not 1)."
+                echo "WARNING: could not remove $EXTRA_JAR; lsd.sh is unchanged." >&2
             fi
-            if sh "$CARD_ROOT/lsd_jar.sh" remove $MUSIC_JAR; then
-                mount -uw /mnt/app 2>/dev/null && { rm -f "$MUSIC_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+        else
+            FOREIGN_JAR=$EXTRA_JAR
+            echo "WARNING: $EXTRA_JAR is loaded and this installer did not add it." >&2
+            echo "         Never load two of VCAndroidAuto.jar, VCAndroidAutoMusic.jar and" >&2
+            echo "         VCAndroidAutoTurns.jar together: they carry the same classes." >&2
+        fi
+    done
+    if [ -n "$WANT_JAR" ]; then
+        case "$WANT_JAR" in
+            VCAndroidAutoMusic.jar) WANT_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_music_added ;;
+            *) WANT_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_turns_added ;;
+        esac
+        if [ "$TBT_OK" -ne 1 ]; then
+            echo "WARNING: $WANT_KEY=1 ignored: the arrows jar is not known to" >&2
+            echo "         work on firmware $TRAIN." >&2
+        elif sh "$CARD_ROOT/lsd_jar.sh" loaded $WANT_JAR; then
+            echo "Java check: $WANT_JAR is loaded ($WANT_WHAT)."
+        elif [ -n "$FOREIGN_JAR" ]; then
+            echo "WARNING: $WANT_KEY=1 ignored: remove $FOREIGN_JAR first." >&2
+        else
+            echo "Java check: adding $WANT_JAR ($WANT_KEY=1: $WANT_WHAT)."
+            if sh "$CARD_ROOT/lsd_jar.sh" add $WANT_JAR "$CARD_ROOT/thirdparty/$WANT_JAR"; then
+                mount -uw /mnt/app 2>/dev/null && { : > "$WANT_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
             else
-                echo "WARNING: could not remove $MUSIC_JAR; lsd.sh is unchanged." >&2
+                echo "WARNING: could not add $WANT_JAR; lsd.sh is unchanged." >&2
             fi
-        elif [ "$FULL_JAR" -eq 1 ]; then
-            echo "WARNING: both $MUSIC_JAR and VCAndroidAuto.jar are loaded, and this installer" >&2
-            echo "         added neither. Remove one: they carry the same classes." >&2
         fi
     fi
 fi
