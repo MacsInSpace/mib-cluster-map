@@ -268,6 +268,7 @@ phone names and Bluetooth addresses.
 | What you see | What to do |
 |---|---|
 | The car's own map, or "no map" | Check the cluster is in map view. Unplug the phone, wait ten seconds, plug it in |
+| CarPlay works on the centre screen through a wireless adapter, but the cockpit keeps the car's map | Try a cable. Many adapters never open the iPhone's second screen, which the cockpit map needs ([CarPlay](CarPlay.md#wireless-adapters)) |
 | A wireless adapter connects, then drops every few seconds | In the adapter's own app: automatic standby **off**, VAG crash fix **off** (that fix is for VAG *Technisat* units, not Harman), adapter firmware up to date (#12, #35) |
 | The phone keeps disconnecting | Save logs, uninstall, reboot, open an issue |
 | The map appears, then goes blank when a route starts, or the cluster says "navigation on mobile device is active" | `NavActiveIgnore` is not loaded. The installer adds it on `P4521`, `K4525`, `P4512`, US `P3662`, Skoda `P4526` and SEAT `P4709`. On any other firmware set `CLUSTERMAP_ADD_NAVIGNORE=1` and install again, or apply it from the MIB2 Toolbox (**Customization > Navigation > Ignore navigation-active status**). Check SSH works first — see [Safety and recovery](#safety-and-recovery) |
