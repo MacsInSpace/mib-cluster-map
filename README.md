@@ -8,7 +8,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 
 | Phone | On the cluster | State |
 |---|---|---|
-| Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521`, `K4525`, `P4512` and `P4174` (Golf R, Passat B8, Passat R wagon, Golf Alltrack), VW `MHI2_ER_VWG11_K3342` (Discover Pro 8 in, Passat B8), SEAT `MHI2_ER_SEG11_P4708` and `P4709`, Skoda `MHI2_ER_SKG13_P4526` and `P4523`, Audi A4 B9 `MHI2_ER_AUG22_K3346`, Audi A3/S3 8V `MHI2_ER_AU37x_P5089`, VW `MHI2_ER_VWG11_P3301`, US `MHI2_US_VWG13_P3662` |
+| Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521`, `K4525`, `P4512` and `P4174` (Golf R, Passat B8, Passat R wagon, Golf Alltrack), VW `MHI2_ER_VWG11_K3342` (Discover Pro 8 in, Passat B8 and Passat GTE), SEAT `MHI2_ER_SEG11_P4708` and `P4709`, Skoda `MHI2_ER_SKG13_P4526` and `P4523`, Audi A4 B9 `MHI2_ER_AUG22_K3346`, Audi A3/S3 8V `MHI2_ER_AU37x_P5089` and `P5153`, VW `MHI2_ER_VWG11_P3301`, US `MHI2_US_VWG13_P3662` |
 | Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc), [our fork](https://github.com/MacsInSpace/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
 | Apple CarPlay | The Apple Maps or Google Maps map, live | **Working** on a Golf R (`P4512`), a SEAT (`P4709`) and a Golf (`K4525`). It can switch back to the car's own map while driving, under investigation (#19, #43). See [CarPlay](docs/CarPlay.md) |
 
@@ -119,9 +119,9 @@ no translation at all. The same in nine languages:
 | VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367), both road-tested, and `P4512` (Golf R; Passat B8, #47). US `P3662` installs as tested. `P4174` (Passat R wagon, #49) and `P4521_1` (Golf Alltrack) tested. Others wanted |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` and `P4709` (1010×376 cluster window). **Arrows** on both |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | **Map** on `P4526` (#15) and `P4523` (#56), car-confirmed. Others wanted |
-| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | **Map** on `K3342` (MU1427), Passat B8, found and road-tested by owners (#39, #28), and `P3301` (#33). Set `CLUSTERMAP_ADD_NAVIGNORE=1` to keep the map during a route. **`S2125`: update to `K3342` first** (see below); on S2125 itself NavActiveIgnore stopped Android Auto, so the map goes when a route starts |
+| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | **Map** on `K3342` (MU1427), Passat B8, found and road-tested by owners (#39, #28), and `P3301` (#33); beta18 on K3342 confirmed in #64 and #65. `K3332` has a profile but is not yet tested on a cockpit (#45). Set `CLUSTERMAP_ADD_NAVIGNORE=1` to keep the map during a route. **`S2125`: update to `K3342` first** (see below); on S2125 itself NavActiveIgnore stopped Android Auto, so the map goes when a route starts |
 | VW Discover Pro, Japan | `MHI2_JP_VW48x_` | **Trial** on `P0953`, which has the same Android Auto program as `P4708` and needs no trial line (#37), being tested |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | **Map** on the A4 B9 `K3346` (#14; 1440×455 cockpit window, context 72, both set by the installer; shown in the map view and the Audi's own cockpit view). A3 `AU37x` (#51) and an RS3 still to be tried. The update needs developer mode (see Install) |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | **Map** on the A4 B9 `K3346` (#14; 1440×455 cockpit window, context 72, both set by the installer; shown in the map view and the Audi's own cockpit view). A3/S3 8V `AU37x_P5089` (#51) and `P5153` (#63) work; an RS3 is still to be tried. The update needs developer mode (see Install) |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies |
 
