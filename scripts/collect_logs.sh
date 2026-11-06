@@ -22,6 +22,8 @@ ls -l /lib/libEGL* /lib/libGLESv2* /usr/lib/libEGL* > $OUT/gl_libs.txt 2>&1
 grep -n "gal" /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/gal_config_lines.txt 2>&1
 sh $HERE/scripts/hook_status.sh > $OUT/status.txt 2>&1
 grep -n 'Xbootclasspath' /mnt/app/eso/hmi/lsd/lsd.sh > $OUT/java_patches.txt 2>&1
+# Audi lsd.sh loads every jar in lsd/jars by itself (#51): list them too.
+{ echo "--- lsd/jars"; ls -l /mnt/app/eso/hmi/lsd/jars /mnt/app/eso/hmi/lsd/jars_off; } >> $OUT/java_patches.txt 2>&1
 # dmdt buffers its output when it is not a terminal; the flush shim makes it
 # write before it exits (as in GEM/collect_for_porting.sh).
 # gd lists every window with its size; 33 is the stock cluster map.
