@@ -22,9 +22,11 @@ SD" collects, and it tells the cluster when the turn pictogram changes, which
 ## VCAndroidAutoMusic.jar
 
 The music-only build of the same fork (branch `feature/music-only`, commit
-`79955a2`, `make music`), sha256 `c8bad46aa23c2b0c0280877e33b52462d0d02016d9c0a3ad4881763c9de8ef82`. It shows the
+`a2413b8`, `make music`), sha256 `685199faa928255ec6a880b1ff89ab4a08a72ea69543c1f628fde1a54549807a`. It shows the
 track playing (title, artist, cover) on the cockpit's media screen and
-nothing else: it leaves out the navigation overrides and never changes the
+nothing else. With CarPlay it shows title, artist and album: the stock
+CarPlay code never asks for them, so the jar subscribes to the iPhone's
+now-playing data itself (listen only, nothing is sent to the phone). It leaves out the navigation overrides and never changes the
 navigation focus, so the phone's map stays on the cockpit when a route
 starts. Installed beside the map with `CLUSTERMAP_MUSIC_INFO=1`; never
 together with VCAndroidAuto.jar, which carries the same classes. Not yet
