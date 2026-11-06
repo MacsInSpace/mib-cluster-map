@@ -21,21 +21,22 @@ SD" collects, and it tells the cluster when the turn pictogram changes, which
 
 ## VCAndroidAutoMusic.jar
 
-The music-only build of the same fork (branch `feature/music-only`, commit
-`a2413b8`, `make music`), sha256 `685199faa928255ec6a880b1ff89ab4a08a72ea69543c1f628fde1a54549807a`. It shows the
+The music-only build of the same fork (branch `feature/turns-with-map`, commit
+`016d3ff`, `make music`), sha256 `b688f1fa2a1a25f7a8cce8b547f33beec05aa0a53afb3ad6c71d2a229d19fddb`. It shows the
 track playing (title, artist, cover) on the cockpit's media screen and
 nothing else. With CarPlay it shows title, artist and album: the stock
 CarPlay code never asks for them, so the jar subscribes to the iPhone's
 now-playing data itself (listen only, nothing is sent to the phone). It leaves out the navigation overrides and never changes the
 navigation focus, so the phone's map stays on the cockpit when a route
 starts. Installed beside the map with `CLUSTERMAP_MUSIC_INFO=1`; never
-together with VCAndroidAuto.jar, which carries the same classes. Not yet
-car-tested.
+together with VCAndroidAuto.jar, which carries the same classes. Android Auto track info
+car-tested on the Golf as part of VCAndroidAutoTurns.jar; CarPlay track info
+not yet car-tested.
 
 ## VCAndroidAutoTurns.jar
 
 The full jar with the cockpit view left alone (branch `feature/turns-with-map`,
-commit `c953676`, `make turns`), sha256 `5456cb688496dd2b0b10229f61fa370c6bcb1f984709552014af0942af23a754`.
+commit `016d3ff`, `make turns`), sha256 `3b95415ee76a77c0d8339b335aff3e21717db29102af5d0dfe6a88bc505339f1`.
 It differs from a full build of the same commit in two classes only: Variant
 and ActiveRgType. The full jar answers ActiveRgType with 0, the cockpit's
 arrow view, whenever Android Auto guides, and on VW that view replaces the
@@ -43,4 +44,11 @@ phone's map. This build lets the stock logic answer instead (the map while
 the cockpit shows one, otherwise the driver's own choice), while the turn
 data still goes out. It also carries the track info of
 VCAndroidAutoMusic.jar. Installed with `CLUSTERMAP_TURN_INFO=1`; never
-together with the other two jars. Not yet car-tested.
+together with the other two jars. Car-tested on a Golf R (P4521) at commit
+`c953676`: the phone's map stayed on the cockpit, with the road name above it
+and the turn arrow in the right dial; the media screen showed the track and
+cover.
+
+From `016d3ff` both builds also clear the cockpit's turn pictogram when the
+phone ends its route; at `c953676` the last arrow stayed on screen after the
+route ended. That fix is not yet car-tested.

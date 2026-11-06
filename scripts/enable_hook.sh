@@ -731,8 +731,17 @@ fi
 # visible (Golf R: card and car under the dials).
 CARPLAY_SAFEAREA=$APP_MOUNT/root/mibr-carplay111-safearea.conf
 if [ "$CARPLAY_OK" -eq 1 ]; then
-    INSETS=`sed -n 's/^GAL_SECONDARY_INSETS=\([0-9]*\),\([0-9]*\),\([0-9]*\),\([0-9]*\)[ 	]*$/\1 \2 \3 \4/p' \
+    # CLUSTERMAP_CARPLAY_INSETS (same four numbers) moves only CarPlay's
+    # safe area, so Android Auto keeps GAL_SECONDARY_INSETS (#19: the ETA
+    # line under the SEAT dials).
+    INSETS=`sed -n 's/^CLUSTERMAP_CARPLAY_INSETS=\([0-9]*\),\([0-9]*\),\([0-9]*\),\([0-9]*\)[ 	]*$/\1 \2 \3 \4/p' \
         "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+    if [ -n "$INSETS" ]; then
+        echo "CarPlay map: insets from CLUSTERMAP_CARPLAY_INSETS"
+    else
+        INSETS=`sed -n 's/^GAL_SECONDARY_INSETS=\([0-9]*\),\([0-9]*\),\([0-9]*\),\([0-9]*\)[ 	]*$/\1 \2 \3 \4/p' \
+            "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+    fi
     set -- ${INSETS:-40 40 127 127}
     # The insets count from the edge of the whole 800x480 frame, margins of
     # the band included; CarPlay has no margins, so take them off first (SEAT
