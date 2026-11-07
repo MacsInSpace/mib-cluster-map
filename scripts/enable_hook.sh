@@ -1337,6 +1337,27 @@ else
             fi
         fi
     fi
+    # CLUSTERMAP_TURN_TEXT=auto|always|never: when the turns jar sends the
+    # road name ("towards ...") to the cockpit. auto: only while the cockpit
+    # is not showing the map, which already has Google's own card. The jar
+    # reads it when the centre screen starts.
+    TURN_TEXT_FILE=/mnt/app/root/vcaa_turn_text
+    if [ "$WANT_JAR" = VCAndroidAutoTurns.jar ]; then
+        TURN_TEXT=`sed -n 's/^CLUSTERMAP_TURN_TEXT=\([a-z]*\)[ 	]*$/\1/p' "$CONF_FILE" 2>/dev/null | tail -1`
+        case "$TURN_TEXT" in
+            auto|always|never) ;;
+            "") TURN_TEXT=auto ;;
+            *) echo "WARNING: CLUSTERMAP_TURN_TEXT=$TURN_TEXT is not auto, always or never; using auto." >&2
+               TURN_TEXT=auto ;;
+        esac
+        if mount -uw /mnt/app 2>/dev/null; then
+            echo "$TURN_TEXT" > "$TURN_TEXT_FILE" || echo "WARNING: could not write $TURN_TEXT_FILE" >&2
+            mount -ur /mnt/app 2>/dev/null || true
+        fi
+        echo "Turn info: road name on the cockpit: $TURN_TEXT"
+    elif [ -f "$TURN_TEXT_FILE" ]; then
+        mount -uw /mnt/app 2>/dev/null && { rm -f "$TURN_TEXT_FILE"; mount -ur /mnt/app 2>/dev/null || true; }
+    fi
 fi
 
 echo
