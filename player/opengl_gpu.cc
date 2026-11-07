@@ -261,7 +261,9 @@ static GLfloat backgroundColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
  * the rest of the frame has the window's shape; they are cropped off here
  * and the rest fills the window. A CarPlay stream is asked for at the
  * window's size and fills it as it is. Anything else that still differs in
- * shape is drawn centred at its own shape, with black bars.
+ * shape is drawn centred at its own shape, with black bars. GAL_CROP_TOP or
+ * GAL_CROP_BOTTOM switches Android Auto to a full-frame crop and stretches
+ * the remaining rows over the window.
  */
 /*
  * Margins cost picture: on a 1010x376 window only 298 of the 480 lines carry
@@ -272,6 +274,7 @@ static GLfloat backgroundColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
  * (From AMDFX60's fork, reported car-tested on a Skoda Superb.)
  */
 static int g_marginW = 0, g_marginH = 0;
+static int g_cropTop = 0, g_cropBottom = 0;
 static int g_pixelAspectE4 = 10000;
 static int g_priority = 0;      /* GAL_PLAYER_PRIORITY, 0 = as spawned */
 static GLfloat fittedVertices[12];
@@ -279,27 +282,46 @@ static GLfloat croppedTexCoords[8];
 static void fit_frame(int frameW, int frameH) {
     float sx = 1.0f, sy = 1.0f, cu = 0.0f, cv = 0.0f, par = 1.0f;
     int contentW = frameW, contentH = frameH;
+    int marginTop = 0, marginLeft = 0;
+    bool cropConfigured = frameW == 800 && frameH == 480 &&
+                          (g_cropTop > 0 || g_cropBottom > 0) &&
+                          g_cropTop + g_cropBottom < frameH;
     if (frameW == 800 && frameH == 480) {
-        if (g_marginW > 0 || g_marginH > 0) {
+        if (cropConfigured) {
+            contentH = frameH - g_cropTop - g_cropBottom;
+            cu = 0.0f;
+            cv = (float)g_cropTop / (float)frameH;
+            const GLfloat t[8] = {
+                0.0f, cv,
+                1.0f, cv,
+                1.0f, 1.0f - (float)g_cropBottom / (float)frameH,
+                0.0f, 1.0f - (float)g_cropBottom / (float)frameH,
+            };
+            memcpy(croppedTexCoords, t, sizeof t);
+        } else if (g_marginW > 0 || g_marginH > 0) {
+            marginLeft = g_marginW / 2;
+            marginTop = g_marginH / 2;
             contentW = frameW - g_marginW;
             contentH = frameH - g_marginH;
-            cu = (float)g_marginW / 2.0f / (float)frameW;
-            cv = (float)g_marginH / 2.0f / (float)frameH;
+            cu = (float)marginLeft / (float)frameW;
+            cv = (float)marginTop / (float)frameH;
         }
         par = (float)g_pixelAspectE4 / 10000.0f;
     }
-    if (contentW > 0 && contentH > 0) {
+    if (!cropConfigured && contentW > 0 && contentH > 0) {
         float contentAspect = (float)contentW * par / (float)contentH;
         float windowAspect = (float)windowWidth / (float)windowHeight;
         if (contentAspect > windowAspect * 1.01f) sy = windowAspect / contentAspect;
         else if (contentAspect < windowAspect * 0.99f) sx = contentAspect / windowAspect;
     }
     const GLfloat v[12] = { -sx, sy, 0.0f,  sx, sy, 0.0f,  sx, -sy, 0.0f,  -sx, -sy, 0.0f };
-    const GLfloat t[8] = { cu, cv,  1.0f - cu, cv,  1.0f - cu, 1.0f - cv,  cu, 1.0f - cv };
+    if (!cropConfigured) {
+        const GLfloat t[8] = { cu, cv,  1.0f - cu, cv,  1.0f - cu, 1.0f - cv,  cu, 1.0f - cv };
+        memcpy(croppedTexCoords, t, sizeof t);
+    }
     memcpy(fittedVertices, v, sizeof v);
-    memcpy(croppedTexCoords, t, sizeof t);
-    LOG("render: %dx%d frame, %dx%d after margins, pixel aspect %.4f, in a %dx%d window, drawn %dx%d",
-        frameW, frameH, contentW, contentH, par, windowWidth, windowHeight,
+    LOG("render: %dx%d frame, %dx%d after margins/crop, pixel aspect %.4f, crop=%s, in a %dx%d window, drawn %dx%d",
+        frameW, frameH, contentW, contentH, par, cropConfigured ? "stretch" : "off", windowWidth, windowHeight,
         (int)(sx * windowWidth + 0.5f), (int)(sy * windowHeight + 0.5f));
 }
 
@@ -1524,6 +1546,12 @@ static void load_player_config() {
                     g_marginW = w & ~1;
                     g_marginH = h & ~1;
                 }
+            } else if (strcmp(key, "GAL_CROP_TOP") == 0) {
+                int v = atoi(val);
+                if (v >= 0 && v <= 240) g_cropTop = v;
+            } else if (strcmp(key, "GAL_CROP_BOTTOM") == 0) {
+                int v = atoi(val);
+                if (v >= 0 && v <= 240) g_cropBottom = v;
             } else if (strcmp(key, "GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4") == 0) {
                 /* Wide enough for any window of 320..1920 by 160..1080. */
                 int e4 = atoi(val);
@@ -1565,6 +1593,16 @@ static void load_player_config() {
             g_marginW = w & ~1;
             g_marginH = h & ~1;
         }
+    }
+    env_val = getenv("GAL_CROP_TOP");
+    if (env_val) {
+        int v = atoi(env_val);
+        if (v >= 0 && v <= 240) g_cropTop = v;
+    }
+    env_val = getenv("GAL_CROP_BOTTOM");
+    if (env_val) {
+        int v = atoi(env_val);
+        if (v >= 0 && v <= 240) g_cropBottom = v;
     }
     env_val = getenv("GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4");
     if (env_val) {
