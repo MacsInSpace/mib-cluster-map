@@ -22,7 +22,7 @@ SD" collects, and it tells the cluster when the turn pictogram changes, which
 ## VCAndroidAutoMusic.jar
 
 The music-only build of the same fork (branch `feature/turns-with-map`, commit
-`971407a`, `make music`), sha256 `2a057a1649111d8bb17c49a9d36d7b104e5451268eb28b79b77161de2d72dcad`. It shows the
+`72b7c0e`, `make music`), sha256 `534673eaf638535ffb9d711dda56c74fe97d472a7529e566f003c1803a45e44e`. It shows the
 track playing (title, artist, cover) on the cockpit's media screen and
 nothing else. With CarPlay it shows title, artist and album: the stock
 CarPlay code never asks for them, so the jar subscribes to the iPhone's
@@ -36,7 +36,7 @@ not yet car-tested.
 ## VCAndroidAutoTurns.jar
 
 The full jar with the cockpit view left alone (branch `feature/turns-with-map`,
-commit `971407a`, `make turns`), sha256 `2416fbd556ad71126a9402872fbebf0dadb16bfa86d9bf0cf383d43991ed74c8`.
+commit `72b7c0e`, `make turns`), sha256 `b126fa138047e29a91375ad133ad8b986233b376c1689f41b5d3284737c76aca`.
 It differs from a full build of the same commit in two classes only: Variant
 and ActiveRgType. The full jar answers ActiveRgType with 0, the cockpit's
 arrow view, whenever Android Auto guides, and on VW that view replaces the
@@ -56,3 +56,9 @@ route ended. That fix is not yet car-tested.
 From `971407a` the turns build sends the road name ("towards ...") only while
 the cockpit is not showing the map, where Google Maps' card already has it
 (`CLUSTERMAP_TURN_TEXT`: auto, always, never). Not yet car-tested.
+
+The clear from `016d3ff` never reached the cockpit: the stock code turns
+Android Auto's guiding flag off first, and from then on the cockpit's arrow
+function ignores the jar's data (#70). From `72b7c0e` the jar clears the arrow,
+distance and road name before the flag goes off, and with no route the arrow
+is always sent empty. Not yet car-tested.
