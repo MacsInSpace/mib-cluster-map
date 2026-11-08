@@ -3074,6 +3074,36 @@ static void cluster_input_message(void *router, unsigned char channel, const voi
     }
 }
 
+/*
+ * GAL_PRIMARY_DPI: the density the main screen announces to the phone, in
+ * place of the firmware's own. Android Auto sizes its text and icons from it
+ * (lower: smaller, more on screen), as aawireless's DPI setting does, which
+ * its passthrough mode loses (#71). Unset, 0 or out of 60..400: stock value.
+ */
+static int primary_density(void *sink, int density)
+{
+    static int logged;
+    const char *value;
+    unsigned long want;
+
+    if (sink == NULL || sink == g_secondary_sink) return density;
+    value = getenv("GAL_PRIMARY_DPI");
+    if (value == NULL || value[0] == 0) return density;
+    want = strtoul(value, NULL, 10);
+    if (want < 60ul || want > 400ul) {
+        if (!logged) {
+            logged = 1;
+            gal_hook_logf("event=primary.dpi result=ignored value=%s stock=%d reason=range_60_400", value, density);
+        }
+        return density;
+    }
+    if (!logged) {
+        logged = 1;
+        gal_hook_logf("event=primary.dpi result=override stock=%d dpi=%lu", density, want);
+    }
+    return (int)want;
+}
+
 /* The older receiver's form; it is how the primary sink announces itself
  * there, exactly as the seven-int one does on P4521. */
 void _ZN9VideoSink25addSupportedConfigurationEiiiii(
@@ -3087,6 +3117,7 @@ void _ZN9VideoSink25addSupportedConfigurationEiiiii(
     gal_hook_debugf("event=video.config.add role=%s sink=%p resolution_enum=%d fps=%d margins=%dx%d dpi=%d form=5",
                     sink == g_secondary_sink ? "secondary" : "primary",
                     sink, resolution, fps, width_margin, height_margin, density);
+    density = primary_density(sink, density);
     g_add_configuration5(sink, resolution, fps, width_margin, height_margin, density);
 }
 
@@ -3108,6 +3139,7 @@ void _ZN9VideoSink25addSupportedConfigurationEiiiiiii(
                     sink == g_secondary_sink ? "secondary" : "primary",
                     sink, resolution, fps, width_margin, height_margin,
                     density, decoder_depth, pixel_aspect_ratio_e4);
+    density = primary_density(sink, density);
     g_add_configuration(sink, resolution, fps, width_margin, height_margin,
                         density, decoder_depth, pixel_aspect_ratio_e4);
 }
