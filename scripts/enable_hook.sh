@@ -401,47 +401,53 @@ unit_make "$PROFILES" "$TRAIN" || :
 
 # Internal copy of the settings file: the hook reads the SD card first and
 # falls back to this one, so the tuned values still apply without the card.
+# Every setting below is read from this copy, which is written without the
+# carriage returns a Windows editor adds: with them none of the installer's
+# own readers matched a line, while the hook (which strips them) still did,
+# so a CRLF file was half-applied without a word.
+#
 # The owner's own lines from the last install are put back where this card
-# still has the shipped default (scripts/lib_keep_settings.sh).
+# still has the shipped default (scripts/lib_keep_settings.sh), with one
+# exception: on the SAME package as the last install, a setting whose line
+# on the card has changed since that install is the owner's edit and is used
+# as it is, also when the edit was putting it back to the shipped value
+# (#19: FRAME_SCALE commented out on the card, yet 135 came back each time).
 CONF_COPY="$PRELOAD_WRITE_DIR/gal_dualscreen.conf"
 OWNER_SAVED="$PRELOAD_WRITE_DIR/gal_dualscreen.owner.conf"
+CARD_LAST="$PRELOAD_WRITE_DIR/gal_dualscreen.card.conf"
 CONF_DEFAULT="$CARD_ROOT/scripts/gal_dualscreen.default.conf"
-# The package last installed. Installing the same package again means the
-# owner edited this card: it is used as it is, so a line put back to its
-# shipped value stays that way (#19: FRAME_SCALE commented out on the card,
-# yet the previous install's 135 came back every time).
 PKG_SAVED="$PRELOAD_WRITE_DIR/package_version.txt"
 PKG_NOW=`head -1 "$CARD_ROOT/scripts/package_version.txt" 2>/dev/null`
 PKG_LAST=`head -1 "$PKG_SAVED" 2>/dev/null`
+CARD_SAVED_NEW=
 if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
-    KEEP_SETTINGS=`sed -n 's/^CLUSTERMAP_KEEP_SETTINGS=\([01]\)[ 	]*$/\1/p' "$CARD_ROOT/gal_dualscreen.conf" 2>/dev/null | tail -1`
-    KEEP_FROM=
-    SAME_PACKAGE=
-    if [ -n "$PKG_NOW" ] && [ "$PKG_NOW" = "$PKG_LAST" ]; then SAME_PACKAGE=1; fi
-    if [ -n "$SAME_PACKAGE" ] && [ "$KEEP_SETTINGS" != 0 ]; then
-        echo "Settings: the same package ($PKG_NOW) as the last install, so the card's gal_dualscreen.conf is used as it is."
-    elif [ "$KEEP_SETTINGS" != 0 ] && [ -r "$CONF_DEFAULT" ] && [ -r "$CARD_ROOT/scripts/lib_keep_settings.sh" ]; then
-        . "$CARD_ROOT/scripts/lib_keep_settings.sh"
-        if [ -r "$OWNER_SAVED" ]; then
-            cp "$OWNER_SAVED" /tmp/clustermap_owner_prev.conf 2>/dev/null && KEEP_FROM=saved
-        elif [ -r "$CONF_COPY" ]; then
-            # Installed by beta18 or older, which saved no owner lines: take
-            # them from the unit's copy, less what that installer wrote into
-            # it itself (window lines, "auto" values, the make's context).
-            keep_owner_lines "$CONF_COPY" "$CONF_DEFAULT" 2>/dev/null | while IFS='=' read -r K V; do
-                # if, not "[ ] &&": a false test ending a case arm stops
-                # the shell under set -e on the unit (beta14 #52, cpzoom1 #19).
-                case "$K" in
-                    GAL_PLAYER_WINDOW|GAL_SECONDARY_MARGINS|GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4|CLUSTERMAP_FULL_FRAME) continue ;;
-                    GAL_SECONDARY_DPI) if [ "$V" = "$CAR_DPI" ]; then continue; fi ;;
-                    GAL_SECONDARY_INSETS) if [ "$V" = "$CAR_INSETS" ]; then continue; fi ;;
-                    GAL_VC_CONTEXT) if [ "$V" = "$CAR_CONTEXT" ]; then continue; fi ;;
-                esac
-                echo "$K=$V"
-            done > /tmp/clustermap_owner_prev.conf && KEEP_FROM="the previous settings copy"
-        fi
+    if awk '{ sub(/\r$/, ""); print }' "$CARD_ROOT/gal_dualscreen.conf" > "$CONF_COPY.card" 2>/dev/null &&
+       [ -s "$CONF_COPY.card" ]; then
+        :
+    else
+        cp "$CARD_ROOT/gal_dualscreen.conf" "$CONF_COPY.card" 2>/dev/null || true
     fi
-    cp "$CARD_ROOT/gal_dualscreen.conf" "$CONF_COPY" 2>/dev/null || true
+    KEEP_SETTINGS=`sed -n 's/^CLUSTERMAP_KEEP_SETTINGS=\([01]\)[ 	]*$/\1/p' "$CONF_COPY.card" 2>/dev/null | tail -1`
+    KEEP_FROM=
+    if [ "$KEEP_SETTINGS" != 0 ] && [ -r "$CONF_DEFAULT" ] && [ -r "$CARD_ROOT/scripts/lib_keep_settings.sh" ] &&
+       [ -r "$OWNER_SAVED" ]; then
+        . "$CARD_ROOT/scripts/lib_keep_settings.sh"
+        if [ -n "$PKG_NOW" ] && [ "$PKG_NOW" = "$PKG_LAST" ] && [ -r "$CARD_LAST" ]; then
+            keep_unedited "$OWNER_SAVED" "$CONF_COPY.card" "$CARD_LAST" > /tmp/clustermap_owner_prev.conf 2>/dev/null &&
+                KEEP_FROM=saved
+        else
+            cp "$OWNER_SAVED" /tmp/clustermap_owner_prev.conf 2>/dev/null && KEEP_FROM=saved
+        fi
+    elif [ "$KEEP_SETTINGS" != 0 ] && [ ! -r "$OWNER_SAVED" ] && [ -r "$CONF_COPY" ]; then
+        # Installed by a release that saved no owner lines (v1.1.1, beta18 or
+        # older). Its copy cannot tell the owner's lines from the ones that
+        # installer wrote or shipped, so nothing is carried over.
+        echo "Settings: the previous install was from an older release; its settings are not carried over. This card's gal_dualscreen.conf is used."
+    fi
+    # The card's file as it is now, for the comparison at the next install.
+    # Moved into place only when this install has finished.
+    cp "$CONF_COPY.card" "$CARD_LAST.new" 2>/dev/null && CARD_SAVED_NEW=1
+    mv "$CONF_COPY.card" "$CONF_COPY" 2>/dev/null || cp "$CARD_ROOT/gal_dualscreen.conf" "$CONF_COPY" 2>/dev/null || true
     chmod 644 "$CONF_COPY" 2>/dev/null || true
     echo "Installed settings copy: $CONF_COPY"
     if [ -n "$KEEP_FROM" ]; then
@@ -460,9 +466,6 @@ if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
         . "$CARD_ROOT/scripts/lib_keep_settings.sh"
         keep_owner_lines "$CONF_COPY" "$CONF_DEFAULT" > "$OWNER_SAVED.new" 2>/dev/null &&
             mv "$OWNER_SAVED.new" "$OWNER_SAVED" 2>/dev/null || rm -f "$OWNER_SAVED.new" 2>/dev/null
-    fi
-    if [ -n "$PKG_NOW" ]; then
-        echo "$PKG_NOW" > "$PKG_SAVED" 2>/dev/null && chmod 644 "$PKG_SAVED" 2>/dev/null || :
     fi
 else
     echo "NOTE: no gal_dualscreen.conf beside this script; the hook will run on built-in defaults."
@@ -848,20 +851,29 @@ if grep -q 'libgal_hook.so' "$TARGET_CONFIG" 2>/dev/null; then
     TARGET_IS_HOOKED=1
 fi
 
-# Never label an already-injected file as the original. This matters when a
-# different/new SD card is inserted while the persistent hook is still active.
-if [ ! -r "$ORIGINAL" ]; then
-    if [ "$TARGET_IS_HOOKED" -eq 0 ]; then
-        cp "$TARGET_CONFIG" "$ORIGINAL" || exit 1
-    elif [ -r "$PERSISTENT_BACKUP" ] && \
-         ! grep -q 'libgal_hook.so' "$PERSISTENT_BACKUP" 2>/dev/null; then
-        cp "$PERSISTENT_BACKUP" "$ORIGINAL" || exit 1
-    else
-        echo "Active config is already injected and no untouched backup is available" >&2
-        echo "Refusing to overwrite or mislabel the original firmware config" >&2
-        exit 1
-    fi
+# The untouched supervisor config. The unit's own copy (beside the target) is
+# the truth; the card's copy is refreshed from the unit at every install,
+# because a card can have been in another car, or the unit's firmware can
+# have been updated since the card's copy was made. Rebuilding a repeat
+# install from a stale card copy would write another unit's config here.
+# Never label an already-injected file as the original.
+PERSISTENT_OK=0
+if [ -r "$PERSISTENT_BACKUP" ] && ! grep -q 'libgal_hook.so' "$PERSISTENT_BACKUP" 2>/dev/null &&
+   ! grep -q 'libcarplay_cluster.so' "$PERSISTENT_BACKUP" 2>/dev/null; then
+    PERSISTENT_OK=1
+fi
+if [ "$TARGET_IS_HOOKED" -eq 0 ] && ! grep -q 'libcarplay_cluster.so' "$TARGET_CONFIG" 2>/dev/null; then
+    cp "$TARGET_CONFIG" "$ORIGINAL" || exit 1
     echo "Saved untouched supervisor config: $ORIGINAL"
+elif [ "$PERSISTENT_OK" -eq 1 ]; then
+    cp "$PERSISTENT_BACKUP" "$ORIGINAL" || exit 1
+    echo "Saved untouched supervisor config (from the unit's own copy): $ORIGINAL"
+elif [ -r "$ORIGINAL" ]; then
+    echo "NOTE: the unit has no untouched copy of its supervisor config; using the card's: $ORIGINAL"
+else
+    echo "Active config is already injected and no untouched backup is available" >&2
+    echo "Refusing to overwrite or mislabel the original firmware config" >&2
+    exit 1
 fi
 
 if grep -q 'libgal_hook.so' "$ORIGINAL" 2>/dev/null; then
@@ -875,10 +887,8 @@ LD_LIBRARY_PATH="$VALIDATOR_LD_LIBRARY_PATH" "$JSONLINT" --file "$ORIGINAL" || {
 
 # A repeated install is rebuilt from the first untouched backup. This avoids
 # accumulating duplicate LD_PRELOAD/environment entries.
-SOURCE="$TARGET_CONFIG"
-if [ "$TARGET_IS_HOOKED" -eq 1 ]; then
-    SOURCE="$ORIGINAL"
-fi
+# ORIGINAL was just refreshed from the unit (above), so it is this unit's.
+SOURCE="$ORIGINAL"
 
 TEMP="$CARD_ROOT/logs/smartphone_integrator.json.new.$$"
 
@@ -892,7 +902,7 @@ TEMP="$CARD_ROOT/logs/smartphone_integrator.json.new.$$"
 # /tmp/gal_dualscreen.log automatically. hook_status.sh and
 # runtime_debug.sh both check the SD path first and fall back to /tmp the
 # same way, so no separate configuration is needed here for that case.
-HOOK_LOG_PATH="$LOG_DIR/gal_dualscreen.log"
+[ -n "$LOG_PATH_REQUESTED" ] || HOOK_LOG_PATH="$LOG_DIR/gal_dualscreen.log"
 # Only emit the variable when asked, so the default install is
 # byte-identical to before this option existed.
 #
@@ -1017,12 +1027,18 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
         CP_ADDED=`expr $CP_ADDED + 1`
     fi
     CP_EXISTING=`awk '
-    BEGIN { in_children=0; in_cp=0 }
+    BEGIN { in_children=0; in_cp=0; in_envs=0; line="" }
     {
         if ($0 ~ /"children"[ 	]*:/) in_children=1
         if (in_children && !in_cp && $0 ~ /^[ 	]*"carplay"[ 	]*:/) in_cp=1
-        if (in_cp && $0 ~ /^[ 	]*"envs"[ 	]*:\[/) {
-            line=$0; sub(/^[^\[]*\[/, "", line); sub(/\].*$/, "", line)
+        # One line on the Golf, one entry per line on VWG11 and Audi AUG22:
+        # gathered up to the closing bracket, as for gal above. Reading only
+        # the first line counted 0 there and missed another mod LD_PRELOAD.
+        if (in_cp && !in_envs && $0 ~ /^[ 	]*"envs"[ 	]*:\[/) {
+            in_envs=1; line=$0; sub(/^[^\[]*\[/, "", line)
+        } else if (in_envs) line=line $0
+        if (in_envs && line ~ /\]/) {
+            sub(/\].*$/, "", line)
             if (line ~ /LD_PRELOAD/) { print "preload"; exit }
             n=split(line, parts, /"[ 	]*,[ 	]*"/)
             if (line ~ /^[ 	]*$/) n=0
@@ -1073,12 +1089,11 @@ mount -uw "$SYSTEM_MOUNT" 2>/dev/null || {
 }
 SYSTEM_WRITABLE=1
 cp "$TARGET_CONFIG" "$BACKUP_DIR/smartphone_integrator.json.before_enable.$$"
-if [ ! -r "$PERSISTENT_BACKUP" ]; then
-    RECOVERY_SOURCE=$ORIGINAL
-    # On a first clean install, preserve the exact currently active firmware
-    # file beside the target. Use the SD recovery only for a repeated install.
-    [ "$TARGET_IS_HOOKED" -eq 1 ] || RECOVERY_SOURCE=$TARGET_CONFIG
-    cp "$RECOVERY_SOURCE" "$PERSISTENT_BACKUP" || {
+# ORIGINAL is the unit's untouched config as of this install (see above):
+# written again each time, so a firmware update or another unit's stale copy
+# never survives here. Uninstall restores from this file.
+if [ "$PERSISTENT_OK" -eq 0 ] || [ "$TARGET_IS_HOOKED" -eq 0 ]; then
+    cp "$ORIGINAL" "$PERSISTENT_BACKUP" || {
         echo "Could not create persistent recovery copy: $PERSISTENT_BACKUP" >&2
         exit 1
     }
@@ -1372,6 +1387,19 @@ else
     elif [ -f "$TURN_TEXT_FILE" ]; then
         mount -uw /mnt/app 2>/dev/null && { rm -f "$TURN_TEXT_FILE"; mount -ur /mnt/app 2>/dev/null || true; }
     fi
+fi
+
+# The install is complete: remember which package and which card file it
+# was, for the settings comparison at the next install. Not earlier, so a
+# run that failed part-way is not taken for a finished install of this card.
+if mount -uw "$APP_MOUNT" 2>/dev/null; then
+    if [ -n "$CARD_SAVED_NEW" ] && [ -r "$CARD_LAST.new" ]; then
+        mv "$CARD_LAST.new" "$CARD_LAST" 2>/dev/null || rm -f "$CARD_LAST.new" 2>/dev/null
+    fi
+    if [ -n "$PKG_NOW" ]; then
+        echo "$PKG_NOW" > "$PKG_SAVED" 2>/dev/null || :
+    fi
+    mount -ur "$APP_MOUNT" 2>/dev/null || true
 fi
 
 echo

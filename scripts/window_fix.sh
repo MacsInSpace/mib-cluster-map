@@ -19,9 +19,20 @@ fi
 CONF=/mnt/app/eso/lib/gal_dualscreen/gal_dualscreen.conf
 FULL=`sed -n 's/^CLUSTERMAP_FULL_FRAME=\([01]\)[ 	]*$/\1/p' "$CONF" | tail -1`
 [ "$FULL" = 1 ] || FULL=0
-[ -w "$CONF" ] || mount -uw /mnt/app 2>/dev/null
+# Leave /mnt/app as it was found: an install, the Java script editor or the
+# sharper-map switch can have it writable at this moment, and remounting it
+# read-only under them fails their next write. While one of them is at
+# work (their .new files), wait for the next start of the player.
+if [ -e "$CONF.new" ] || [ -e /mnt/app/eso/hmi/lsd/lsd.sh.jar_new ]; then
+    echo "window_fix: ${W}x${H} not written: an install is running" >> $LOG
+    exit 1
+fi
+MOUNTED=0
+if [ ! -w "$CONF" ]; then
+    mount -uw /mnt/app 2>/dev/null && MOUNTED=1
+fi
 frame_write_conf "$CONF" $W $H $FULL
 RC=$?
-mount -ur /mnt/app 2>/dev/null
+if [ "$MOUNTED" -eq 1 ]; then mount -ur /mnt/app 2>/dev/null; fi
 echo "window_fix: ${W}x${H} margins ${MARGIN_W}x${MARGIN_H} pixel_aspect_e4 ${PIXEL_ASPECT_E4} rc=$RC" >> $LOG
 exit $RC

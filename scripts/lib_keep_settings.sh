@@ -83,3 +83,32 @@ keep_apply()
         close(out)
     }' && { [ ! -f "$1.new" ] || mv "$1.new" "$1"; } || { rm -f "$1.new" 2>/dev/null; return 1; }
 }
+
+# keep_unedited OWNER NOW LAST: print the OWNER lines whose setting reads the
+# same in the card's file NOW as it did at the LAST install (first active
+# line of the key in each, or unset in both). A setting the owner has edited
+# on the card since then is left out, so the card's line stands.
+keep_unedited()
+{
+    awk -v own="$1" -v now="$2" -v last="$3" '
+    function kv(line) {
+        if (line !~ /^[A-Z][A-Z0-9_]*=/) return 0
+        K = substr(line, 1, index(line, "=") - 1)
+        V = substr(line, index(line, "=") + 1)
+        sub(/[ \t\r]+$/, "", V)
+        return 1
+    }
+    BEGIN {
+        while ((getline l < now) > 0) if (kv(l) && !(K in n)) n[K] = V
+        close(now)
+        while ((getline l < last) > 0) if (kv(l) && !(K in p)) p[K] = V
+        close(last)
+        while ((getline l < own) > 0) {
+            if (!kv(l)) continue
+            a = (K in n) ? n[K] : "\001unset"
+            b = (K in p) ? p[K] : "\001unset"
+            if (a == b) print K "=" V
+        }
+        close(own)
+    }'
+}
