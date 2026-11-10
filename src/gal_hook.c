@@ -320,10 +320,9 @@ static void load_environment(void)
                           top_value != NULL ? top_value : "0",
                           bottom_value != NULL ? bottom_value : "0");
         } else if (crop_top != 0u || crop_bottom != 0u) {
-            /* Custom player crops need the phone's uncropped 800x480 frame. */
+            /* The player crops the uncropped frame; keep full-frame pixel aspect. */
             g_config.margin_width = 0u;
             g_config.margin_height = 0u;
-            g_config.pixel_aspect_ratio_e4 = 10000u;
             gal_hook_logf("event=config.crop result=enabled top=%u bottom=%u source_height=%u",
                           crop_top, crop_bottom, 480u - crop_top - crop_bottom);
         }
