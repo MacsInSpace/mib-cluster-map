@@ -250,8 +250,8 @@ on `auto` follows it without editing anything.
 | VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
 | Skoda 1010×376 (`P4526`), *auto* | 125 | `40,127,127,127` | raskrivuska, #15 |
 | Audi A4 B9 1440×455 (`K3346`), *auto* | 140 | `40,40,127,127` | mariuszhejnold-arch, #14 |
-| Audi A3/S3 8V 1440×455 (`P5089`), *auto* | 140 | `40,40,127,127` | kashavsehra, #51 (window `1440x455`, margins 0×227, context 70) |
-| Audi A3/S3 8V 1440×455, **Sharper map ON** | 100 | `60,150,10,10` | kashavsehra, #51 and #78 (with `CLUSTERMAP_FULL_FRAME=1`; smaller cards, car centred) |
+| Audi A3/S3 8V 1440×455 (`P5089`, `P5153`), *auto* | 100 | `60,150,10,10` | kashavsehra, #51 and #78 (tuned with **Sharper map ON**; smaller cards, car centred; context 70) |
+| Audi A3/S3 8V, the values before v1.2.0 | 140 | `40,40,127,127` | kashavsehra, #51 |
 | Audi A7 C7.5 800×298 (`K3663`), *auto* | 125 | `40,40,127,127` | Seif, by email (context 73) |
 | VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
 | VW 12.3 in Passat B8 2019 (`K4525`), ETA card showing, with `GAL_SECONDARY_UI_THEME=0` | 138 | `56,73,127,127` | danielszyszko-ui, #41 |
