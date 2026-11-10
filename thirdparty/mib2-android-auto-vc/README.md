@@ -21,8 +21,8 @@ SD" collects, and it tells the cluster when the turn pictogram changes, which
 
 ## VCAndroidAutoMusic.jar
 
-The music-only build of the same fork (branch `feature/turns-with-map`, commit
-`72b7c0e`, `make music`), sha256 `534673eaf638535ffb9d711dda56c74fe97d472a7529e566f003c1803a45e44e`. It shows the
+The music-only build of the same fork (commit `610b15d`, `make music`),
+sha256 `a1c0443943e29aa808db6fbfbbbb67333ad951d538003a4d195454e006956227`. It shows the
 track playing (title, artist, cover) on the cockpit's media screen and
 nothing else. With CarPlay it shows title, artist and album: the stock
 CarPlay code never asks for them, so the jar subscribes to the iPhone's
@@ -35,8 +35,8 @@ not yet car-tested.
 
 ## VCAndroidAutoTurns.jar
 
-The full jar with the cockpit view left alone (branch `feature/turns-with-map`,
-commit `72b7c0e`, `make turns`), sha256 `b126fa138047e29a91375ad133ad8b986233b376c1689f41b5d3284737c76aca`.
+The full jar with the cockpit view left alone (commit `610b15d`,
+`make turns`), sha256 `bec87512880fb4621613429c516e460d9a67c85530a33df707d02229146c7d6b`.
 It differs from a full build of the same commit in two classes only: Variant
 and ActiveRgType. The full jar answers ActiveRgType with 0, the cockpit's
 arrow view, whenever Android Auto guides, and on VW that view replaces the
@@ -62,3 +62,13 @@ Android Auto's guiding flag off first, and from then on the cockpit's arrow
 function ignores the jar's data (#70). From `72b7c0e` the jar clears the arrow,
 distance and road name before the flag goes off, and with no route the arrow
 is always sent empty. Not yet car-tested.
+
+The `72b7c0e` clear ran in #70's log, yet the arrow stayed: RG_Status (the
+cockpit's "route active") was only sent again on a change in the car's own
+navigation, never when Android Auto's guiding flag went off. From `62691dc` it
+follows that flag too and logs each change (`RG_Status 0 (phone guiding:
+false, ...)`). Not yet car-tested.
+
+From `58e2329` (both builds) the cockpit also gets the iPhone's album cover
+with CarPlay, when the media service has no cover of its own. Listen only, as
+before. Not yet car-tested.
