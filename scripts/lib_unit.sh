@@ -18,11 +18,14 @@ train_has()
 unit_make()
 {
     CAR_MAKE=; CAR_WINDOW=; CAR_DPI=125; CAR_INSETS=40,40,127,127; CAR_CONTEXT=70
-    while read -r KEY PAT NAME WIN DPI INS CTX; do
-        [ "$KEY" = make ] || continue
+    # The fields are read into MK_* names: plain DPI here overwrote the
+    # installer's own DPI (its --dpi value), which then went into GAL's
+    # environment and silently beat the owner's GAL_SECONDARY_DPI.
+    while read -r MK_KEY MK_PAT MK_NAME MK_WIN MK_DPI MK_INS MK_CTX; do
+        [ "$MK_KEY" = make ] || continue
         case "$2" in
-            $PAT) CAR_MAKE=$NAME; CAR_WINDOW=$WIN; CAR_DPI=$DPI; CAR_INSETS=$INS
-                  CAR_CONTEXT=$CTX; return 0 ;;
+            $MK_PAT) CAR_MAKE=$MK_NAME; CAR_WINDOW=$MK_WIN; CAR_DPI=$MK_DPI
+                  CAR_INSETS=$MK_INS; CAR_CONTEXT=$MK_CTX; return 0 ;;
         esac
     done < "$1"
     return 1
