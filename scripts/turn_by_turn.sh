@@ -30,7 +30,10 @@ case "${1:-}" in
         fi ;;
     restore)
         if [ -f "$MARKER" ]; then
-            sh "$HERE/lsd_jar.sh" add $NAME "$HERE/thirdparty/$NAME"
+            # No source file: "remove" left the owner's own jar on the unit
+            # (or in jars_off on Audi), and that is the one to put back. The
+            # bundled build would replace it, on firmware it may not fit.
+            sh "$HERE/lsd_jar.sh" add $NAME
             mark clear
         else
             echo "The installer did not remove a turn-by-turn jar on this unit; nothing to restore."

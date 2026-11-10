@@ -181,10 +181,14 @@ trap - 0 1 2 15
 # Full revert of the Java start-up script, so the unit ends up as it was before
 # the install: put the turn-by-turn jar's line back if the installer took it
 # out, and take NavActiveIgnore out again if the installer added it. Skipped
-# with --keep-jar-removed. A failure leaves lsd.sh untouched and is reported.
-if [ "${1:-}" != "--keep-jar-removed" ] && [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
+# A failure leaves lsd.sh untouched and is reported. --keep-jar-removed (the
+# switch to turn-by-turn arrows, which adds that jar itself next) skips only
+# the turn-by-turn restore: everything the installer added still comes out,
+# or the arrows jar would be loaded beside the music or turns jar, which
+# carry the same classes, and no later uninstall would find them.
+if [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo
-    if [ -f /mnt/app/eso/hmi/lsd/.aacluster_tbt_removed ]; then
+    if [ "${1:-}" != "--keep-jar-removed" ] && [ -f /mnt/app/eso/hmi/lsd/.aacluster_tbt_removed ]; then
         sh "$CARD_ROOT/turn_by_turn.sh" restore || \
             echo "WARNING: could not restore the turn-by-turn jar line; lsd.sh is unchanged." >&2
     fi
