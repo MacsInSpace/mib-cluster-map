@@ -406,10 +406,21 @@ unit_make "$PROFILES" "$TRAIN" || :
 CONF_COPY="$PRELOAD_WRITE_DIR/gal_dualscreen.conf"
 OWNER_SAVED="$PRELOAD_WRITE_DIR/gal_dualscreen.owner.conf"
 CONF_DEFAULT="$CARD_ROOT/scripts/gal_dualscreen.default.conf"
+# The package last installed. Installing the same package again means the
+# owner edited this card: it is used as it is, so a line put back to its
+# shipped value stays that way (#19: FRAME_SCALE commented out on the card,
+# yet the previous install's 135 came back every time).
+PKG_SAVED="$PRELOAD_WRITE_DIR/package_version.txt"
+PKG_NOW=`head -1 "$CARD_ROOT/scripts/package_version.txt" 2>/dev/null`
+PKG_LAST=`head -1 "$PKG_SAVED" 2>/dev/null`
 if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
     KEEP_SETTINGS=`sed -n 's/^CLUSTERMAP_KEEP_SETTINGS=\([01]\)[ 	]*$/\1/p' "$CARD_ROOT/gal_dualscreen.conf" 2>/dev/null | tail -1`
     KEEP_FROM=
-    if [ "$KEEP_SETTINGS" != 0 ] && [ -r "$CONF_DEFAULT" ] && [ -r "$CARD_ROOT/scripts/lib_keep_settings.sh" ]; then
+    SAME_PACKAGE=
+    if [ -n "$PKG_NOW" ] && [ "$PKG_NOW" = "$PKG_LAST" ]; then SAME_PACKAGE=1; fi
+    if [ -n "$SAME_PACKAGE" ] && [ "$KEEP_SETTINGS" != 0 ]; then
+        echo "Settings: the same package ($PKG_NOW) as the last install, so the card's gal_dualscreen.conf is used as it is."
+    elif [ "$KEEP_SETTINGS" != 0 ] && [ -r "$CONF_DEFAULT" ] && [ -r "$CARD_ROOT/scripts/lib_keep_settings.sh" ]; then
         . "$CARD_ROOT/scripts/lib_keep_settings.sh"
         if [ -r "$OWNER_SAVED" ]; then
             cp "$OWNER_SAVED" /tmp/clustermap_owner_prev.conf 2>/dev/null && KEEP_FROM=saved
@@ -449,6 +460,9 @@ if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
         . "$CARD_ROOT/scripts/lib_keep_settings.sh"
         keep_owner_lines "$CONF_COPY" "$CONF_DEFAULT" > "$OWNER_SAVED.new" 2>/dev/null &&
             mv "$OWNER_SAVED.new" "$OWNER_SAVED" 2>/dev/null || rm -f "$OWNER_SAVED.new" 2>/dev/null
+    fi
+    if [ -n "$PKG_NOW" ]; then
+        echo "$PKG_NOW" > "$PKG_SAVED" 2>/dev/null && chmod 644 "$PKG_SAVED" 2>/dev/null || :
     fi
 else
     echo "NOTE: no gal_dualscreen.conf beside this script; the hook will run on built-in defaults."

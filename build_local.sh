@@ -131,6 +131,9 @@ package() {
   # The shipped settings, untouched: the installer compares the card's copy
   # with it to find the owner's own lines (scripts/lib_keep_settings.sh).
   cp "$ROOT/config/gal_dualscreen.conf" "$D/scripts/gal_dualscreen.default.conf"
+  # Which package this card is: the installer keeps the owner's lines only
+  # when the card is a different package from the last install's.
+  printf '%s\n' "${RELEASE_VERSION:-$BUILD_ID}" > "$D/scripts/package_version.txt"
   cp "$ROOT/config/profiles.conf" "$D/profiles.conf"
   cp "$ROOT/README.md" "$ROOT/docs/Install.md" "$D/docs/"
   cp "$ROOT/LICENSE" "$D/LICENSE"
