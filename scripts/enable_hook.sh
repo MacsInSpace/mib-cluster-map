@@ -1210,6 +1210,15 @@ NAVIGNORE_ASKED=`sed -n 's/^CLUSTERMAP_ADD_NAVIGNORE=\([01]\)[ 	]*$/\1/p' \
 # gal.json). The Audi K3346 kept its map through a route without it (#14).
 NAVIGNORE_NEVER=0
 if train_has "$PROFILES" "$TRAIN" nonavignore; then NAVIGNORE_NEVER=1; fi
+# Which build: the toolbox's patches VW classes (de.vw.mib.asl.*), most of
+# which the A6/A7 C7.5 interface does not have; there the Audi build M.I.B.
+# installs (harman-f; thirdparty/navactiveignore-audi) goes in instead,
+# under the same name on the unit.
+NAVIGNORE_SRC="$CARD_ROOT/thirdparty/NavActiveIgnore.jar"
+NAVIGNORE_BUILD="toolbox (VW)"
+case "$TRAIN" in
+    *_AU57x_*) NAVIGNORE_SRC="$CARD_ROOT/thirdparty/NavActiveIgnore_Audi.jar"; NAVIGNORE_BUILD="Audi" ;;
+esac
 echo
 if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo "WARNING: cannot check the Java interface ($LSD_SH or lsd_jar.sh missing)." >&2
@@ -1220,6 +1229,16 @@ else
         echo "         this package's uninstall, or update to MHI2_ER_VWG11_K3342." >&2
     elif sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar; then
         echo "Java check: NavActiveIgnore is loaded (required)."
+        # A6/A7: the VW build there patches classes this interface lacks.
+        case "$TRAIN" in
+            *_AU57x_*)
+                NAV_HAVE=`wc -c < /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar 2>/dev/null | sed 's/ //g'`
+                NAV_WANT=`wc -c < "$NAVIGNORE_SRC" 2>/dev/null | sed 's/ //g'`
+                if [ -n "$NAV_WANT" ] && [ "$NAV_HAVE" != "$NAV_WANT" ]; then
+                    echo "WARNING: the loaded NavActiveIgnore.jar (${NAV_HAVE:-unreadable} bytes) is not the Audi" >&2
+                    echo "         build this unit needs ($NAV_WANT bytes, as M.I.B. installs it)." >&2
+                fi ;;
+        esac
     elif sh "$CARD_ROOT/lsd_jar.sh" loaded CarPlayNavigationPatch.jar; then
         # CarPlay Maps VC ships the same nine classes under another name.
         echo "Java check: CarPlayNavigationPatch is loaded (the same patch as NavActiveIgnore)."
@@ -1240,8 +1259,10 @@ else
             NAV_OK=1; NAV_WHY="asked for by CLUSTERMAP_ADD_NAVIGNORE=1 on $TRAIN"
         fi
         if [ "$NAV_OK" -eq 1 ]; then
-            echo "Java check: NavActiveIgnore is not loaded; adding it ($NAV_WHY)."
-            if sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$CARD_ROOT/thirdparty/NavActiveIgnore.jar"; then
+            echo "Java check: NavActiveIgnore is not loaded; adding the $NAVIGNORE_BUILD build ($NAV_WHY)."
+            if [ ! -r "$NAVIGNORE_SRC" ]; then
+                echo "WARNING: the $NAVIGNORE_BUILD NavActiveIgnore build is not in this package; not added." >&2
+            elif sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$NAVIGNORE_SRC"; then
                 mount -uw /mnt/app 2>/dev/null && { : > "$NAVIGNORE_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
             else
                 echo "WARNING: could not add NavActiveIgnore; lsd.sh is unchanged." >&2

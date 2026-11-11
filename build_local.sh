@@ -115,6 +115,9 @@ package() {
   mkdir -p "$D/thirdparty" && cp "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAuto.jar "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAutoMusic.jar "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAutoTurns.jar "$D/thirdparty/" && \
      cp "$ROOT"/thirdparty/mib2-android-auto-vc/LICENSE "$D/thirdparty/VCAndroidAuto.LICENSE"
   cp "$ROOT"/thirdparty/mib2-toolbox/NavActiveIgnore.jar "$D/thirdparty/" && cp "$ROOT"/thirdparty/mib2-toolbox/LICENSE "$D/thirdparty/NavActiveIgnore.LICENSE"
+  # The Audi build, for AU57x (thirdparty/navactiveignore-audi/README.md).
+  cp "$ROOT"/thirdparty/navactiveignore-audi/NavActiveIgnore.jar "$D/thirdparty/NavActiveIgnore_Audi.jar" && \
+     cp "$ROOT"/thirdparty/navactiveignore-audi/LICENSE "$D/thirdparty/NavActiveIgnore_Audi.LICENSE"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" \
      "$ROOT/scripts/lib_unit.sh" "$ROOT/scripts/window_fix.sh" \
      "$ROOT/scripts/lib_cluster_frame.sh" "$ROOT/scripts/full_frame.sh" \

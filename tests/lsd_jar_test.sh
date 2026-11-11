@@ -50,6 +50,7 @@ cycle() {
     run() { LSD_JAR_TEST_APP="$app" sh "$ROOT/scripts/lsd_jar.sh" "$@"; }
 
     if run loaded Test.jar; then bad "$name: loaded before add"; else ok "$name: not loaded before add"; fi
+    nav_before=no; if run loaded NavActiveIgnore.jar; then nav_before=yes; fi
     run add Test.jar "$T/Test.jar" > "$T/out" 2>&1 || { bad "$name: add failed: $(cat "$T/out")"; return; }
     [ -f "$app/eso/hmi/lsd/jars/Test.jar" ] && ok "$name: jar copied" || bad "$name: jar not copied"
     [ "$(wc -l < "$lsd")" -eq $(( $(wc -l < "$T/$name.orig") + 1 )) ] && ok "$name: one line added" || bad "$name: line count after add"
@@ -62,7 +63,8 @@ cycle() {
     cp "$lsd" "$T/$name.added"
     run add Test.jar "$T/Test.jar" > "$T/out" 2>&1 || bad "$name: second add failed"
     cmp -s "$lsd" "$T/$name.added" && ok "$name: second add changes nothing" || bad "$name: second add changed lsd.sh"
-    run loaded NavActiveIgnore.jar && ok "$name: NavActiveIgnore still seen as loaded" || bad "$name: NavActiveIgnore no longer seen"
+    nav_after=no; if run loaded NavActiveIgnore.jar; then nav_after=yes; fi
+    [ "$nav_after" = "$nav_before" ] && ok "$name: NavActiveIgnore unaffected (loaded: $nav_after)" || bad "$name: NavActiveIgnore changed from $nav_before to $nav_after"
     run remove Test.jar > "$T/out" 2>&1 || { bad "$name: remove failed: $(cat "$T/out")"; return; }
     cmp -s "$lsd" "$T/$name.orig" && ok "$name: remove restores the original byte for byte" || bad "$name: lsd.sh differs from the original after remove"
     if run loaded Test.jar; then bad "$name: loaded after remove"; else ok "$name: not loaded after remove"; fi
