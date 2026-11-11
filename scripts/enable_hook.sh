@@ -417,8 +417,8 @@ OWNER_SAVED="$PRELOAD_WRITE_DIR/gal_dualscreen.owner.conf"
 CARD_LAST="$PRELOAD_WRITE_DIR/gal_dualscreen.card.conf"
 CONF_DEFAULT="$CARD_ROOT/scripts/gal_dualscreen.default.conf"
 PKG_SAVED="$PRELOAD_WRITE_DIR/package_version.txt"
-PKG_NOW=`head -1 "$CARD_ROOT/scripts/package_version.txt" 2>/dev/null`
-PKG_LAST=`head -1 "$PKG_SAVED" 2>/dev/null`
+PKG_NOW=`head -1 "$CARD_ROOT/scripts/package_version.txt" 2>/dev/null || :`
+PKG_LAST=`head -1 "$PKG_SAVED" 2>/dev/null || :`
 CARD_SAVED_NEW=
 if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
     if awk '{ sub(/\r$/, ""); print }' "$CARD_ROOT/gal_dualscreen.conf" > "$CONF_COPY.card" 2>/dev/null &&
