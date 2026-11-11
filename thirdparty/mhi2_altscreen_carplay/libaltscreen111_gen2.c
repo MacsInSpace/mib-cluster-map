@@ -2828,8 +2828,75 @@ static void gen2_resync_poll(void)
     if(changed) gen2_publish_status();
 }
 
+/*
+ * mib-cluster-map: the steering-wheel roller zooms the cluster map. The HMI
+ * (ClusterMapWheelZoom.jar on the AU57x) sends each cockpit roller step while
+ * this stream is up, as 8 bytes on loopback UDP 19822: "MZ01" and a signed
+ * big-endian step count. Each step becomes one changeMapZoomLevel for the
+ * cluster display, 100 ms apart; positive steps (the stock zoom list's
+ * larger scales) zoom out. Ported from aberbic's
+ * Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto (GPL-3.0), with
+ * this hook's g_streaming in place of its renderer marker.
+ */
+static void gen2_process_wheel_zoom(void)
+{
+    static int zoom_socket=-1, zoom_failed=0, pending=0;
+    static uint64_t next_step;
+    uint64_t now=monotonic_ms();
+    int streaming=g_streaming;
+
+    if(zoom_socket<0 && !zoom_failed){
+        struct sockaddr_in a;
+        zoom_socket=socket(AF_INET,SOCK_DGRAM,0);
+        memset(&a,0,sizeof(a));a.sin_family=AF_INET;
+        a.sin_addr.s_addr=htonl(INADDR_LOOPBACK);a.sin_port=htons(19822);
+        if(zoom_socket>=0 && bind(zoom_socket,(struct sockaddr *)&a,sizeof(a))==0){
+            fcntl(zoom_socket,F_SETFL,O_NONBLOCK);fcntl(zoom_socket,F_SETFD,FD_CLOEXEC);
+            logf_u2("wheel zoom: listening on 127.0.0.1:19822");
+        }else{
+            logf_u2("wheel zoom: cannot listen on 127.0.0.1:19822 errno=%d",errno);
+            if(zoom_socket>=0)close(zoom_socket);
+            zoom_socket=-1;zoom_failed=1;
+        }
+    }
+    if(zoom_socket>=0){
+        unsigned char b[9]; int n,limit=16;
+        while(limit-- && (n=(int)recv(zoom_socket,b,sizeof(b),0))>0){
+            if(n==8 && !memcmp(b,"MZ01",4)){
+                uint32_t wire; int32_t steps;
+                memcpy(&wire,b+4,4);steps=(int32_t)ntohl(wire);
+                if(!streaming){
+                    logf_u2("wheel zoom: %d steps ignored, no cluster stream",(int)steps);
+                }else if(steps>=-32 && steps<=32){
+                    pending+=steps;
+                    if(pending>32)pending=32;
+                    if(pending< -32)pending=-32;
+                    logf_u2("wheel zoom: %d steps from the cockpit",(int)steps);
+                }
+            }
+        }
+    }
+    if(!streaming)pending=0;
+    if(pending && now>=next_step){
+        CFMutableDictionaryRef req=dict_new(),params=dict_new();
+        int direction=pending>0?1:0;
+        if(req&&params){
+            CFStringRef k=s_cf("params");
+            set_str(req,"type","changeMapZoomLevel");set_str(params,"uuid",g_alt_uuid);
+            set_i64(params,"zoomDirection",direction);
+            p_CFDictionarySetValue(req,k,params);p_CFRelease(k);
+            logf_u2("wheel zoom: changeMapZoomLevel %s, %d left",direction?"out":"in",pending>0?pending-1:pending+1);
+            gen2_dispatch_diag_command("changeMapZoomLevel",req);req=NULL;
+        }
+        if(req)p_CFRelease(req);
+        if(params)p_CFRelease(params);
+        pending+=pending>0?-1:1;next_step=now+100;
+    }
+}
+
 static void gen2_process_diag_markers(void)
 {
+    gen2_process_wheel_zoom();
     /* mib-cluster-map: once the iPhone has the cluster UI up, see g2_night_mode. */
     if(g2_night_send && g2_night_mode>=0){
         unsigned shown;

@@ -121,7 +121,7 @@ no translation at all. The same in nine languages:
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | **Map** on `P4526` (#15) and `P4523` (#56), car-confirmed. Others wanted |
 | VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | **Map** on `K3342` (MU1427), Passat B8, found and road-tested by owners (#39, #28), and `P3301` (#33); beta18 on K3342 confirmed in #64 and #65. `K3332` has a profile but is not yet tested on a cockpit (#45). Set `CLUSTERMAP_ADD_NAVIGNORE=1` to keep the map during a route. **`S2125`: update to `K3342` first** (see below); on S2125 itself NavActiveIgnore stopped Android Auto, so the map goes when a route starts |
 | VW Discover Pro, Japan | `MHI2_JP_VW48x_` | **Trial** on `P0953`, which has the same Android Auto program as `P4708` and needs no trial line (#37), being tested |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | **Map** on the A4 B9 `K3346` (#14; 1440×455 cockpit window, context 72, both set by the installer; shown in the map view and the Audi's own cockpit view). A3/S3 8V `AU37x_P5089` (#51) and `P5153` (#63) work. A7 C7.5 `AU57x_K3663`: Android Auto and CarPlay on the cockpit (context 73, set by the installer); the installer can't add NavActiveIgnore on this unit yet, so a route switches the cockpit away from the map (try `GAL_FIX_HIDE_NAV_STATUS=1` for Android Auto). An RS3 is still to be tried. The update needs developer mode (see Install) |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | **Map** on the A4 B9 `K3346` (#14; 1440×455 cockpit window, context 72, both set by the installer; shown in the map view and the Audi's own cockpit view). A3/S3 8V `AU37x_P5089` (#51) and `P5153` (#63) work. A7 C7.5 `AU57x_K3663`: Android Auto and CarPlay on the cockpit (context 73, set by the installer), and the steering-wheel roller zooms the CarPlay map ([CarPlay](docs/CarPlay.md#steering-wheel-zoom-audi-a6a7-c75)); the installer can't add NavActiveIgnore on this unit yet, so a route switches the cockpit away from the map (try `GAL_FIX_HIDE_NAV_STATUS=1` for Android Auto). An RS3 is still to be tried. The update needs developer mode (see Install) |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies |
 
@@ -218,7 +218,8 @@ addresses.
 - **harman-f** ([mhi2_altscreen_carplay](https://github.com/harman-f/mhi2_altscreen_carplay))
   and **aberbic** ([Audi MHI2 AltScreen](https://github.com/aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto)):
   the open CarPlay cluster work the CarPlay map builds on. harman-f's hook is
-  included from source under GPL-3.0.
+  included from source under GPL-3.0; the A7's steering-wheel zoom follows
+  aberbic's (`changeMapZoomLevel` over loopback UDP).
 - **Mr-MIBonk** ([M.I.B.](https://github.com/Mr-MIBonk/M.I.B._More-Incredible-Bash)):
   the `Swdlautorun.txt` trigger for installing without the service menu.
 - **AMDFX60** ([Skoda fork](https://github.com/AMDFX60/mib-cluster-map)):
