@@ -3185,6 +3185,67 @@ static OSStatus call_stock_session_control(AirPlayReceiverSessionRef session, ui
     return fn(session,flags,command,qualifier,params,outParams);
 }
 
+/*
+ * mib-cluster-map: CLUSTERMAP_CARPLAY_HIDE_NAV=1 (the installer leaves the
+ * marker file below). When the iPhone starts a route it takes the
+ * turn-by-turn state in modesChanged (appStates entry with appStateID 3,
+ * entity 1 = the iPhone). The head unit passes that to the cockpit, which on
+ * some cars then leaves the map for its "navigation on the phone" view or
+ * the compass until the route ends (US P3662, #10; logs show the cluster
+ * stream still running). With the marker, the stock library is handed a copy
+ * of the message in which nobody owns turn-by-turn (entity 0), so the car
+ * never learns a phone route is running. Everything else in the message is
+ * passed on as it came. The CarPlay twin of GAL_FIX_HIDE_NAV_STATUS.
+ * Returns NULL when there is nothing to change.
+ */
+#define MIBR_HIDE_NAV_MARKER "/mnt/app/eso/lib/gal_dualscreen/carplay_hide_nav"
+static CFMutableDictionaryRef modes_without_phone_route(CFDictionaryRef params)
+{
+    CFStringRef k_states, k_id, k_entity;
+    CFArrayRef a;
+    CFMutableArrayRef b=NULL;
+    CFMutableDictionaryRef out=NULL;
+    CFIndex i,n;
+    int changed=0;
+
+    if(!params || access(MIBR_HIDE_NAV_MARKER,F_OK)!=0) return NULL;
+    if(!p_CFGetTypeID || !p_CFDictionaryGetTypeID || !p_CFArrayGetTypeID ||
+       !p_CFDictionaryGetInt64 || !p_CFDictionarySetInt64 || !p_CFArrayCreateMutable) return NULL;
+    if(p_CFGetTypeID((CFTypeRef)params)!=p_CFDictionaryGetTypeID()) return NULL;
+    k_states=s_cf("appStates");k_id=s_cf("appStateID");k_entity=s_cf("entity");
+    a=(CFArrayRef)p_CFDictionaryGetValue(params,k_states);
+    if(a && p_CFGetTypeID((CFTypeRef)a)==p_CFArrayGetTypeID())
+        b=p_CFArrayCreateMutable(NULL,0,p_array_callbacks);
+    if(b){
+        n=p_CFArrayGetCount(a);
+        for(i=0;i<n;++i){
+            CFDictionaryRef d=(CFDictionaryRef)p_CFArrayGetValueAtIndex(a,i);
+            if(d && p_CFGetTypeID((CFTypeRef)d)==p_CFDictionaryGetTypeID()){
+                OSStatus e1=0,e2=0;
+                int64_t id=p_CFDictionaryGetInt64(d,k_id,&e1);
+                int64_t entity=p_CFDictionaryGetInt64(d,k_entity,&e2);
+                if(!e1 && !e2 && id==3 && entity==1){
+                    CFMutableDictionaryRef m=dict_clone(d);
+                    if(m){
+                        p_CFDictionarySetInt64(m,k_entity,0);
+                        p_CFArrayAppendValue(b,m);p_CFRelease(m);
+                        changed=1;
+                        continue;
+                    }
+                }
+            }
+            p_CFArrayAppendValue(b,d);
+        }
+        if(changed){
+            out=dict_clone(params);
+            if(out) p_CFDictionarySetValue(out,k_states,b);
+        }
+        p_CFRelease(b);
+    }
+    p_CFRelease(k_states);p_CFRelease(k_id);p_CFRelease(k_entity);
+    return out;
+}
+
 static OSStatus mibr_session_control(AirPlayReceiverSessionRef session, uint32_t flags,
                                      CFStringRef command, CFTypeRef qualifier,
                                      CFDictionaryRef params, CFDictionaryRef *outParams)
@@ -3193,10 +3254,18 @@ static OSStatus mibr_session_control(AirPlayReceiverSessionRef session, uint32_t
     char cbuf[96];
     const char *c;
     int private111_active=0;
+    CFMutableDictionaryRef masked=NULL;
 
     flight_record_session_control(session,flags,command,qualifier,params,outParams);
-    e=call_stock_session_control(session,flags,command,qualifier,params,outParams);
     c=flight_command_cstr(command,cbuf,sizeof(cbuf));
+    if(c && strcmp(c,"modesChanged")==0)
+        masked=modes_without_phone_route(params);
+    e=call_stock_session_control(session,flags,command,qualifier,
+                                 masked?(CFDictionaryRef)masked:params,outParams);
+    if(masked){
+        logf_u2("hide nav: the iPhone's route (turn-by-turn) was not passed to the car, rc=%d",(int)e);
+        p_CFRelease(masked);
+    }
 
     pthread_mutex_lock(&g2_core_lock);
     private111_active = g2_control_session ? 1 : 0;

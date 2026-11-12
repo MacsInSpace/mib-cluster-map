@@ -37,3 +37,8 @@ All marked `mib-cluster-map` in `libaltscreen111_gen2.c`:
   become `changeMapZoomLevel` commands for the cluster display while the
   stream is up, as aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto
   (GPL-3.0) does on MU1438. See docs/CarPlay.md.
+- Hide the iPhone's route from the car (`modes_without_phone_route`, marker
+  file `carplay_hide_nav`, installer: `CLUSTERMAP_CARPLAY_HIDE_NAV=1`), off by
+  default: the stock library gets a copy of `modesChanged` in which nobody
+  owns turn-by-turn, so the cockpit is not switched away from the map when a
+  route starts (#10). Written for mib-cluster-map; not car-tested.
