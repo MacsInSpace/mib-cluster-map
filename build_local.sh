@@ -65,13 +65,13 @@ build_player() {
     set -e
     FF=/work/build/ffmpeg-mini; V=6.1.5
     SHA=b8c8e926b948c14df1264cd0beac1c773df9170ac9cac97bdf1275cd3d385902
-    # FFmpeg with its NEON code for the Tegra 3 of the units (Cortex-A9), as
-    # the Skoda fork of AMDFX60 found: built with --disable-asm, the software
-    # decoder took about 100 ms a 720p picture. The player switches the NEON
-    # routines off at run time if the CPU does not report NEON. A build made
-    # with other settings (the stamp differs) is made again from the same
-    # source. tools/qnx_cc.sh forces stddef.h into C files only.
-    FFCONF=neon-cortex-a9-1
+    # FFmpeg without assembly (--disable-asm). v1.2.2 built it with NEON, and
+    # the player crashed at every start: some NEON routines (the h264
+    # horizontal loop filters) store at misaligned addresses, which the
+    # QNX kernel of the units stops with SIGBUS (found by the Skoda fork of
+    # AMDFX60). The stamp makes a cached build with other settings be made
+    # again from the same source.
+    FFCONF=noasm-1
     if [ ! -f $FF/libavcodec/libavcodec.a ] || [ "$(cat $FF/.mibcm-ffconf 2>/dev/null)" != "$FFCONF" ]; then
       if [ ! -f $FF/configure ]; then
         cd /work/build
@@ -82,14 +82,13 @@ build_player() {
         (cd $FF && make distclean >/dev/null 2>&1 || true)
       fi
       cd $FF
-      cp /work/tools/qnx_cc.sh $FF/qnx_cc.sh && chmod 755 $FF/qnx_cc.sh
-      ./configure --cc=$FF/qnx_cc.sh --as=$FF/qnx_cc.sh --ar=$P-ar --ld=$P-gcc --nm=$P-nm --ranlib=$P-ranlib --strip=$P-strip \
-        --arch=arm --cpu=cortex-a9 --target-os=qnx --enable-neon --disable-debug --enable-cross-compile \
-        --extra-cflags="-D_QNX_SOURCE -mfloat-abi=softfp -mfpu=neon" \
+      ./configure --cc=$P-gcc --ar=$P-ar --ld=$P-gcc --nm=$P-nm --ranlib=$P-ranlib --strip=$P-strip \
+        --arch=arm --target-os=qnx --disable-asm --disable-debug --enable-cross-compile \
+        --extra-cflags="-D_QNX_SOURCE -include stddef.h -march=armv7-a -mfloat-abi=softfp -mfpu=vfpv3-d16" \
         --extra-libs=-lsocket --disable-doc --disable-programs --disable-avdevice --disable-swresample \
         --disable-swscale --disable-postproc --disable-avfilter --disable-everything \
         --enable-decoder=h264 --enable-parser=h264
-      grep -q "HAVE_NEON 1" config.h || { echo "REJECTED: FFmpeg configured without NEON"; exit 1; }
+      grep -q "HAVE_NEON 0" config.h || { echo "REJECTED: FFmpeg configured with NEON"; exit 1; }
       make -j"$(nproc)"
       echo "$FFCONF" > $FF/.mibcm-ffconf
     fi
