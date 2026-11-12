@@ -65,8 +65,8 @@ build_player() {
     set -e
     FF=/work/build/ffmpeg-mini; V=6.1.5
     SHA=b8c8e926b948c14df1264cd0beac1c773df9170ac9cac97bdf1275cd3d385902
-    # FFmpeg with its NEON code for the units' Tegra 3 (Cortex-A9), as
-    # AMDFX60's Skoda fork found: built with --disable-asm, the software
+    # FFmpeg with its NEON code for the Tegra 3 of the units (Cortex-A9), as
+    # the Skoda fork of AMDFX60 found: built with --disable-asm, the software
     # decoder took about 100 ms a 720p picture. The player switches the NEON
     # routines off at run time if the CPU does not report NEON. A build made
     # with other settings (the stamp differs) is made again from the same
