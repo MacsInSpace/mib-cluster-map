@@ -3,14 +3,21 @@
 # settings: window_fix.sh WIDTH HEIGHT. Corrects the installed settings, so the
 # phone is asked for the right shape from the next start. It only changes
 # the window lines the installer wrote, through lib_cluster_frame.sh, which
-# the installer copies next to this script.
-PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/sbin:$PATH
+# the installer copies next to this script, and saves the size in
+# player_window there, which the next install uses when the display manager
+# does not list the window (#95).
+# /mnt/app/armle/usr/bin holds dirname and other tools: without it
+# this script never found its library (#95).
+PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/sbin:/mnt/app/armle/usr/bin:/mnt/app/armle/usr/sbin:$PATH
 export PATH
 W=$1
 H=$2
 case "$W$H" in ''|*[!0-9]*) exit 2 ;; esac
 LOG=/tmp/stream-player.log
-LIB="`dirname "$0"`/lib_cluster_frame.sh"
+# The player starts it by its full path; ${0%/*} needs no program.
+HERE=${0%/*}
+[ "$HERE" = "$0" ] && HERE=.
+LIB="$HERE/lib_cluster_frame.sh"
 if [ ! -r "$LIB" ]; then
     echo "window_fix: ${W}x${H} not written: $LIB missing (install again)" >> $LOG
     exit 1
@@ -33,6 +40,8 @@ if [ ! -w "$CONF" ]; then
 fi
 frame_write_conf "$CONF" $W $H $FULL
 RC=$?
+# Kept for the next install, which rewrites the settings from the card.
+echo "${W}x${H}" > "$HERE/player_window" 2>/dev/null || echo "window_fix: could not save player_window" >> $LOG
 if [ "$MOUNTED" -eq 1 ]; then mount -ur /mnt/app 2>/dev/null; fi
 echo "window_fix: ${W}x${H} margins ${MARGIN_W}x${MARGIN_H} pixel_aspect_e4 ${PIXEL_ASPECT_E4} rc=$RC" >> $LOG
 exit $RC

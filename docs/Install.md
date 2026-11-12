@@ -174,7 +174,8 @@ it. Android Auto's cluster video is always 800×480, so where the window has
 another shape the phone is asked to leave margins (0×182 for 1010×376) and
 the player scales the rest to fill the window. CarPlay is asked for the
 window's size. If the size cannot be read, the card's `GAL_PLAYER_WINDOW`
-is used when set (for example `GAL_PLAYER_WINDOW=1010x376`), otherwise the
+is used when set (for example `GAL_PLAYER_WINDOW=1010x376`), then the size
+the player found on this cockpit at an earlier start, otherwise the
 usual size for the make (1010×376 on SEAT and Skoda, 800×480 on VW and
 anything else). The install
 output and the unit's copy of the settings (`GAL_PLAYER_WINDOW`,
@@ -183,8 +184,10 @@ output and the unit's copy of the settings (`GAL_PLAYER_WINDOW`,
 The display manager only lists window 33 once the cockpit has shown it, so
 the installer can be left with a guess. The player therefore reads the size
 again each time it starts. If it differs, it opens the window at the real size
-and corrects the two settings for the next start. Until then the picture can
-have black bars. CarPlay's size only changes on the next install.
+and corrects the two settings for the next start, and saves the size for the
+next install. Until then the picture can have black bars. CarPlay's size
+only changes on the next install. (Until v1.2.1 that correction never ran:
+its script could not find its own folder, #95.)
 
 ## Settings
 
@@ -222,7 +225,7 @@ it must start at the beginning of the line, with no `#` in front.
 | `CLUSTERMAP_TURN_TEXT` | auto | with `CLUSTERMAP_TURN_INFO=1`, the road name shows twice with the map (the cockpit's line above Google's card). `auto` sends it only while the cockpit shows no map, `always` every time, `never` not at all (arrow and distance only). Not car-tested yet |
 | `CLUSTERMAP_ADD_NAVIGNORE` | 0 | the map goes as soon as a route starts, on firmware where the installer does not add `NavActiveIgnore` by itself. 1 adds it, with a backup, and uninstall removes it. It edits the script that starts the centre screen, so check SSH works first. Ignored on `VWG11` S-trains (`S2125`, where it stopped Android Auto, #39) and Audi `AUG22`. Works on `VWG11` `K3342` (#39, #28). On the A6/A7 C7.5 (`AU57x`) it is the Audi build M.I.B. installs, not the toolbox's VW one. On K3342 with a wireless CarPlay adapter, one owner's CarPlay dropped seconds after connecting with it loaded (#62, cause not confirmed) |
 | `CLUSTERMAP_CARPLAY` | 1 | a wireless CarPlay adapter drops, or loses the cockpit map, with the CarPlay map installed. 0 installs the Android Auto map only and leaves CarPlay stock (#55, #56) |
-| `CLUSTERMAP_CARPLAY_TRIAL` | unset | for developers: allows the CarPlay map on another `libairplay.so` build. The hook's checks do not prove a build fits, so on `857735` (Audi `K3346`, VWG11 `K3342`) use it only as a test you can undo, when asked: the one car test so far left CarPlay black until the line was removed (#14, #62). See [CarPlay](CarPlay.md) |
+| `CLUSTERMAP_CARPLAY_TRIAL` | unset | for developers: allows the CarPlay map on another `libairplay.so` build. The hook's checks do not prove a build fits, so on `857735` (Audi `K3346`, VWG11 `K3342`) use it only as a test you can undo, when asked: on an Audi `K3346` it left CarPlay black until the line was removed (#14); on a VWG11 `K3342` MU1427 wired CarPlay works with it (#62). See [CarPlay](CarPlay.md) |
 | `CLUSTERMAP_CARPLAY_SCALE` | 100 | the CarPlay map looks too zoomed in (above 100: smaller text, more map) or too small (below 100). Declares the display this many percent larger in millimetres, which the iPhone sizes its UI from; 70 to 200, try 130 then 160. Remove the `#` in front of the line. DPI does not affect CarPlay |
 | `CLUSTERMAP_CARPLAY_FRAME_SCALE` | 100 | as above, the beta13 way: a larger frame shrunk into the window, 100 to 200. Costs frame rate. Replaces `CLUSTERMAP_CARPLAY_SCALE` when set |
 | `CLUSTERMAP_CARPLAY_INSETS` | unset | CarPlay's arrival line or card is cut off by the dials. Top, bottom, left, right like `GAL_SECONDARY_INSETS`, but for CarPlay only, so the Android Auto map stays as it is, and each may go above 127. Unset, CarPlay uses `GAL_SECONDARY_INSETS`. Raise the second number in small steps: too large and the iPhone drops the arrival line altogether. On SEAT, `130,155,127,127` with `CLUSTERMAP_CARPLAY_FRAME_SCALE=160` works (#19) |
@@ -253,9 +256,11 @@ on `auto` follows it without editing anything.
 | VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
 | Skoda 1010×376 (`P4526`), *auto* | 125 | `40,127,127,127` | raskrivuska, #15 |
 | Audi A4 B9 1440×455 (`K3346`), *auto* | 140 | `40,40,127,127` | mariuszhejnold-arch, #14 |
+| Audi Q5 FY 1440×455 (`K3346`), *auto* | 140 | `40,40,127,127` | pioottr20, #96 (context 72) |
 | Audi A3/S3 8V 1440×455 (`P5089`, `P5153`), *auto* | 100 | `60,150,10,10` | kashavsehra, #51 and #78 (tuned with **Sharper map ON**; smaller cards, car centred; context 70) |
 | Audi A3/S3 8V, the values before v1.2.0 | 140 | `40,40,127,127` | kashavsehra, #51 |
 | Audi A7 C7.5 800×298 (`K3663`), *auto* | 125 | `40,40,127,127` | Seif, by email (context 73) |
+| Audi A6 C7.5 facelift (`K3663`), *auto* | 125 | `40,40,127,127` | nkady, #68 (v1.2.1, out of the box) |
 | VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
 | VW 12.3 in Passat B8 2019 (`K4525`), ETA card showing, with `GAL_SECONDARY_UI_THEME=0` | 138 | `56,73,127,127` | danielszyszko-ui, #41 |
 | VW Golf (`P4521`), ETA card showing, Google Maps and Waze, *auto* for VW | 138 | `52,82,127,127` | tvarszegi1, #8, road-tested |
