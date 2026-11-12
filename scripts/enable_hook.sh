@@ -1210,6 +1210,15 @@ NAVIGNORE_ASKED=`sed -n 's/^CLUSTERMAP_ADD_NAVIGNORE=\([01]\)[ 	]*$/\1/p' \
 # gal.json). The Audi K3346 kept its map through a route without it (#14).
 NAVIGNORE_NEVER=0
 if train_has "$PROFILES" "$TRAIN" nonavignore; then NAVIGNORE_NEVER=1; fi
+# Which build: the toolbox's patches VW classes (de.vw.mib.asl.*), most of
+# which the A6/A7 C7.5 interface does not have; there the Audi build M.I.B.
+# installs (harman-f; thirdparty/navactiveignore-audi) goes in instead,
+# under the same name on the unit.
+NAVIGNORE_SRC="$CARD_ROOT/thirdparty/NavActiveIgnore.jar"
+NAVIGNORE_BUILD="toolbox (VW)"
+case "$TRAIN" in
+    *_AU57x_*) NAVIGNORE_SRC="$CARD_ROOT/thirdparty/NavActiveIgnore_Audi.jar"; NAVIGNORE_BUILD="Audi" ;;
+esac
 echo
 if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo "WARNING: cannot check the Java interface ($LSD_SH or lsd_jar.sh missing)." >&2
@@ -1220,6 +1229,16 @@ else
         echo "         this package's uninstall, or update to MHI2_ER_VWG11_K3342." >&2
     elif sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar; then
         echo "Java check: NavActiveIgnore is loaded (required)."
+        # A6/A7: the VW build there patches classes this interface lacks.
+        case "$TRAIN" in
+            *_AU57x_*)
+                NAV_HAVE=`wc -c < /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar 2>/dev/null | sed 's/ //g'`
+                NAV_WANT=`wc -c < "$NAVIGNORE_SRC" 2>/dev/null | sed 's/ //g'`
+                if [ -n "$NAV_WANT" ] && [ "$NAV_HAVE" != "$NAV_WANT" ]; then
+                    echo "WARNING: the loaded NavActiveIgnore.jar (${NAV_HAVE:-unreadable} bytes) is not the Audi" >&2
+                    echo "         build this unit needs ($NAV_WANT bytes, as M.I.B. installs it)." >&2
+                fi ;;
+        esac
     elif sh "$CARD_ROOT/lsd_jar.sh" loaded CarPlayNavigationPatch.jar; then
         # CarPlay Maps VC ships the same nine classes under another name.
         echo "Java check: CarPlayNavigationPatch is loaded (the same patch as NavActiveIgnore)."
@@ -1240,8 +1259,10 @@ else
             NAV_OK=1; NAV_WHY="asked for by CLUSTERMAP_ADD_NAVIGNORE=1 on $TRAIN"
         fi
         if [ "$NAV_OK" -eq 1 ]; then
-            echo "Java check: NavActiveIgnore is not loaded; adding it ($NAV_WHY)."
-            if sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$CARD_ROOT/thirdparty/NavActiveIgnore.jar"; then
+            echo "Java check: NavActiveIgnore is not loaded; adding the $NAVIGNORE_BUILD build ($NAV_WHY)."
+            if [ ! -r "$NAVIGNORE_SRC" ]; then
+                echo "WARNING: the $NAVIGNORE_BUILD NavActiveIgnore build is not in this package; not added." >&2
+            elif sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$NAVIGNORE_SRC"; then
                 mount -uw /mnt/app 2>/dev/null && { : > "$NAVIGNORE_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
             else
                 echo "WARNING: could not add NavActiveIgnore; lsd.sh is unchanged." >&2
@@ -1387,6 +1408,64 @@ else
     elif [ -f "$TURN_TEXT_FILE" ]; then
         mount -uw /mnt/app 2>/dev/null && { rm -f "$TURN_TEXT_FILE"; mount -ur /mnt/app 2>/dev/null || true; }
     fi
+fi
+
+# ---- CarPlay map: the steering-wheel roller zooms it (AU57x cockpit) --------
+# ClusterMapWheelZoom.jar replaces one small class of the stock navigation
+# (the cockpit map's zoom timer), so a roller step goes to the CarPlay map
+# while that covers the cockpit; libcarplay_cluster.so turns it into CarPlay's
+# changeMapZoomLevel. A replaced class that does not fit the HMI stops the
+# navigation, so it is added only where profiles.conf says "wheelzoom" AND
+# lsd.jxe is the exact build it was checked against (tests/wheelzoom_check.sh).
+#   CLUSTERMAP_CARPLAY_WHEEL_ZOOM=auto (default) | reverse | 0
+WHEELZOOM_JAR=ClusterMapWheelZoom.jar
+WHEELZOOM_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_wheelzoom_added
+WHEELZOOM_REVERSE=$PRELOAD_WRITE_DIR/wheel_zoom_reverse
+WHEELZOOM_LSD_SIZE=44688282
+WZ=`sed -n 's/^CLUSTERMAP_CARPLAY_WHEEL_ZOOM=\([a-z0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+case "$WZ" in
+    ''|auto|1) WZ=auto ;;
+    reverse|0) ;;
+    *) echo "CarPlay map: CLUSTERMAP_CARPLAY_WHEEL_ZOOM=$WZ not understood (auto, reverse or 0); using auto"
+       WZ=auto ;;
+esac
+WZ_LSD=`wc -c < /ifs/lsd.jxe 2>/dev/null | sed 's/ //g'`
+WZ_WHY=
+if [ "$WZ" = 0 ]; then
+    WZ_WHY="turned off (CLUSTERMAP_CARPLAY_WHEEL_ZOOM=0)"
+elif [ "$CARPLAY_OK" -ne 1 ]; then
+    WZ_WHY="the CarPlay map is not installed"
+elif ! train_has "$PROFILES" "$TRAIN" wheelzoom; then
+    WZ_WHY="not made for $TRAIN"
+elif [ "$WZ_LSD" != "$WHEELZOOM_LSD_SIZE" ]; then
+    WZ_WHY="this unit's interface (lsd.jxe, ${WZ_LSD:-unreadable} bytes) is not the $WHEELZOOM_LSD_SIZE-byte build it was made for"
+elif [ ! -r "$CARD_ROOT/carplay/$WHEELZOOM_JAR" ] || [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
+    WZ_WHY="its files are not in this package"
+fi
+if [ -z "$WZ_WHY" ]; then
+    if sh "$CARD_ROOT/lsd_jar.sh" add $WHEELZOOM_JAR "$CARD_ROOT/carplay/$WHEELZOOM_JAR"; then
+        if mount -uw /mnt/app 2>/dev/null; then
+            : > "$WHEELZOOM_MARKER"
+            if [ "$WZ" = reverse ]; then : > "$WHEELZOOM_REVERSE"; else rm -f "$WHEELZOOM_REVERSE"; fi
+            mount -ur /mnt/app 2>/dev/null || true
+        fi
+        echo "CarPlay map: steering-wheel zoom on${WZ:+ ($WZ)}: the roller zooms the CarPlay map while it is on the cockpit."
+    else
+        echo "WARNING: could not add $WHEELZOOM_JAR; lsd.sh is unchanged. The roller zooms the stock map only." >&2
+    fi
+else
+    # Taken out again only where this installer put it.
+    if [ -f "$WHEELZOOM_MARKER" ] && sh "$CARD_ROOT/lsd_jar.sh" loaded $WHEELZOOM_JAR; then
+        if sh "$CARD_ROOT/lsd_jar.sh" remove $WHEELZOOM_JAR; then
+            mount -uw /mnt/app 2>/dev/null && { rm -f "$WHEELZOOM_MARKER" "$WHEELZOOM_REVERSE"; mount -ur /mnt/app 2>/dev/null || true; }
+        else
+            echo "WARNING: could not remove $WHEELZOOM_JAR; lsd.sh is unchanged." >&2
+        fi
+    fi
+    case "$TRAIN" in
+        *_AU57x_*) echo "CarPlay map: steering-wheel zoom not installed, $WZ_WHY." ;;
+    esac
 fi
 
 # The install is complete: remember which package and which card file it

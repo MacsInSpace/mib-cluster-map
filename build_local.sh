@@ -5,6 +5,7 @@
 #   ./build_local.sh            build everything and assemble dist/sdcard
 #   ./build_local.sh hook       only libgal_hook.so + libdmdt_flush.so
 #   ./build_local.sh player     only stream-player (builds ffmpeg-mini on first use)
+#   ./build_local.sh java       only ClusterMapWheelZoom.jar (host JDK 8 or newer)
 #
 # Output: dist/sdcard/ (copy its CONTENTS to the SD card root) and a release zip in dist/.
 set -euo pipefail
@@ -88,6 +89,13 @@ build_player() {
   '
 }
 
+build_java() {
+  # The AU57x steering-wheel zoom for the CarPlay map: a Java patch, built on
+  # the host (no QNX tools involved). tests/wheelzoom_check.sh checks it
+  # against a converted stock lsd.jar, which is not in the repository.
+  "$ROOT/java/wheelzoom/build.sh" "$ROOT/build"
+}
+
 package() {
   # SD card layout. Everything of ours sits in one folder; the green menu screen
   # goes where the MQB Coding MIB2 Toolbox looks for custom screens.
@@ -99,6 +107,7 @@ package() {
   cp "$ROOT/build/libdmdt_flush.so" "$D/lib/"
   mkdir -p "$D/carplay"
   cp "$ROOT/build/libcarplay_cluster.so" "$ROOT/carplay/carplay_cluster.sh" "$D/carplay/"
+  cp "$ROOT/build/ClusterMapWheelZoom.jar" "$D/carplay/"
   cp "$ROOT/thirdparty/mhi2_altscreen_carplay/LICENSE" "$D/carplay/mhi2_altscreen_carplay.LICENSE"
   # The install scripts treat their own folder as the package root.
   cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh \
@@ -106,6 +115,9 @@ package() {
   mkdir -p "$D/thirdparty" && cp "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAuto.jar "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAutoMusic.jar "$ROOT"/thirdparty/mib2-android-auto-vc/VCAndroidAutoTurns.jar "$D/thirdparty/" && \
      cp "$ROOT"/thirdparty/mib2-android-auto-vc/LICENSE "$D/thirdparty/VCAndroidAuto.LICENSE"
   cp "$ROOT"/thirdparty/mib2-toolbox/NavActiveIgnore.jar "$D/thirdparty/" && cp "$ROOT"/thirdparty/mib2-toolbox/LICENSE "$D/thirdparty/NavActiveIgnore.LICENSE"
+  # The Audi build, for AU57x (thirdparty/navactiveignore-audi/README.md).
+  cp "$ROOT"/thirdparty/navactiveignore-audi/NavActiveIgnore.jar "$D/thirdparty/NavActiveIgnore_Audi.jar" && \
+     cp "$ROOT"/thirdparty/navactiveignore-audi/LICENSE "$D/thirdparty/NavActiveIgnore_Audi.LICENSE"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" \
      "$ROOT/scripts/lib_unit.sh" "$ROOT/scripts/window_fix.sh" \
      "$ROOT/scripts/lib_cluster_frame.sh" "$ROOT/scripts/full_frame.sh" \
@@ -141,7 +153,7 @@ package() {
   python3 "$ROOT/tools/check_scripts.py" "$D" || { echo "REJECTED: scripts use something units lack"; exit 1; }
   bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/GEM/*.sh "$D"/final/*.sh "$D"/carplay/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
   [ -z "$bad" ] || { echo "REJECTED: CR or non-ASCII in: $bad"; exit 1; }
-  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so > SHA256SUMS.txt)
+  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar > SHA256SUMS.txt)
   python3 "$ROOT/tools/make_metainfo.py" "$S" "${RELEASE_VERSION:-$BUILD_ID}"
   VER=${RELEASE_VERSION:-$BUILD_ID}
   Z="$ROOT/dist/mib-cluster-map_$VER.zip"
@@ -155,7 +167,8 @@ package() {
 case "$WHAT" in
   hook) build_hook ;;
   player) build_player ;;
-  all) build_hook; build_player; package ;;
+  java) build_java ;;
+  all) build_hook; build_player; build_java; package ;;
   package) package ;;
-  *) echo "usage: $0 [all|hook|player|package]"; exit 2 ;;
+  *) echo "usage: $0 [all|hook|player|java|package]"; exit 2 ;;
 esac
