@@ -65,19 +65,33 @@ build_player() {
     set -e
     FF=/work/build/ffmpeg-mini; V=6.1.5
     SHA=b8c8e926b948c14df1264cd0beac1c773df9170ac9cac97bdf1275cd3d385902
-    if [ ! -f $FF/libavcodec/libavcodec.a ]; then
-      cd /work/build
-      [ -f ffmpeg-$V.tar.gz ] || curl -fL --retry 3 -o ffmpeg-$V.tar.gz https://ffmpeg.org/releases/ffmpeg-$V.tar.gz
-      echo "$SHA  ffmpeg-$V.tar.gz" | sha256sum -c -
-      mkdir -p $FF && tar xf ffmpeg-$V.tar.gz -C $FF --strip-components=1
+    # FFmpeg with its NEON code for the units' Tegra 3 (Cortex-A9), as
+    # AMDFX60's Skoda fork found: built with --disable-asm, the software
+    # decoder took about 100 ms a 720p picture. The player switches the NEON
+    # routines off at run time if the CPU does not report NEON. A build made
+    # with other settings (the stamp differs) is made again from the same
+    # source. tools/qnx_cc.sh forces stddef.h into C files only.
+    FFCONF=neon-cortex-a9-1
+    if [ ! -f $FF/libavcodec/libavcodec.a ] || [ "$(cat $FF/.mibcm-ffconf 2>/dev/null)" != "$FFCONF" ]; then
+      if [ ! -f $FF/configure ]; then
+        cd /work/build
+        [ -f ffmpeg-$V.tar.gz ] || curl -fL --retry 3 -o ffmpeg-$V.tar.gz https://ffmpeg.org/releases/ffmpeg-$V.tar.gz
+        echo "$SHA  ffmpeg-$V.tar.gz" | sha256sum -c -
+        mkdir -p $FF && tar xf ffmpeg-$V.tar.gz -C $FF --strip-components=1
+      else
+        (cd $FF && make distclean >/dev/null 2>&1 || true)
+      fi
       cd $FF
-      ./configure --cc=$P-gcc --ar=$P-ar --ld=$P-gcc --nm=$P-nm --ranlib=$P-ranlib --strip=$P-strip \
-        --arch=arm --target-os=qnx --disable-asm --disable-debug --enable-cross-compile \
-        --extra-cflags="-D_QNX_SOURCE -include stddef.h -march=armv7-a -mfloat-abi=softfp -mfpu=vfpv3-d16" \
+      cp /work/tools/qnx_cc.sh $FF/qnx_cc.sh && chmod 755 $FF/qnx_cc.sh
+      ./configure --cc=$FF/qnx_cc.sh --as=$FF/qnx_cc.sh --ar=$P-ar --ld=$P-gcc --nm=$P-nm --ranlib=$P-ranlib --strip=$P-strip \
+        --arch=arm --cpu=cortex-a9 --target-os=qnx --enable-neon --disable-debug --enable-cross-compile \
+        --extra-cflags="-D_QNX_SOURCE -mfloat-abi=softfp -mfpu=neon" \
         --extra-libs=-lsocket --disable-doc --disable-programs --disable-avdevice --disable-swresample \
         --disable-swscale --disable-postproc --disable-avfilter --disable-everything \
         --enable-decoder=h264 --enable-parser=h264
+      grep -q "HAVE_NEON 1" config.h || { echo "REJECTED: FFmpeg configured without NEON"; exit 1; }
       make -j"$(nproc)"
+      echo "$FFCONF" > $FF/.mibcm-ffconf
     fi
     cd /work/player
     $P-g++ -O2 -Wall -DNDEBUG -I$FF -I. opengl_gpu.cc -c -o /work/build/opengl_gpu.o

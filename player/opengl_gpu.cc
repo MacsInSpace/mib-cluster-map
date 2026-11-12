@@ -43,6 +43,7 @@
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#include <sys/syspage.h>
 #else
 #include <GLES2/gl2.h>
 #include <GLFW/glfw3.h>
@@ -52,6 +53,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
+#include <libavutil/cpu.h>
 }
 
 // ---------------- Configuration & Performance Knobs ----------------
@@ -146,8 +148,11 @@ struct RGBABuffer {
     size_t capacity;
     int packetBytes;
     bool isKeyframe;
+    bool colorFull;   /* the stream says full range (0-255), not 16-235 */
+    bool colorBt709;  /* the stream says BT.709, or is HD and says nothing */
 
-    RGBABuffer() : pixels(NULL), width(0), height(0), capacity(0), packetBytes(0), isKeyframe(false) {}
+    RGBABuffer() : pixels(NULL), width(0), height(0), capacity(0), packetBytes(0), isKeyframe(false),
+                   colorFull(false), colorBt709(false) {}
 
     void ensureCapacity(int w, int h) {
         size_t total = (size_t)w * h + 2 * ((size_t)(w/2) * (h/2));
@@ -351,6 +356,17 @@ static GLint  g_texAttr = -1;
 static GLint  g_texLocY = -1;
 static GLint  g_texLocU = -1;
 static GLint  g_texLocV = -1;
+static GLint  g_rangeLoc = -1;
+static GLint  g_matrixLoc = -1;
+/*
+ * Colour conversion (found by AMDFX60's Skoda fork, 2026-11). The player used
+ * full-range BT.601 for every stream, but a phone's H.264 is normally limited
+ * range (Y 16-235, Cb/Cr 16-240): grey blacks, dim whites, paler colours.
+ * GAL_PLAYER_COLOR=auto (the default) follows what the stream says, assuming
+ * limited range when it says nothing (the H.264 default) and BT.709 for an HD
+ * frame that names no matrix; old is the previous conversion, to compare.
+ */
+static bool g_colorAuto = true;
 static GLuint g_texY = 0;
 static GLuint g_texU = 0;
 static GLuint g_texV = 0;
@@ -372,14 +388,16 @@ static const char* fragmentShaderSource =
     "uniform sampler2D texY;\n"
     "uniform sampler2D texU;\n"
     "uniform sampler2D texV;\n"
+    "uniform vec3 range;\n"   /* Y offset, Y scale, Cb/Cr scale */
+    "uniform vec4 matrix;\n"  /* Cr->R, Cb->G, Cr->G, Cb->B */
     "void main()\n"
     "{\n"
-    "    float y = texture2D(texY, v_texCoord).r;\n"
-    "    float u = texture2D(texU, v_texCoord).r - 0.5;\n"
-    "    float v = texture2D(texV, v_texCoord).r - 0.5;\n"
-    "    float r = y + 1.402 * v;\n"
-    "    float g = y - 0.34414 * u - 0.71414 * v;\n"
-    "    float b = y + 1.772 * u;\n"
+    "    float y = (texture2D(texY, v_texCoord).r - range.x) * range.y;\n"
+    "    float u = (texture2D(texU, v_texCoord).r - 0.5) * range.z;\n"
+    "    float v = (texture2D(texV, v_texCoord).r - 0.5) * range.z;\n"
+    "    float r = y + matrix.x * v;\n"
+    "    float g = y - matrix.y * u - matrix.z * v;\n"
+    "    float b = y + matrix.w * u;\n"
     "    gl_FragColor = vec4(r, g, b, 1.0);\n"
     "}\n";
 
@@ -790,6 +808,8 @@ void InitGL() {
     g_texLocY = glGetUniformLocation(g_programObject, "texY");
     g_texLocU = glGetUniformLocation(g_programObject, "texU");
     g_texLocV = glGetUniformLocation(g_programObject, "texV");
+    g_rangeLoc = glGetUniformLocation(g_programObject, "range");
+    g_matrixLoc = glGetUniformLocation(g_programObject, "matrix");
     LOG("GL: attrib locations: pos=%d tex=%d", g_posAttr, g_texAttr);
 
     GLint linkStatus = 0;
@@ -1322,6 +1342,26 @@ static void* DecoderThreadFunc(void* arg) {
                         RGBABuffer* buf = g_framePool.getWriteBuffer(w, h);
                         buf->packetBytes = packet->size;
                         buf->isKeyframe = isKey;
+                        {
+                            /* What the stream says about its colours (GAL_PLAYER_COLOR). */
+                            bool spaceUnset = frame->colorspace == AVCOL_SPC_UNSPECIFIED ||
+                                              frame->colorspace == AVCOL_SPC_RESERVED;
+                            buf->colorFull = frame->color_range == AVCOL_RANGE_JPEG;
+                            buf->colorBt709 = frame->colorspace == AVCOL_SPC_BT709 ||
+                                              (spaceUnset && h >= 720);
+                            static int s_lastRange = -1, s_lastSpace = -1, s_lastH = -1;
+                            if ((int)frame->color_range != s_lastRange ||
+                                (int)frame->colorspace != s_lastSpace || h != s_lastH) {
+                                s_lastRange = (int)frame->color_range;
+                                s_lastSpace = (int)frame->colorspace;
+                                s_lastH = h;
+                                LOG("colour: stream range %d, matrix %d (%dx%d); drawn as %s",
+                                    s_lastRange, s_lastSpace, w, h,
+                                    !g_colorAuto ? "full-range BT.601 (GAL_PLAYER_COLOR=old)" :
+                                    buf->colorFull ? (buf->colorBt709 ? "full-range BT.709" : "full-range BT.601") :
+                                                     (buf->colorBt709 ? "limited-range BT.709" : "limited-range BT.601"));
+                            }
+                        }
                         
                         uint8_t* dstY = buf->pixels;
                         uint8_t* dstU = dstY + (w * h);
@@ -1574,6 +1614,10 @@ static void load_player_config() {
             } else if (strcmp(key, "GAL_PLAYER_STATS") == 0) {
                 /* 0 drops the once-a-second STATS line; everything else is still logged. */
                 g_verbose = atoi(val) != 0;
+            } else if (strcmp(key, "GAL_PLAYER_COLOR") == 0) {
+                /* auto (default): as the stream says; old: full-range BT.601 as before. */
+                if (strcmp(val, "old") == 0) g_colorAuto = false;
+                else if (strcmp(val, "auto") == 0) g_colorAuto = true;
             } else if (strcmp(key, "GAL_PLAYER_PRIORITY") == 0) {
                 int p = atoi(val);
                 if (p >= 0 && p <= 20) g_priority = p;
@@ -1777,6 +1821,24 @@ int main(int argc, char* argv[]) {
     g_isSocket = (strncmp(g_videoSource, "tcp://", 6) == 0 || is_unix_sock);
     LOG("stream-player starting (source: %s, loop: %d, pool: %d)",
         g_videoSource, g_loopFile ? 1 : 0, kBufferPoolSize);
+#ifdef __QNX__
+    /*
+     * FFmpeg is built with its NEON code (build_local.sh; AMDFX60's Skoda
+     * fork): the units' Tegra 3 has NEON. FFmpeg cannot ask QNX at run time,
+     * so the system page is asked here; without NEON its NEON routines are
+     * switched off rather than run.
+     */
+    {
+        unsigned cpuFlags = SYSPAGE_ENTRY(cpuinfo)->flags;
+        if (cpuFlags & ARM_CPU_FLAG_NEON) {
+            LOG("cpu: NEON present (flags 0x%x); FFmpeg uses its NEON decoder routines", cpuFlags);
+        } else {
+            av_force_cpu_flags(av_get_cpu_flags() & ~AV_CPU_FLAG_NEON);
+            LOGE("cpu: no NEON reported (flags 0x%x); FFmpeg's NEON routines switched off", cpuFlags);
+        }
+    }
+#endif
+
 
     signal(SIGINT,  signal_handler);
     signal(SIGTERM, signal_handler);
@@ -2073,6 +2135,18 @@ int main(int argc, char* argv[]) {
                 glUniform1i(g_texLocY, 0);
                 glUniform1i(g_texLocU, 1);
                 glUniform1i(g_texLocV, 2);
+                {
+                    bool colorFull = !g_colorAuto || dispBuf->colorFull;
+                    bool colorBt709 = g_colorAuto && dispBuf->colorBt709;
+                    if (colorFull)
+                        glUniform3f(g_rangeLoc, 0.0f, 1.0f, 1.0f);
+                    else /* limited: Y 16-235 and Cb/Cr 16-240 stretched to 0-255 */
+                        glUniform3f(g_rangeLoc, 16.0f / 255.0f, 255.0f / 219.0f, 255.0f / 224.0f);
+                    if (colorBt709)
+                        glUniform4f(g_matrixLoc, 1.5748f, 0.18732f, 0.46812f, 1.8556f);
+                    else
+                        glUniform4f(g_matrixLoc, 1.402f, 0.34414f, 0.71414f, 1.772f);
+                }
 
                 glVertexAttribPointer(g_posAttr, 3, GL_FLOAT, GL_FALSE, 0, fittedVertices);
                 glVertexAttribPointer(g_texAttr, 2, GL_FLOAT, GL_FALSE, 0, croppedTexCoords);
