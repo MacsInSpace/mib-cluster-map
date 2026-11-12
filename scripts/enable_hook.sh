@@ -1222,13 +1222,24 @@ if train_has "$PROFILES" "$TRAIN" nonavignore; then NAVIGNORE_NEVER=1; fi
 NAVIGNORE_SRC="$CARD_ROOT/thirdparty/NavActiveIgnore.jar"
 NAVIGNORE_BUILD="toolbox (VW)"
 case "$TRAIN" in
-    *_AU57x_*) NAVIGNORE_SRC="$CARD_ROOT/thirdparty/NavActiveIgnore_Audi.jar"; NAVIGNORE_BUILD="Audi" ;;
+    # Every Audi interface is de.audi.*: the A3 8V (AU37x) and A4/Q5 (AUG22)
+    # get the Audi build too. Car-tested on the A7 only; elsewhere it is added
+    # only when the owner asks (CLUSTERMAP_ADD_NAVIGNORE=1), never on a
+    # "nonavignore" train.
+    *_AU*) NAVIGNORE_SRC="$CARD_ROOT/thirdparty/NavActiveIgnore_Audi.jar"; NAVIGNORE_BUILD="Audi" ;;
 esac
 echo
 if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo "WARNING: cannot check the Java interface ($LSD_SH or lsd_jar.sh missing)." >&2
 else
-    if sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar && [ "$NAVIGNORE_NEVER" -eq 1 ]; then
+    NAV_HAVE=`wc -c < /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar 2>/dev/null | sed 's/ //g'`
+    NAV_WANT=`wc -c < "$NAVIGNORE_SRC" 2>/dev/null | sed 's/ //g'`
+    if sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar && [ "$NAVIGNORE_NEVER" -eq 1 ] &&
+       [ "$NAVIGNORE_BUILD" = Audi ] && [ -n "$NAV_WANT" ] && [ "$NAV_HAVE" = "$NAV_WANT" ]; then
+        # An Audi owner's own M.I.B. install of the Audi build (a Q5 FY on
+        # K3346 has it): the warning below is about the VW build.
+        echo "Java check: NavActiveIgnore (Audi build) is loaded; left as it is."
+    elif sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar && [ "$NAVIGNORE_NEVER" -eq 1 ]; then
         echo "WARNING: NavActiveIgnore is loaded. On firmware $TRAIN it has stopped" >&2
         echo "         Android Auto (#39). If it does, remove it with the toolbox or" >&2
         echo "         this package's uninstall, or update to MHI2_ER_VWG11_K3342." >&2
@@ -1236,9 +1247,7 @@ else
         echo "Java check: NavActiveIgnore is loaded (required)."
         # A6/A7: the VW build there patches classes this interface lacks.
         case "$TRAIN" in
-            *_AU57x_*)
-                NAV_HAVE=`wc -c < /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar 2>/dev/null | sed 's/ //g'`
-                NAV_WANT=`wc -c < "$NAVIGNORE_SRC" 2>/dev/null | sed 's/ //g'`
+            *_AU*)
                 if [ -n "$NAV_WANT" ] && [ "$NAV_HAVE" != "$NAV_WANT" ]; then
                     echo "WARNING: the loaded NavActiveIgnore.jar (${NAV_HAVE:-unreadable} bytes) is not the Audi" >&2
                     echo "         build this unit needs ($NAV_WANT bytes, as M.I.B. installs it)." >&2
@@ -1471,6 +1480,25 @@ else
     case "$TRAIN" in
         *_AU57x_*) echo "CarPlay map: steering-wheel zoom not installed, $WZ_WHY." ;;
     esac
+fi
+
+# ---- CarPlay map: keep it when the iPhone starts a route --------------------
+# CLUSTERMAP_CARPLAY_HIDE_NAV=1: the CarPlay hook does not pass on to the car
+# that the iPhone has started a route (libcarplay_cluster.so reads the marker
+# file each time). For cars whose cockpit leaves the map during a CarPlay
+# route although the stream keeps running (US P3662, #10). Off by default;
+# not car-tested.
+HIDE_NAV_MARKER=$PRELOAD_WRITE_DIR/carplay_hide_nav
+HIDE_NAV=`sed -n 's/^CLUSTERMAP_CARPLAY_HIDE_NAV=\([01]\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+if mount -uw "$APP_MOUNT" 2>/dev/null; then
+    if [ "$HIDE_NAV" = 1 ] && [ "$CARPLAY_OK" -eq 1 ]; then
+        : > "$HIDE_NAV_MARKER"
+        echo "CarPlay map: the iPhone's route is hidden from the car (CLUSTERMAP_CARPLAY_HIDE_NAV=1; not car-tested)."
+    else
+        rm -f "$HIDE_NAV_MARKER"
+    fi
+    mount -ur "$APP_MOUNT" 2>/dev/null || true
 fi
 
 # The install is complete: remember which package and which card file it
