@@ -51,7 +51,8 @@
  * installer sets margins that leave a band of that shape, and the player
  * crops them off and scales the band to fill the window. UI placement
  * inside the band is controlled separately through UiConfig
- * field 2/contentInsets.
+ * field 2/contentInsets. A nonzero GAL_CROP_TOP or GAL_CROP_BOTTOM instead
+ * sends the phone the full frame and lets the player crop and stretch it.
  *
  * The compiled fallback is dpi 140 and viewing_distance 700. The active
  * package config deliberately overrides DPI to the car-tested value 125.
@@ -139,6 +140,21 @@ static int environment_flag(const char *name)
     const char *value = getenv(name);
     return value != NULL && *value != '\0' && strcmp(value, "0") != 0 &&
            strcmp(value, "false") != 0 && strcmp(value, "no") != 0;
+}
+
+static int parse_crop_rows(const char *value, unsigned *rows)
+{
+    char *end;
+    unsigned long parsed;
+
+    if (value == NULL || *value == '\0') {
+        *rows = 0u;
+        return 1;
+    }
+    parsed = strtoul(value, &end, 10);
+    if (end == value || *end != '\0' || parsed > 240ul) return 0;
+    *rows = (unsigned)parsed;
+    return 1;
 }
 
 /* Read once in gal_hook_init, after the config file, so the controller
@@ -291,6 +307,24 @@ static void load_environment(void)
         if (sscanf(value, "%ux%u", &w, &h) == 2 && w <= 400u && h <= 240u) {
             g_config.margin_width = w & ~1u;
             g_config.margin_height = h & ~1u;
+        }
+    }
+    {
+        unsigned crop_top, crop_bottom;
+        const char *top_value = getenv("GAL_CROP_TOP");
+        const char *bottom_value = getenv("GAL_CROP_BOTTOM");
+        if (!parse_crop_rows(top_value, &crop_top) ||
+            !parse_crop_rows(bottom_value, &crop_bottom) ||
+            crop_top + crop_bottom >= 480u) {
+            gal_hook_logf("event=config.crop result=invalid top=%s bottom=%s",
+                          top_value != NULL ? top_value : "0",
+                          bottom_value != NULL ? bottom_value : "0");
+        } else if (crop_top != 0u || crop_bottom != 0u) {
+            /* The player crops the uncropped frame; keep full-frame pixel aspect. */
+            g_config.margin_width = 0u;
+            g_config.margin_height = 0u;
+            gal_hook_logf("event=config.crop result=enabled top=%u bottom=%u source_height=%u",
+                          crop_top, crop_bottom, 480u - crop_top - crop_bottom);
         }
     }
     value = getenv("GAL_SECONDARY_INSETS");
