@@ -48,6 +48,10 @@ CARPLAY=1
 # it only at /eso/lib would otherwise be reported as having no CarPlay at all.
 AIRPLAY_LIB=/mnt/app/eso/lib/libairplay.so
 AIRPLAY_SIZE=703688
+# 694088: the build on the Audi A6/A7 C7.5 (K3663) and US P3662, car-tested
+# on three A7s and a US Golf with CLUSTERMAP_CARPLAY_TRIAL before it was
+# accepted here (#68, #10).
+AIRPLAY_SIZE_2=694088
 PROFILES=$CARD_ROOT/profiles.conf
 CARPLAY_PRELOAD=/mnt/app/eso/lib/gal_dualscreen/libcarplay_cluster.so
 CARPLAY_OK=0
@@ -497,6 +501,7 @@ done
 AIRPLAY_NOW=`wc -c < $AIRPLAY_LIB 2>/dev/null | sed 's/ //g'`
 AIRPLAY_ALLOWED=0
 [ "$AIRPLAY_NOW" = "$AIRPLAY_SIZE" ] && AIRPLAY_ALLOWED=1
+[ "$AIRPLAY_NOW" = "$AIRPLAY_SIZE_2" ] && AIRPLAY_ALLOWED=1
 [ -n "$AIRPLAY_TRIAL" ] && [ "$AIRPLAY_NOW" = "$AIRPLAY_TRIAL" ] && AIRPLAY_ALLOWED=1
 # CLUSTERMAP_CARPLAY=0: the Android Auto map only. CarPlay's preload and
 # firewall rule are left out, for wireless adapters that do not get along
@@ -675,7 +680,7 @@ else
         mv "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new" "$PRELOAD_WRITE_DIR/libcarplay_cluster.so" && CARPLAY_OK=1
     if [ "$CARPLAY_OK" -eq 1 ]; then
         echo "Installed the CarPlay map files to: $PRELOAD_WRITE_DIR"
-        if [ "$AIRPLAY_NOW" != "$AIRPLAY_SIZE" ]; then
+        if [ "$AIRPLAY_NOW" != "$AIRPLAY_SIZE" ] && [ "$AIRPLAY_NOW" != "$AIRPLAY_SIZE_2" ]; then
             echo "CarPlay map: UNTESTED CarPlay library ($AIRPLAY_NOW bytes), allowed by"
             echo "             CLUSTERMAP_CARPLAY_TRIAL. The hook checks the names and first"
             echo "             bytes of the functions it attaches to. That does not prove this"

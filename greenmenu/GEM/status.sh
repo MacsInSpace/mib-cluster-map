@@ -22,8 +22,8 @@ else
     ap=`airplay_path`
     a=
     if [ -n "$ap" ]; then a=`wc -c < "$ap" 2>/dev/null | sed 's/ //g'`; fi
-    if [ "$a" = 703688 ]; then echo "CarPlay map: not installed (this unit's CarPlay library is supported)"
-    elif [ -n "$a" ]; then echo "CarPlay map: not installed (CarPlay library $a bytes; tested: 703688. Another build needs CLUSTERMAP_CARPLAY_TRIAL, see Install)"
+    if [ "$a" = 703688 ] || [ "$a" = 694088 ]; then echo "CarPlay map: not installed (this unit's CarPlay library is supported)"
+    elif [ -n "$a" ]; then echo "CarPlay map: not installed (CarPlay library $a bytes; tested: 703688 and 694088. Another build needs CLUSTERMAP_CARPLAY_TRIAL, see Install)"
     else echo "CarPlay map: not installed (no CarPlay library found on this unit)"; fi
 fi
 if sh "$PKG/lsd_jar.sh" loaded NavActiveIgnore.jar; then echo "NavActiveIgnore: loaded (required)"

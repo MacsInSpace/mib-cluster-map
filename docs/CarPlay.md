@@ -32,8 +32,9 @@ iPhone video → hook in the CarPlay program (dio_manager) → stream-player →
   is byte-identical on VW MU1367 (`P4521`, `K4525`), on the Golf R's `P4512`
   (where the installer accepted it and the map reached the dash) and, by
   harman-f's survey, SEAT MU1447. The installer installs CarPlay only when the unit's
-  `libairplay.so` is that build (703688 bytes); on any other it installs the
-  Android Auto map alone. The hook also checks the functions it attaches to
+  `libairplay.so` is that build (703688 bytes) or the 694088-byte build of the
+  Audi A6/A7 C7.5 (`K3663`) and US `P3662`, which owners car-tested (#68,
+  #10); on any other it installs the Android Auto map alone. The hook also checks the functions it attaches to
   and switches itself off if they differ.
 - **Getting your build looked at.** **Collect files for porting** copies
   `libairplay.so` onto the card beside the Android Auto files, under whatever
