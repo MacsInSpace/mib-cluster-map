@@ -162,6 +162,58 @@ the cluster's entry leaves it out and follows the car, as
 [luka-dev/mib2q-carplay-rgi](https://github.com/luka-dev/mib2q-carplay-rgi)
 found on the Audi MHI2Q.
 
+### Steering-wheel zoom (Audi A6/A7 C7.5)
+
+On `MHI2_ER_AU57x_K3663` the roller on the steering wheel zooms the CarPlay
+map while it is on the cockpit, as it zooms the car's own map. iOS has a
+command for exactly this, `changeMapZoomLevel` (0 zooms in, 1 out, for the
+cluster display's uuid); aberbic's
+[Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto](https://github.com/aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto)
+showed it working with Apple Maps on an A4 B9 (MU1438), and this follows its
+design.
+
+- The cockpit sends each roller step to the head unit, where the stock
+  navigation's cockpit map (`CtxMapInKombi.increment`, control
+  `-240844800`) adds it to its zoom timer
+  (`CtxShown$ZoomUpdateDelayTimer.restart`). The A4's
+  `CombiBAPListener.setMapScale` does not exist on this MOST cockpit.
+- `ClusterMapWheelZoom.jar` (`java/wheelzoom`) is a replacement of that one
+  timer class, written for this project: the same methods and behaviour.
+  Its timer is created with a 150 ms delay: the stock Timer refuses 0, and
+  jxe2jar's conversion of MU1425 shows a broken `int 0` there, which three
+  betas copied and with which the navigation stopped loading at 11%
+  (`tests/wheelzoom_logic_test.sh` now catches that). Every method the stock
+  classes call is public, and every stock method it calls goes through
+  reflection, as luka-dev's CarplayTouchpadMIB does on this unit, so it does
+  not depend on J9 counting the jar's classes as part of lsd.jxe's package.
+  Built with IBM's javac -target 1.2 like the M.I.B. jars (`IBM_JDK_DIR`). And
+  while the CarPlay stream is up (`/tmp/mibr-carplay111.state` says
+  `streaming` and `carplay_cluster.sh` runs) the steps go to the hook as
+  `MZ01` and a signed count on loopback UDP 19822, and the stock map does not
+  zoom underneath. Anything else, and the stock map zooms as before.
+- The hook keeps a count and sends one `changeMapZoomLevel` per step,
+  100 ms apart. Positive steps (the stock list's larger scales) zoom out.
+- lsd.sh on this unit starts J9 with `-Xbootclasspath:$BOOTCLASSPATH`, so
+  `lsd_jar.sh` adds the jar as a line of its own before lsd.jxe's, as M.I.B.
+  adds its jars there.
+
+A replaced class that does not fit the interface stops its navigation, so the
+installer adds the jar only on a train marked `wheelzoom` in `profiles.conf`
+whose `/ifs/lsd.jxe` is the 44688282-byte MU1425 build, and
+`tests/wheelzoom_check.sh <lsd.jar>` checks the jar against that build's
+converted `lsd.jar` (members, every call public, bytecode verification) and
+`tests/wheelzoom_logic_test.sh` runs it against stand-ins in another runtime
+package, before a release. `CLUSTERMAP_CARPLAY_WHEEL_ZOOM=reverse` turns the direction round,
+`=0` leaves the roller to the car's map; uninstall removes it. Logs:
+`/tmp/clustermap-wheelzoom.log` (the HMI side) and the `wheel zoom:` lines
+of `/tmp/altscreen111.log` (the hook); **Save logs to SD** copies both, and
+`touch /tmp/clustermap-wheelzoom-off` gives the roller back to the car's map
+until the next boot. Car-tested on an A7 C7.5 (`MHI2_ER_AU57x_K3663_1`,
+`libairplay.so` 694088 bytes with `CLUSTERMAP_CARPLAY_TRIAL`): the roller
+zooms the CarPlay map on the cockpit, and the car's own map as before
+without CarPlay. Whether every navigation app follows the command as Apple
+Maps does is up to the app.
+
 ### Delay
 
 The iPhone sends a keyframe only when asked (2 in 5540 pictures in one

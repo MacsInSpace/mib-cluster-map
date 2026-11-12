@@ -32,3 +32,8 @@ All marked `mib-cluster-map` in `libaltscreen111_gen2.c`:
 - `ALTSCREEN111_ZOOM_FACTOR` (installer: `CLUSTERMAP_CARPLAY_ZOOM`), off by
   default: adds `zoomFactor` to the cluster display, as the SEAT MU1409 port
   by RandomGenerated543/seat-cupra-mu1409-carplay (GPL-3.0) does.
+- Steering-wheel zoom (`gen2_process_wheel_zoom`): roller steps from the HMI
+  (`ClusterMapWheelZoom.jar`, loopback UDP 19822, `MZ01` and a signed count)
+  become `changeMapZoomLevel` commands for the cluster display while the
+  stream is up, as aberbic/Audi-MHI2-Virtual-Cockpit-Altscreen-CarPlay-AndroidAuto
+  (GPL-3.0) does on MU1438. See docs/CarPlay.md.
