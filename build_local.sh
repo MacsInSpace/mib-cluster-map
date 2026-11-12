@@ -5,7 +5,7 @@
 #   ./build_local.sh            build everything and assemble dist/sdcard
 #   ./build_local.sh hook       only libgal_hook.so + libdmdt_flush.so
 #   ./build_local.sh player     only stream-player (builds ffmpeg-mini on first use)
-#   ./build_local.sh java       only ClusterMapWheelZoom.jar (host JDK 8 or newer)
+#   ./build_local.sh java       only the steering-wheel zoom jars (host JDK 8 or newer)
 #
 # Output: dist/sdcard/ (copy its CONTENTS to the SD card root) and a release zip in dist/.
 set -euo pipefail
@@ -92,8 +92,10 @@ build_player() {
 build_java() {
   # The AU57x steering-wheel zoom for the CarPlay map: a Java patch, built on
   # the host (no QNX tools involved). tests/wheelzoom_check.sh checks it
-  # against a converted stock lsd.jar, which is not in the repository.
+  # against a converted stock lsd.jar, which is not in the repository;
+  # tests/navasiazoom_check.sh the Chinese K1006_2's.
   "$ROOT/java/wheelzoom/build.sh" "$ROOT/build"
+  "$ROOT/java/navasiazoom/build.sh" "$ROOT/build"
 }
 
 package() {
@@ -107,7 +109,7 @@ package() {
   cp "$ROOT/build/libdmdt_flush.so" "$D/lib/"
   mkdir -p "$D/carplay"
   cp "$ROOT/build/libcarplay_cluster.so" "$ROOT/carplay/carplay_cluster.sh" "$D/carplay/"
-  cp "$ROOT/build/ClusterMapWheelZoom.jar" "$D/carplay/"
+  cp "$ROOT/build/ClusterMapWheelZoom.jar" "$ROOT/build/ClusterMapNavAsiaZoom.jar" "$D/carplay/"
   cp "$ROOT/thirdparty/mhi2_altscreen_carplay/LICENSE" "$D/carplay/mhi2_altscreen_carplay.LICENSE"
   # The install scripts treat their own folder as the package root.
   cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh \
@@ -153,7 +155,7 @@ package() {
   python3 "$ROOT/tools/check_scripts.py" "$D" || { echo "REJECTED: scripts use something units lack"; exit 1; }
   bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/GEM/*.sh "$D"/final/*.sh "$D"/carplay/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
   [ -z "$bad" ] || { echo "REJECTED: CR or non-ASCII in: $bad"; exit 1; }
-  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar > SHA256SUMS.txt)
+  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar carplay/ClusterMapNavAsiaZoom.jar > SHA256SUMS.txt)
   python3 "$ROOT/tools/make_metainfo.py" "$S" "${RELEASE_VERSION:-$BUILD_ID}"
   VER=${RELEASE_VERSION:-$BUILD_ID}
   Z="$ROOT/dist/mib-cluster-map_$VER.zip"
