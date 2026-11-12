@@ -1438,11 +1438,15 @@ fi
 # changeMapZoomLevel. A replaced class that does not fit the HMI stops the
 # navigation, so it is added only where profiles.conf says "wheelzoom" AND
 # lsd.jxe is the exact build it was checked against (tests/wheelzoom_check.sh).
+# The Chinese K1006_2 has another navigation (de/audi/tghu/navasia), so
+# "navasiazoom" there adds ClusterMapNavAsiaZoom.jar instead: a copy of the
+# stock NavAsiaModelListener (tests/navasiazoom_check.sh) that logs each
+# roller step's id and sends only the roller's (model 82137 in that lsd.jxe,
+# from a car's log) to CarPlay.
 #   CLUSTERMAP_CARPLAY_WHEEL_ZOOM=auto (default) | reverse | 0
-WHEELZOOM_JAR=ClusterMapWheelZoom.jar
-WHEELZOOM_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_wheelzoom_added
+#   CLUSTERMAP_CARPLAY_WHEEL_ZOOM_ID=<number> (navasiazoom only; default 82137)
 WHEELZOOM_REVERSE=$PRELOAD_WRITE_DIR/wheel_zoom_reverse
-WHEELZOOM_LSD_SIZE=44688282
+WHEELZOOM_ID_FILE=$PRELOAD_WRITE_DIR/wheel_zoom_id
 WZ=`sed -n 's/^CLUSTERMAP_CARPLAY_WHEEL_ZOOM=\([a-z0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 case "$WZ" in
@@ -1451,39 +1455,61 @@ case "$WZ" in
     *) echo "CarPlay map: CLUSTERMAP_CARPLAY_WHEEL_ZOOM=$WZ not understood (auto, reverse or 0); using auto"
        WZ=auto ;;
 esac
+WZ_ID=`sed -n 's/^CLUSTERMAP_CARPLAY_WHEEL_ZOOM_ID=\([0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 WZ_LSD=`wc -c < /ifs/lsd.jxe 2>/dev/null | sed 's/ //g'`
+WZ_NAME=
+if train_has "$PROFILES" "$TRAIN" wheelzoom; then
+    WZ_NAME=wheelzoom WHEELZOOM_JAR=ClusterMapWheelZoom.jar WHEELZOOM_LSD_SIZE=44688282
+    WZ_ID=   # the roller id is for navasiazoom only
+elif train_has "$PROFILES" "$TRAIN" navasiazoom; then
+    WZ_NAME=navasiazoom WHEELZOOM_JAR=ClusterMapNavAsiaZoom.jar WHEELZOOM_LSD_SIZE=43229093
+    WZ_ID=${WZ_ID:-82137}
+fi
 WZ_WHY=
 if [ "$WZ" = 0 ]; then
     WZ_WHY="turned off (CLUSTERMAP_CARPLAY_WHEEL_ZOOM=0)"
 elif [ "$CARPLAY_OK" -ne 1 ]; then
     WZ_WHY="the CarPlay map is not installed"
-elif ! train_has "$PROFILES" "$TRAIN" wheelzoom; then
+elif [ -z "$WZ_NAME" ]; then
     WZ_WHY="not made for $TRAIN"
 elif [ "$WZ_LSD" != "$WHEELZOOM_LSD_SIZE" ]; then
     WZ_WHY="this unit's interface (lsd.jxe, ${WZ_LSD:-unreadable} bytes) is not the $WHEELZOOM_LSD_SIZE-byte build it was made for"
 elif [ ! -r "$CARD_ROOT/carplay/$WHEELZOOM_JAR" ] || [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
     WZ_WHY="its files are not in this package"
 fi
+# Taken out again only where this installer put it: any zoom jar but the one
+# that fits now.
+for WZ_EXTRA in wheelzoom:ClusterMapWheelZoom.jar navasiazoom:ClusterMapNavAsiaZoom.jar; do
+    WZ_OLD=${WZ_EXTRA%%:*}
+    WZ_OLD_JAR=${WZ_EXTRA#*:}
+    WZ_OLD_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_${WZ_OLD}_added
+    [ -z "$WZ_WHY" ] && [ "$WZ_OLD" = "$WZ_NAME" ] && continue
+    if [ -f "$WZ_OLD_MARKER" ] && sh "$CARD_ROOT/lsd_jar.sh" loaded $WZ_OLD_JAR; then
+        if sh "$CARD_ROOT/lsd_jar.sh" remove $WZ_OLD_JAR; then
+            mount -uw /mnt/app 2>/dev/null && { rm -f "$WZ_OLD_MARKER" "$WHEELZOOM_REVERSE" "$WHEELZOOM_ID_FILE"; mount -ur /mnt/app 2>/dev/null || true; }
+        else
+            echo "WARNING: could not remove $WZ_OLD_JAR; lsd.sh is unchanged." >&2
+        fi
+    fi
+done
 if [ -z "$WZ_WHY" ]; then
     if sh "$CARD_ROOT/lsd_jar.sh" add $WHEELZOOM_JAR "$CARD_ROOT/carplay/$WHEELZOOM_JAR"; then
         if mount -uw /mnt/app 2>/dev/null; then
-            : > "$WHEELZOOM_MARKER"
+            : > "/mnt/app/eso/hmi/lsd/.aacluster_${WZ_NAME}_added"
             if [ "$WZ" = reverse ]; then : > "$WHEELZOOM_REVERSE"; else rm -f "$WHEELZOOM_REVERSE"; fi
+            if [ "$WZ_NAME" = navasiazoom ] && [ -n "$WZ_ID" ]; then
+                echo "$WZ_ID" > "$WHEELZOOM_ID_FILE"
+            else
+                rm -f "$WHEELZOOM_ID_FILE"
+            fi
             mount -ur /mnt/app 2>/dev/null || true
         fi
-        echo "CarPlay map: steering-wheel zoom on${WZ:+ ($WZ)}: the roller zooms the CarPlay map while it is on the cockpit."
+        echo "CarPlay map: steering-wheel zoom on${WZ:+ ($WZ)}${WZ_ID:+, roller id $WZ_ID}: the roller zooms the CarPlay map while it is on the cockpit."
     else
         echo "WARNING: could not add $WHEELZOOM_JAR; lsd.sh is unchanged. The roller zooms the stock map only." >&2
     fi
 else
-    # Taken out again only where this installer put it.
-    if [ -f "$WHEELZOOM_MARKER" ] && sh "$CARD_ROOT/lsd_jar.sh" loaded $WHEELZOOM_JAR; then
-        if sh "$CARD_ROOT/lsd_jar.sh" remove $WHEELZOOM_JAR; then
-            mount -uw /mnt/app 2>/dev/null && { rm -f "$WHEELZOOM_MARKER" "$WHEELZOOM_REVERSE"; mount -ur /mnt/app 2>/dev/null || true; }
-        else
-            echo "WARNING: could not remove $WHEELZOOM_JAR; lsd.sh is unchanged." >&2
-        fi
-    fi
     case "$TRAIN" in
         *_AU57x_*) echo "CarPlay map: steering-wheel zoom not installed, $WZ_WHY." ;;
     esac

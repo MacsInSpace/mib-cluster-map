@@ -198,6 +198,19 @@ design.
   `lsd_jar.sh` adds the jar as a line of its own before lsd.jxe's, as M.I.B.
   adds its jars there.
 
+The Chinese A6/A7 C7.5 (`MHI2_CN_AU57x_K1006_2`, `lsd.jxe` 43229093 bytes)
+runs another navigation (`de/audi/tghu/navasia`) with no `CtxShown`, so
+that jar has nothing to replace there. `ClusterMapNavAsiaZoom.jar`
+(`java/navasiazoom`, train word `navasiazoom`) replaces its
+`NavAsiaModelListener` instead, the class every rotary step of that
+navigation goes through (`increment`/`decrement(id, steps)`): a copy whose
+other 76 methods compile to the stock bytecode (`tests/navasiazoom_check.sh
+<lsd.jar>`). Each step's id is written to `/tmp/clustermap-wheelzoom.log`
+and goes on to the stock navigation as before, except the cockpit roller's:
+a car's log showed it as model 82137 (`CLUSTERMAP_CARPLAY_WHEEL_ZOOM_ID`
+overrides that), and its steps take the `MZ01` path above while the CarPlay
+stream is up. Zooming the CarPlay map with it is not car-tested yet.
+
 A replaced class that does not fit the interface stops its navigation, so the
 installer adds the jar only on a train marked `wheelzoom` in `profiles.conf`
 whose `/ifs/lsd.jxe` is the 44688282-byte MU1425 build, and

@@ -15,16 +15,18 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 /**
- * Checks ClusterMapWheelZoom.jar against a unit's converted stock lsd.jar
- * before it goes anywhere near a car: a class that does not fit the stock
- * code that calls it stops the centre screen's navigation.
+ * Checks ClusterMapWheelZoom.jar (or another jar that replaces one stock
+ * class) against a unit's converted stock lsd.jar before it goes anywhere
+ * near a car: a class that does not fit the stock code that calls it stops
+ * the centre screen's navigation.
  *
  *   java -Xverify:all --add-exports java.base/jdk.internal.org.objectweb.asm=ALL-UNNAMED \
- *       tools/WheelZoomCheck.java build/ClusterMapWheelZoom.jar <lsd.jar>
+ *       tools/WheelZoomCheck.java <jar> <lsd.jar> [replaced class [own class ...]]
  *
- * (tests/wheelzoom_check.sh runs it.)
+ * Without class names: the wheel-zoom jar's timer and bridge.
+ * (tests/wheelzoom_check.sh and tests/navasiazoom_check.sh run it.)
  *
- * 1. The replacement timer has the stock class's access flags, superclass,
+ * 1. The replacement class has the stock class's access flags, superclass,
  *    interfaces, and every stock constructor and method (name, descriptor,
  *    static), each at least as accessible as the stock one; anything extra
  *    is private.
@@ -41,8 +43,8 @@ import java.util.zip.ZipFile;
  * classes it has to load, and nothing else.
  */
 public final class WheelZoomCheck {
-    static final String TIMER = "de/audi/tghu/navi/app/map/CtxShown$ZoomUpdateDelayTimer";
-    static final String BRIDGE = "local/clustermap/WheelZoom";
+    static String TIMER = "de/audi/tghu/navi/app/map/CtxShown$ZoomUpdateDelayTimer";
+    static String[] OURS = {TIMER, "local/clustermap/WheelZoom"};
     static final int ACC_PUBLIC = 0x1, ACC_PRIVATE = 0x2, ACC_PROTECTED = 0x4, ACC_STATIC = 0x8,
         ACC_FINAL = 0x10, ACC_NATIVE = 0x100, ACC_INTERFACE = 0x200, ACC_ABSTRACT = 0x400;
     static int failures;
@@ -55,29 +57,37 @@ public final class WheelZoomCheck {
         List<String> interfaces = new ArrayList<>();
         Map<String, Integer> methods = new HashMap<>(), fields = new HashMap<>();
         List<String[]> refs = new ArrayList<>();  // {kind, owner, name, descriptor}
+        // Java 7+ constant tags; a converted lsd.jar without the class library
+        // makes the check read the host JDK's classes, which have them.
+        List<Integer> newConstants = new ArrayList<>();
     }
 
     static final Map<String, Info> cache = new HashMap<>();
     static ZipFile oursJar, stockJar;
 
     public static void main(String[] args) throws Exception {
-        if (args.length != 2) {
-            System.err.println("usage: java -Xverify:all tools/WheelZoomCheck.java <ClusterMapWheelZoom.jar> <stock lsd.jar>");
+        if (args.length < 2) {
+            System.err.println("usage: java -Xverify:all tools/WheelZoomCheck.java <jar> <stock lsd.jar> [replaced class [own class ...]]");
             System.exit(2);
+        }
+        if (args.length > 2) {
+            TIMER = args[2];
+            OURS = java.util.Arrays.copyOfRange(args, 2, args.length);
         }
         oursJar = new ZipFile(args[0]);
         stockJar = new ZipFile(args[1]);
 
         Info stockTimer = read(stockJar, TIMER), ourTimer = read(oursJar, TIMER);
         if (stockTimer == null) { fail("the stock jar has no " + TIMER + ": not this HMI build"); finish(); }
-        if (ourTimer == null) { fail("the wheel-zoom jar has no " + TIMER); finish(); }
+        if (ourTimer == null) { fail("the jar has no " + TIMER); finish(); }
         compare(stockTimer, ourTimer);
-        for (String c : new String[] {TIMER, BRIDGE}) {
+        for (String c : OURS) {
             Info i = read(oursJar, c);
-            if (i == null) { fail("the wheel-zoom jar has no " + c); continue; }
+            if (i == null) { fail("the jar has no " + c); continue; }
             i.source = "ours";
             if (i.major != 46) fail(c + ": class version " + i.major + "; the AU57x unit's other patches use 46");
             else ok(c + ": class version 46");
+            for (Integer tag : i.newConstants) fail(c + ": a Java 7+ constant (tag " + tag + ") the unit cannot run");
             checkRefs(i);
         }
         verify(args[0], args[1]);
@@ -152,8 +162,7 @@ public final class WheelZoomCheck {
             }
         }
         for (int i = 1; i < n; i++) {
-            if (tags[i] == 15 || tags[i] == 16 || tags[i] == 17 || tags[i] == 18)
-                fail(info.name + ": a Java 7+ constant (tag " + tags[i] + ") the unit cannot run");
+            if (tags[i] == 15 || tags[i] == 16 || tags[i] == 17 || tags[i] == 18) info.newConstants.add(tags[i]);
             if (tags[i] == 7) info.classRefs.add(className(pool, i));
             if (tags[i] != 9 && tags[i] != 10 && tags[i] != 11) continue;
             int[] r = (int[]) pool[i], nt = (int[]) pool[r[1]];
@@ -268,7 +277,7 @@ public final class WheelZoomCheck {
     static void verify(String ours, String stock) throws Exception {
         ClassLoader loader = new RepairingLoader(new URL[] {new File(ours).toURI().toURL(), new File(stock).toURI().toURL()},
             ClassLoader.getPlatformClassLoader());
-        for (String c : new String[] {TIMER, BRIDGE}) {
+        for (String c : OURS) {
             String name = c.replace('/', '.');
             try {
                 // Initialising links the class, which runs the verifier on it.
@@ -292,7 +301,7 @@ public final class WheelZoomCheck {
             byte[] b;
             try (InputStream in = u.openStream()) { b = in.readAllBytes(); }
             catch (IOException e) { throw new ClassNotFoundException(name, e); }
-            if (!path.equals(TIMER) && !path.equals(BRIDGE)) b = repair(b);
+            if (!java.util.Arrays.asList(OURS).contains(path)) b = repair(b);
             return defineClass(name, b, 0, b.length);
         }
     }

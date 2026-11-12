@@ -15,6 +15,11 @@ if grep -q 'libcarplay_cluster.so' "$CONFIG" 2>/dev/null; then
     if sh "$PKG/lsd_jar.sh" loaded ClusterMapWheelZoom.jar; then
         if [ -f /mnt/app/eso/lib/gal_dualscreen/wheel_zoom_reverse ]; then echo "  steering-wheel zoom: loaded, reversed"; else echo "  steering-wheel zoom: loaded"; fi
         [ -r /tmp/clustermap-wheelzoom.log ] && tail -2 /tmp/clustermap-wheelzoom.log | sed 's/^/    /'
+    elif sh "$PKG/lsd_jar.sh" loaded ClusterMapNavAsiaZoom.jar; then
+        if [ -r /mnt/app/eso/lib/gal_dualscreen/wheel_zoom_id ]; then echo "  steering-wheel zoom: loaded, roller id `cat /mnt/app/eso/lib/gal_dualscreen/wheel_zoom_id`"
+        else echo "  steering-wheel zoom: loaded, log only (no roller id set)"; fi
+        [ -f /mnt/app/eso/lib/gal_dualscreen/wheel_zoom_reverse ] && echo "    reversed"
+        [ -r /tmp/clustermap-wheelzoom.log ] && tail -4 /tmp/clustermap-wheelzoom.log | sed 's/^/    /'
     fi
 else
     # The library is not in the same folder on every unit: found as the
