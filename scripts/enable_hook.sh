@@ -540,6 +540,13 @@ if [ -z "$MAP_SIZE" ] && [ -n "$MAP_SET" ]; then
     MAP_SIZE=$MAP_SET
     MAP_FROM="GAL_PLAYER_WINDOW in gal_dualscreen.conf"
 fi
+# The window the player found on this cockpit at an earlier start
+# (window_fix.sh saves it; #95: a Tiguan's 1010x376 never listed at install).
+MAP_SEEN=`sed -n 's/^\([0-9]*x[0-9]*\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/player_window" 2>/dev/null | tail -1`
+if [ -z "$MAP_SIZE" ] && [ -n "$MAP_SEEN" ]; then
+    MAP_SIZE=$MAP_SEEN
+    MAP_FROM="player's last start on this cockpit"
+fi
 if [ -z "$MAP_SIZE" ] && [ -n "$CAR_WINDOW" ]; then
     MAP_SIZE=$CAR_WINDOW
     MAP_FROM="usual size on $CAR_MAKE; the display manager did not list it"
