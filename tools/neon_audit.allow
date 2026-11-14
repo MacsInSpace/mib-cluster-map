@@ -1,0 +1,13 @@
+# Functions that tools/neon_audit.py may find a 16/32/64-bit NEON load or
+# store without an alignment qualifier in. One name a line, then the reason.
+#
+# These seven are in the binary but never run: tools/ffmpeg_qnx_aligned.sh
+# removes their assignments, and build_local.sh refuses a build in which any
+# object still refers to them. FFmpeg's C routines run in their place.
+ff_h264_h_loop_filter_luma_neon   # not used: 4-byte stores at pix-2 (the v1.2.2 crash)
+h_loop_filter_chroma420           # not used: body of ff_h264_h_loop_filter_chroma_neon and chroma422
+ff_put_h264_chroma_mc4_neon       # not used: 4-byte loads from any source address
+ff_avg_h264_chroma_mc4_neon       # not used: the same
+ff_put_h264_chroma_mc2_neon       # not used: 2- and 4-byte loads from any source address
+ff_avg_h264_chroma_mc2_neon       # not used: the same
+ff_pred8x8_plane_neon             # not used: 4-byte load at src - stride - 1

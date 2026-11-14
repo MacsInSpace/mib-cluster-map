@@ -1387,13 +1387,16 @@ else
             echo "         VCAndroidAutoTurns.jar together: they carry the same classes." >&2
         fi
     done
+    # The music and turn-info jars also go on where only they were checked.
+    INFO_OK=$TBT_OK
+    if train_has "$PROFILES" "$TRAIN" info; then INFO_OK=1; fi
     if [ -n "$WANT_JAR" ]; then
         case "$WANT_JAR" in
             VCAndroidAutoMusic.jar) WANT_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_music_added ;;
             *) WANT_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_turns_added ;;
         esac
-        if [ "$TBT_OK" -ne 1 ]; then
-            echo "WARNING: $WANT_KEY=1 ignored: the arrows jar is not known to" >&2
+        if [ "$INFO_OK" -ne 1 ]; then
+            echo "WARNING: $WANT_KEY=1 ignored: $WANT_JAR is not known to" >&2
             echo "         work on firmware $TRAIN." >&2
         elif sh "$CARD_ROOT/lsd_jar.sh" loaded $WANT_JAR; then
             echo "Java check: $WANT_JAR is loaded ($WANT_WHAT)."

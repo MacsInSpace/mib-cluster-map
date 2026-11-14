@@ -65,13 +65,17 @@ build_player() {
     set -e
     FF=/work/build/ffmpeg-mini; V=6.1.5
     SHA=b8c8e926b948c14df1264cd0beac1c773df9170ac9cac97bdf1275cd3d385902
-    # FFmpeg without assembly (--disable-asm). v1.2.2 built it with NEON, and
-    # the player crashed at every start: some NEON routines (the h264
-    # horizontal loop filters) store at misaligned addresses, which the
-    # QNX kernel of the units stops with SIGBUS (found by the Skoda fork of
-    # AMDFX60). The stamp makes a cached build with other settings be made
-    # again from the same source.
-    FFCONF=noasm-1
+    # FFmpeg with its hand-written NEON routines for the Tegra 3 (Cortex-A9).
+    # The QNX kernel of these units stops a NEON load or store of 16, 32 or 64
+    # bits at an address that is not a multiple of its size (v1.2.2 crashed in
+    # the h264 horizontal loop filter). So:
+    #   tools/ffmpeg_qnx_aligned.sh leaves out the routines that do that,
+    #   tools/qnx_cc.sh gives NEON to the assembly files only (C stays VFPv3),
+    #   FFmpeg and the compiler make no misaligned access in C either,
+    #   tools/neon_audit.py checks every NEON load and store in the result.
+    # Found and car-tested by the Skoda fork of AMDFX60. The stamp makes a
+    # cached build with other settings be made again from the same source.
+    FFCONF=neon-asm-aligned-2
     if [ ! -f $FF/libavcodec/libavcodec.a ] || [ "$(cat $FF/.mibcm-ffconf 2>/dev/null)" != "$FFCONF" ]; then
       if [ ! -f $FF/configure ]; then
         cd /work/build
@@ -82,24 +86,41 @@ build_player() {
         (cd $FF && make distclean >/dev/null 2>&1 || true)
       fi
       cd $FF
-      ./configure --cc=$P-gcc --ar=$P-ar --ld=$P-gcc --nm=$P-nm --ranlib=$P-ranlib --strip=$P-strip \
-        --arch=arm --target-os=qnx --disable-asm --disable-debug --enable-cross-compile \
-        --extra-cflags="-D_QNX_SOURCE -include stddef.h -march=armv7-a -mfloat-abi=softfp -mfpu=vfpv3-d16" \
+      cp /work/tools/qnx_cc.sh $FF/qnx_cc.sh && chmod 755 $FF/qnx_cc.sh
+      sh /work/tools/ffmpeg_qnx_aligned.sh $FF
+      ./configure --cc=$FF/qnx_cc.sh --as=$FF/qnx_cc.sh --ar=$P-ar --ld=$P-gcc --nm=$P-nm --ranlib=$P-ranlib --strip=$P-strip \
+        --arch=arm --cpu=cortex-a9 --target-os=qnx --enable-neon --disable-fast-unaligned --disable-debug --enable-cross-compile \
+        --extra-cflags="-D_QNX_SOURCE -mfloat-abi=softfp -mfpu=vfpv3-d16 -mno-unaligned-access" \
         --extra-libs=-lsocket --disable-doc --disable-programs --disable-avdevice --disable-swresample \
         --disable-swscale --disable-postproc --disable-avfilter --disable-everything \
         --enable-decoder=h264 --enable-parser=h264
-      grep -q "HAVE_NEON 0" config.h || { echo "REJECTED: FFmpeg configured with NEON"; exit 1; }
+      grep -q "HAVE_NEON 1" config.h || { echo "REJECTED: FFmpeg configured without NEON"; exit 1; }
+      grep -q "HAVE_FAST_UNALIGNED 0" config.h || { echo "REJECTED: FFmpeg configured with fast unaligned access"; exit 1; }
       make -j"$(nproc)"
       echo "$FFCONF" > $FF/.mibcm-ffconf
     fi
+    # No object may refer to a NEON routine that was left out.
+    LEFT="ff_h264_h_loop_filter_luma_neon|ff_h264_h_loop_filter_chroma_neon|ff_h264_h_loop_filter_chroma422_neon|h_loop_filter_chroma420|ff_put_h264_chroma_mc[24]_neon|ff_avg_h264_chroma_mc[24]_neon|ff_pred8x8_plane_neon"
+    refs=$(find $FF/libavcodec $FF/libavutil $FF/libavformat -name "*.o" | while read o; do $P-objdump -r $o 2>/dev/null | grep -E "$LEFT" | sed "s|^|$o: |"; done)
+    [ -z "$refs" ] || { echo "REJECTED: a misaligned NEON routine is still referenced:"; echo "$refs"; exit 1; }
+    # The same search must find a routine that is kept, or it proves nothing.
+    kept=$($P-objdump -r $FF/libavcodec/arm/h264dsp_init_arm.o | grep -c ff_h264_v_loop_filter_luma_neon || true)
+    [ "$kept" -gt 0 ] || { echo "REJECTED: the NEON reference check finds no kept routine either"; exit 1; }
     cd /work/player
     $P-g++ -O2 -Wall -DNDEBUG -I$FF -I. opengl_gpu.cc -c -o /work/build/opengl_gpu.o
     $P-g++ /work/build/opengl_gpu.o \
         -Wl,--start-group $FF/libavformat/libavformat.a $FF/libavcodec/libavcodec.a $FF/libavutil/libavutil.a -Wl,--end-group \
         -static-libstdc++ -static-libgcc -lEGL -lGLESv2 -lsocket -lm -o /work/build/stream-player
+    $P-objdump -d /work/build/stream-player > /work/build/stream-player.dis
     $P-strip -s /work/build/stream-player
     $P-readelf -d /work/build/stream-player | grep NEEDED
   '
+  # Every NEON load and store in the linked player, checked on this machine.
+  if ! python3 "$ROOT/tools/neon_audit.py" "$ROOT/build/stream-player.dis" "$ROOT/tools/neon_audit.allow" > "$ROOT/build/neon_audit.txt"; then
+    cat "$ROOT/build/neon_audit.txt"
+    echo "REJECTED: a NEON access that was not checked (list above)"; exit 1
+  fi
+  tail -1 "$ROOT/build/neon_audit.txt"
 }
 
 build_java() {
