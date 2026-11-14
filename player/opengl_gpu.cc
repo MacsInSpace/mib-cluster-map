@@ -43,6 +43,7 @@
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#include <sys/syspage.h>
 #else
 #include <GLES2/gl2.h>
 #include <GLFW/glfw3.h>
@@ -52,6 +53,7 @@ extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
+#include <libavutil/cpu.h>
 }
 
 // ---------------- Configuration & Performance Knobs ----------------
@@ -221,7 +223,7 @@ static char g_videoSource[512] = "tcp://127.0.0.1:12346";
  */
 static bool g_bufferedReader = false;
 static const size_t kReaderBufBytes   = 8u * 1024u * 1024u;
-static const size_t kReaderBehindOn   = 192u * 1024u;  // skip the loop filter above this backlog
+static const size_t kReaderBehindOn   = 192u * 1024u;  // "behind" above this backlog (loop filter kept on reference pictures)
 static const size_t kReaderBehindOff  = 64u * 1024u;   // and restore it below this
 static uint8_t* g_rb = NULL;
 static size_t g_rbHead = 0, g_rbFill = 0, g_rbHigh = 0;
@@ -280,6 +282,10 @@ static int g_marginW = 0, g_marginH = 0;
 static int g_cropTop = 0, g_cropBottom = 0;
 static int g_pixelAspectE4 = 10000;
 static int g_priority = 0;      /* GAL_PLAYER_PRIORITY, 0 = as spawned */
+/* GAL_PLAYER_NEON (default 1), and the marker a crash leaves: while it is
+ * there (until the next reboot) the player decodes without NEON. */
+static bool g_neonAllowed = true;
+static const char kNoNeonMarker[] = "/tmp/clustermap-player-noneon";
 static GLfloat fittedVertices[12];
 static GLfloat croppedTexCoords[8];
 static void fit_frame(int frameW, int frameH) {
@@ -735,6 +741,17 @@ static void nvss_disable_for_boot(const char*) {}
 static void write_ack();
 
 static void crash_signal_handler(int sig) {
+    /* First, with calls that are safe in a signal handler: the next start,
+     * until reboot, decodes without NEON (see main). One more NEON routine
+     * the QNX kernel stops then costs one restart of the player, not the map. */
+    if (sig == SIGBUS || sig == SIGILL || sig == SIGSEGV) {
+        int fd = open(kNoNeonMarker, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+        if (fd >= 0) {
+            static const char msg[] = "the player crashed; NEON off until reboot\n";
+            if (write(fd, msg, sizeof(msg) - 1) < 0) { /* nothing to do about it here */ }
+            close(fd);
+        }
+    }
     fprintf(stderr, "\n[stream-player CRASH] Caught fatal signal %d! Emergency restoring the stock cluster map...\n", sig);
 #ifdef __QNX__
     if (g_dmdtCrashCmd[0]) system(g_dmdtCrashCmd);
@@ -1206,9 +1223,15 @@ static void* DecoderThreadFunc(void* arg) {
                 if (!behind && backlog > kReaderBehindOn) {
                     behind = true;
                     ++g_rbBehindEpisodes;
-                    codecCtx->skip_loop_filter = AVDISCARD_ALL;
+                    /* Only pictures nothing refers to lose their loop filter.
+                     * Until v1.2.3 every picture did (AVDISCARD_ALL): the
+                     * unfiltered blocks of a reference picture stay in all
+                     * pictures predicted from it, so the map smeared until
+                     * the next keyframe (#97). */
+                    if (g_ffmpegSkipLoopFilter < AVDISCARD_NONREF)
+                        codecCtx->skip_loop_filter = AVDISCARD_NONREF;
                     if (g_rbBehindEpisodes <= 20)
-                        LOG("decoder: %zu KB behind, loop filter off to catch up t=%llu.%03llu",
+                        LOG("decoder: %zu KB behind t=%llu.%03llu",
                             backlog / 1024u, T_ARGS(now_us()));
                 } else if (behind && backlog < kReaderBehindOff) {
                     behind = false;
@@ -1616,6 +1639,9 @@ static void load_player_config() {
                 /* auto (default): as the stream says; old: full-range BT.601 as before. */
                 if (strcmp(val, "old") == 0) g_colorAuto = false;
                 else if (strcmp(val, "auto") == 0) g_colorAuto = true;
+            } else if (strcmp(key, "GAL_PLAYER_NEON") == 0) {
+                /* 0: decode without NEON; anything else: NEON where the CPU has it. */
+                g_neonAllowed = atoi(val) != 0;
             } else if (strcmp(key, "GAL_PLAYER_PRIORITY") == 0) {
                 int p = atoi(val);
                 if (p >= 0 && p <= 20) g_priority = p;
@@ -1819,7 +1845,35 @@ int main(int argc, char* argv[]) {
     g_isSocket = (strncmp(g_videoSource, "tcp://", 6) == 0 || is_unix_sock);
     LOG("stream-player starting (source: %s, loop: %d, pool: %d)",
         g_videoSource, g_loopFile ? 1 : 0, kBufferPoolSize);
-
+#ifdef __QNX__
+    /*
+     * FFmpeg is built with its hand-written NEON routines (build_local.sh);
+     * its C code is not compiled for NEON, so the switch below removes every
+     * NEON instruction from the decoder. FFmpeg cannot ask QNX whether the
+     * processor has NEON, so the system page is asked here.
+     * The QNX kernel of these units stops a NEON access at a misaligned
+     * address (SIGBUS; v1.2.2 crashed that way at every start). The routines
+     * known to do that are left out of the build. Should another one be
+     * found, the crash handler leaves kNoNeonMarker and every later start
+     * until the next reboot decodes with FFmpeg's C routines.
+     * GAL_PLAYER_NEON=0 switches NEON off for good.
+     */
+    {
+        unsigned cpuFlags = SYSPAGE_ENTRY(cpuinfo)->flags;
+        const char* off = NULL;
+        if (!(cpuFlags & ARM_CPU_FLAG_NEON)) off = "the processor reports no NEON";
+        else if (!g_neonAllowed) off = "GAL_PLAYER_NEON=0";
+        else if (access(kNoNeonMarker, F_OK) == 0) off = "an earlier start since the last reboot crashed";
+        if (off) {
+            /* All of FFmpeg's run-time chosen assembly off, not only NEON, so
+             * this is as close to the v1.2.3 decoder as this build gets. */
+            av_force_cpu_flags(0);
+            LOG("cpu: NEON off: %s (flags 0x%x); FFmpeg decodes with its C routines", off, cpuFlags);
+        } else {
+            LOG("cpu: NEON on (flags 0x%x); FFmpeg decodes with its NEON routines", cpuFlags);
+        }
+    }
+#endif
 
     signal(SIGINT,  signal_handler);
     signal(SIGTERM, signal_handler);
