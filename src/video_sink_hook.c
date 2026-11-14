@@ -81,6 +81,7 @@ typedef void *(*video_sink_impl_ctor_fn)(void *, void *, void *, void *);
 /* MessageRouter::queueOutgoingUnencrypted(this, unsigned char channel,
  * void *buf, unsigned int len) -- mangled EhPvj. */
 typedef void (*queue_unencrypted_fn)(void *, unsigned char, void *, unsigned);
+typedef void *(*std_string_assign_fn)(void *, const char *, unsigned);
 /* MessageRouter::routeMessage(this, unsigned char channel,
  * shared_ptr<IoBuffer> const&) -- mangled EhRK10shared_ptrI8IoBufferE. */
 typedef void (*route_message_fn)(void *, unsigned char, const void *);
@@ -601,10 +602,22 @@ static size_t build_insets_payload(unsigned char *out, size_t max_out,
     return total_len;
 }
 
+static std_string_assign_fn resolve_std_string_assign(void)
+{
+    static std_string_assign_fn assign;
+
+    if (assign == NULL) {
+        void *symbol = dlsym(RTLD_DEFAULT, "_ZNSs6assignEPKcj");
+        if (symbol == NULL) symbol = dlsym(RTLD_NEXT, "_ZNSs6assignEPKcj");
+        *(void **)(&assign) = symbol;
+    }
+    return assign;
+}
+
 static void apply_video_config_insets(void *vconf, const gal_secondary_config *config, const char *context_tag)
 {
     unsigned char *obj;
-    unsigned char payload[16];
+    unsigned char payload[32];
     size_t payload_len;
     uint32_t top = (config != NULL) ? config->insets_top : 40u;
     uint32_t bottom = (config != NULL) ? config->insets_bottom : 40u;
@@ -623,55 +636,53 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
                       context_tag, viewing_distance);
     }
 
-    if (load_u32(vconf, 0x1cu) > 15u || load_u32(vconf, 0x18u) != 0u) {
-        gal_hook_logf("event=video.insets result=skipped tag=%s reason=string_not_sso_or_not_empty vconf=%p len=%u cap=%u",
+    if (load_u32(vconf, 0x18u) != 0u) {
+        gal_hook_logf("event=video.insets result=skipped tag=%s reason=string_not_empty vconf=%p len=%u cap=%u",
                       context_tag, vconf, load_u32(vconf, 0x18u), load_u32(vconf, 0x1cu));
         return;
     }
 
     if (config != NULL && config->ui_config_payload_len > 0u) {
+        if (config->ui_config_payload_len > sizeof(payload) ||
+            config->ui_config_payload_len > sizeof(config->ui_config_payload)) {
+            gal_hook_logf("event=video.insets result=failed tag=%s reason=custom_payload_too_large len=%u",
+                          context_tag, config->ui_config_payload_len);
+            return;
+        }
         payload_len = config->ui_config_payload_len;
         memcpy(payload, config->ui_config_payload, payload_len);
     } else {
-        payload_len = build_insets_payload(payload, 15u, top, bottom, left, right,
+        payload_len = build_insets_payload(payload, sizeof(payload), top, bottom, left, right,
                                            ui_theme);
         /*
-         * Too long for the string: used to send nothing at all, silently, so
-         * the phone fell back to the whole frame. Now cut the smallest value
-         * above 127 to 127 (one byte saved) and try again, one at a time
-         * until it fits: with theme 0 three values can stay above 127, with
-         * theme 1 or 2 (two more bytes) only one. All four at 127 always
-         * fits. Logged either way. (After AMDFX60's fork, which cut all four
-         * at once.)
+         * The unknown-fields string has 15 bytes of inline storage. Grow it
+         * with its own C++ runtime when the full protobuf payload needs heap
+         * storage; do not clamp insets, since all four crop offsets can
+         * require two-byte varints.
          */
-        if (payload_len == 0u) {
-            uint32_t *v[4];
-            int i;
-            v[0] = &top; v[1] = &bottom; v[2] = &left; v[3] = &right;
-            gal_hook_logf("event=video.insets result=too_long tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u",
-                          context_tag, top, bottom, left, right, ui_theme);
-            while (payload_len == 0u) {
-                uint32_t *least = NULL;
-                for (i = 0; i < 4; ++i) {
-                    if (*v[i] > 127u && (least == NULL || *v[i] < *least)) least = v[i];
-                }
-                if (least == NULL) break;
-                *least = 127u;
-                payload_len = build_insets_payload(payload, 15u, top, bottom, left, right,
-                                                   ui_theme);
-            }
-            gal_hook_logf("event=video.insets result=clamped tag=%s top=%u bottom=%u left=%u right=%u len=%zu",
-                          context_tag, top, bottom, left, right, payload_len);
-        }
     }
 
-    if (payload_len > 0u && payload_len <= 15u) {
+    if (payload_len > 0u && payload_len <= sizeof(payload)) {
         obj = (unsigned char *)vconf;
-        memcpy(obj + 0x08, payload, payload_len);
-        obj[0x08 + payload_len] = 0;
-        store_u32(vconf, 0x18u, (uint32_t)payload_len);
-        gal_hook_logf("event=video.insets result=success tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u len=%zu",
-                      context_tag, top, bottom, left, right, ui_theme, payload_len);
+        if (load_u32(vconf, 0x1cu) <= 15u && payload_len <= 15u) {
+            memcpy(obj + 0x08, payload, payload_len);
+            obj[0x08 + payload_len] = 0;
+            store_u32(vconf, 0x18u, (uint32_t)payload_len);
+        } else {
+            std_string_assign_fn assign = resolve_std_string_assign();
+            if (assign == NULL) {
+                gal_hook_logf("event=video.insets result=failed tag=%s reason=std_string_assign_unavailable len=%zu capacity=%u",
+                              context_tag, payload_len, load_u32(vconf, 0x1cu));
+                return;
+            }
+            (void)assign(obj + 0x08, (const char *)payload, (unsigned)payload_len);
+        }
+        gal_hook_logf("event=video.insets result=success tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u len=%zu storage=%s",
+                      context_tag, top, bottom, left, right, ui_theme, payload_len,
+                      payload_len <= 15u && load_u32(vconf, 0x1cu) <= 15u ? "sso" : "heap");
+    } else {
+        gal_hook_logf("event=video.insets result=failed tag=%s reason=payload_invalid len=%zu",
+                      context_tag, payload_len);
     }
 }
 

@@ -1,5 +1,6 @@
 #include "vc_player_mgr.h"
 #include "gal_hook.h"
+#include "hd_frame_geometry.h"
 #include "vc_stream_out.h"
 #include "focus_ctl.h"
 
@@ -583,14 +584,12 @@ int gal_hook_init(const gal_secondary_config *config)
         g_config.margin_height = 0u;
     }
     /*
-     * High-resolution test frames leave the cockpit window's own pixels
-     * visible. Scale DPI and insets from Android Auto's 800x480 baseline to
-     * that visible area, as with the 720p test on AMDFX60's fork.
+     * HD insets are configured in visible cockpit-window pixels. Translate
+     * them into the full coded-frame coordinates by adding the crop offsets;
+     * only DPI uses the 800x480-to-window scale factor.
      */
     if ((g_config.width == 1280u || g_config.width == 1920u) &&
-        g_config.pixel_aspect_ratio_e4 <= 10000u && g_config.dpi <= 0x3fffu &&
-        g_config.insets_top <= 0x3fffu && g_config.insets_bottom <= 0x3fffu &&
-        g_config.insets_left <= 0x3fffu && g_config.insets_right <= 0x3fffu) {
+        g_config.pixel_aspect_ratio_e4 <= 10000u) {
         unsigned visible_width = g_config.width - g_config.margin_width;
         unsigned visible_height = g_config.height - g_config.margin_height;
         unsigned factor = (visible_width * 480u > visible_height * 800u) ?
@@ -599,14 +598,28 @@ int gal_hook_init(const gal_secondary_config *config)
         unsigned dpi = g_config.dpi;
         unsigned top = g_config.insets_top, bottom = g_config.insets_bottom;
         unsigned left = g_config.insets_left, right = g_config.insets_right;
+        if (dpi > 0x3fffu ||
+            !gal_hd_frame_translate_insets(
+                g_config.width, g_config.height,
+                g_config.margin_width, g_config.margin_height,
+                top, bottom, left, right,
+                &g_config.insets_top, &g_config.insets_bottom,
+                &g_config.insets_left, &g_config.insets_right)) {
+            errno = EINVAL;
+            gal_hook_logf("event=config.invalid reason=hd_insets_out_of_range frame=%ux%u margins=%ux%u insets=%u,%u,%u,%u",
+                          g_config.width, g_config.height,
+                          g_config.margin_width, g_config.margin_height,
+                          top, bottom, left, right);
+            return -1;
+        }
         g_config.dpi = (dpi * factor + 5000u) / 10000u;
-        g_config.insets_top = (top * factor + 5000u) / 10000u;
-        g_config.insets_bottom = (bottom * factor + 5000u) / 10000u;
-        g_config.insets_left = (left * factor + 5000u) / 10000u;
-        g_config.insets_right = (right * factor + 5000u) / 10000u;
-        gal_hook_logf("event=config.hd_frame result=scaled frame=%ux%u visible=%ux%u factor_e4=%u dpi=%u->%u insets=%u,%u,%u,%u->%u,%u,%u,%u",
+        gal_hook_logf("event=config.hd_frame result=translated frame=%ux%u visible=%ux%u dpi_factor_e4=%u dpi=%u->%u viewport_insets=%u,%u,%u,%u crop_offsets=%u,%u,%u,%u stream_insets=%u,%u,%u,%u",
                       g_config.width, g_config.height, visible_width, visible_height,
                       factor, dpi, g_config.dpi, top, bottom, left, right,
+                      g_config.margin_height / 2u,
+                      g_config.margin_height - g_config.margin_height / 2u,
+                      g_config.margin_width / 2u,
+                      g_config.margin_width - g_config.margin_width / 2u,
                       g_config.insets_top, g_config.insets_bottom,
                       g_config.insets_left, g_config.insets_right);
     }

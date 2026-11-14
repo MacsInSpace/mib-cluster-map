@@ -18,7 +18,11 @@ frame_geometry 1440 455 0 0 1
 [ $((FRAME_H - MARGIN_H)) -eq 455 ]
 
 TMP=${TMPDIR:-/tmp}/cluster-frame-test.$$
-trap 'rm -f "$TMP" "$TMP.new"' 0 1 2 15
+TEST_BIN=${TMP}.hd-insets
+trap 'rm -f "$TMP" "$TMP.new" "$TEST_BIN"' 0 1 2 15
+"${CC:-cc}" -std=c99 -Wall -Wextra -Werror \
+    "$ROOT/tests/hd_frame_insets_test.c" -o "$TEST_BIN"
+"$TEST_BIN"
 {
     echo "GAL_PLAYER_WINDOW=800x480"
     echo "GAL_SECONDARY_WIDTH=800"
