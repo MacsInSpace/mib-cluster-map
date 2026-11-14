@@ -1241,6 +1241,23 @@ if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
 else
     NAV_HAVE=`wc -c < /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar 2>/dev/null | sed 's/ //g'`
     NAV_WANT=`wc -c < "$NAVIGNORE_SRC" 2>/dev/null | sed 's/ //g'`
+    # The start-up line without the jar file behind it: Java skips a missing
+    # jar without a word, so "loaded" was reported while the cockpit still
+    # dropped the map at the first route (#24, a P4512_2 whose lsd/jars held
+    # only the two stock jars). Put the file back before the checks below.
+    if [ -z "$NAV_HAVE" ] || [ "$NAV_HAVE" = 0 ]; then
+        if sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar && [ "$NAVIGNORE_NEVER" -eq 0 ] &&
+           [ "$KEEP_NAVIGNORE" -eq 0 ]; then
+            echo "Java check: NavActiveIgnore has its start-up line, but the jar file is missing."
+            if [ -r "$NAVIGNORE_SRC" ] && sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$NAVIGNORE_SRC"; then
+                NAV_HAVE=`wc -c < /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar 2>/dev/null | sed 's/ //g'`
+            else
+                echo "WARNING: could not copy NavActiveIgnore.jar; the cockpit will drop the map" >&2
+                echo "         when the phone starts a route. Apply it from the toolbox:" >&2
+                echo "         Customization > Navigation." >&2
+            fi
+        fi
+    fi
     if sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar && [ "$NAVIGNORE_NEVER" -eq 1 ] &&
        [ "$NAVIGNORE_BUILD" = Audi ] && [ -n "$NAV_WANT" ] && [ "$NAV_HAVE" = "$NAV_WANT" ]; then
         # An Audi owner's own M.I.B. install of the Audi build (a Q5 FY on
