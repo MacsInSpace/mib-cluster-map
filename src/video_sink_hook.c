@@ -12,6 +12,7 @@
 #include "focus_ctl.h"
 #include "firmware_profiles.h"
 #include "nav_translate.h"
+#include "video_insets_payload.h"
 
 #include <dlfcn.h>
 #include <pthread.h>
@@ -81,7 +82,7 @@ typedef void *(*video_sink_impl_ctor_fn)(void *, void *, void *, void *);
 /* MessageRouter::queueOutgoingUnencrypted(this, unsigned char channel,
  * void *buf, unsigned int len) -- mangled EhPvj. */
 typedef void (*queue_unencrypted_fn)(void *, unsigned char, void *, unsigned);
-typedef void *(*std_string_assign_fn)(void *, const char *, unsigned);
+typedef void *(*std_string_assign_cstr_fn)(void *, const char *);
 /* MessageRouter::routeMessage(this, unsigned char channel,
  * shared_ptr<IoBuffer> const&) -- mangled EhRK10shared_ptrI8IoBufferE. */
 typedef void (*route_message_fn)(void *, unsigned char, const void *);
@@ -522,96 +523,21 @@ static unsigned select_service_id(void *router)
 }
 
 
-static size_t encode_varint(unsigned char *buf, uint32_t val)
+static pthread_once_t g_std_string_assign_once = PTHREAD_ONCE_INIT;
+static void *g_std_string_runtime;
+static std_string_assign_cstr_fn g_std_string_assign;
+
+static void resolve_std_string_assign_once(void)
 {
-    size_t len = 0;
-    while (val >= 0x80u) {
-        buf[len++] = (unsigned char)((val & 0x7fu) | 0x80u);
-        val >>= 7;
-    }
-    buf[len++] = (unsigned char)(val & 0x7fu);
-    return len;
-}
+    void *symbol;
 
-static size_t build_insets_payload(unsigned char *out, size_t max_out,
-                                   uint32_t top, uint32_t bottom,
-                                   uint32_t left, uint32_t right,
-                                   uint32_t ui_theme)
-{
-    unsigned char insets[16];
-    size_t insets_len = 0;
-    unsigned char uiconfig[24];
-    size_t uiconfig_len = 0;
-    size_t total_len = 0;
+    g_std_string_runtime = dlopen("libcpp.so.4", RTLD_NOW | RTLD_GLOBAL);
+    if (g_std_string_runtime == NULL)
+        g_std_string_runtime = dlopen("libcpp.so", RTLD_NOW | RTLD_GLOBAL);
+    if (g_std_string_runtime == NULL) return;
 
-    /* Two varint bytes each at most, so insets[] and uiconfig[] cannot overflow. */
-    if (top > 0x3fffu || bottom > 0x3fffu || left > 0x3fffu || right > 0x3fffu) {
-        return 0;
-    }
-    if (top > 0u) {
-        insets[insets_len++] = 0x08; /* tag 1: top */
-        insets_len += encode_varint(insets + insets_len, top);
-    }
-    /*
-     * Protobuf convention: omitting an integer field defaults it to 0.
-     * Omitting bottom when bottom==0 saves 2 bytes (0x10 0x00), allowing
-     * left=150 and right=150 (2-byte varints) to fit into 14B <= 15B SSO!
-     */
-    if (bottom > 0u) {
-        insets[insets_len++] = 0x10; /* tag 2: bottom */
-        insets_len += encode_varint(insets + insets_len, bottom);
-    }
-    if (left > 0u) {
-        insets[insets_len++] = 0x18; /* tag 3: left */
-        insets_len += encode_varint(insets + insets_len, left);
-    }
-    if (right > 0u) {
-        insets[insets_len++] = 0x20; /* tag 4: right */
-        insets_len += encode_varint(insets + insets_len, right);
-    }
-
-    /*
-     * UiConfig field 2 becomes DisplayParams.contentInsets on the phone.
-     * Field 1 is deliberately absent: ipq.c() uses field 1 to shrink the
-     * encoded content rectangle, which produces black borders.
-     */
-    uiconfig[uiconfig_len++] = 0x12; /* tag 2: UI content safe area */
-    uiconfig_len += encode_varint(uiconfig + uiconfig_len, (uint32_t)insets_len);
-    memcpy(uiconfig + uiconfig_len, insets, insets_len);
-    uiconfig_len += insets_len;
-    /*
-     * UiConfig field 4 is UiTheme: 0=automatic, 1=light, 2=dark/night.
-     * Automatic is the protobuf default, so it is left out rather than sent
-     * as 0: the two bytes saved let three of the four insets go above 127
-     * (two varint bytes each) and still fit the 15-byte string. The car's
-     * night-mode sensor then sets day or night, as on the centre screen.
-     * (From AMDFX60's fork.)
-     */
-    if (ui_theme == 1u || ui_theme == 2u) {
-        uiconfig[uiconfig_len++] = 0x20; /* tag 4: ui_theme, wire type varint */
-        uiconfig[uiconfig_len++] = (unsigned char)ui_theme;
-    }
-
-    out[total_len++] = 0x5a; /* tag 11: UiConfig */
-    total_len += encode_varint(out + total_len, (uint32_t)uiconfig_len);
-    if (total_len + uiconfig_len > max_out) {
-        return 0; /* Exceeds SSO capacity */
-    }
-    memcpy(out + total_len, uiconfig, uiconfig_len);
-    total_len += uiconfig_len;
-    return total_len;
-}
-
-static std_string_assign_fn resolve_std_string_assign(void)
-{
-    static std_string_assign_fn assign;
-
-    if (assign == NULL) {
-        void *symbol = dlsym(RTLD_DEFAULT, "_ZNSs6assignEPKcj");
-        if (symbol == NULL) symbol = dlsym(RTLD_NEXT, "_ZNSs6assignEPKcj");
-        *(void **)(&assign) = symbol;
-    }
-    return assign;
+    symbol = dlsym(g_std_string_runtime, "_ZNSs6assignEPKc");
+    *(void **)(&g_std_string_assign) = symbol;
 }
 
 static void apply_video_config_insets(void *vconf, const gal_secondary_config *config, const char *context_tag)
@@ -652,8 +578,9 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
         payload_len = config->ui_config_payload_len;
         memcpy(payload, config->ui_config_payload, payload_len);
     } else {
-        payload_len = build_insets_payload(payload, sizeof(payload), top, bottom, left, right,
-                                           ui_theme);
+        payload_len = gal_build_insets_payload(payload, sizeof(payload) - 1u,
+                                               top, bottom, left, right,
+                                               ui_theme);
         /*
          * The unknown-fields string has 15 bytes of inline storage. Grow it
          * with its own C++ runtime when the full protobuf payload needs heap
@@ -669,13 +596,25 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
             obj[0x08 + payload_len] = 0;
             store_u32(vconf, 0x18u, (uint32_t)payload_len);
         } else {
-            std_string_assign_fn assign = resolve_std_string_assign();
-            if (assign == NULL) {
-                gal_hook_logf("event=video.insets result=failed tag=%s reason=std_string_assign_unavailable len=%zu capacity=%u",
+            if (memchr(payload, '\0', payload_len) != NULL) {
+                gal_hook_logf("event=video.insets result=failed tag=%s reason=heap_payload_contains_nul len=%zu",
+                              context_tag, payload_len);
+                return;
+            }
+            payload[payload_len] = '\0';
+            (void)pthread_once(&g_std_string_assign_once, resolve_std_string_assign_once);
+            if (g_std_string_assign == NULL) {
+                gal_hook_logf("event=video.insets result=failed tag=%s reason=libcpp_string_assign_unavailable len=%zu capacity=%u",
                               context_tag, payload_len, load_u32(vconf, 0x1cu));
                 return;
             }
-            (void)assign(obj + 0x08, (const char *)payload, (unsigned)payload_len);
+            (void)g_std_string_assign(obj + 0x08, (const char *)payload);
+            if (load_u32(vconf, 0x18u) != payload_len) {
+                gal_hook_logf("event=video.insets result=failed tag=%s reason=libcpp_assign_length_mismatch expected=%zu actual=%u",
+                              context_tag, payload_len,
+                              load_u32(vconf, 0x18u));
+                return;
+            }
         }
         gal_hook_logf("event=video.insets result=success tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u len=%zu storage=%s",
                       context_tag, top, bottom, left, right, ui_theme, payload_len,
@@ -1331,7 +1270,7 @@ static unsigned build_cluster_input_entry(unsigned char entry[16])
                 unsigned char tmp[5];
                 size_t k;
                 if (end == q) { ok = 0; break; }
-                k = encode_varint(tmp, (uint32_t)code);
+                k = gal_encode_varint(tmp, (uint32_t)code);
                 if (n + k > 5u) { ok = 0; break; }
                 memcpy(packed + n, tmp, k);
                 n += k;
@@ -1436,7 +1375,7 @@ static void pb_put(pb_out *o, const void *data, unsigned n)
 static void pb_put_varint(pb_out *o, uint32_t value)
 {
     unsigned char tmp[5];
-    pb_put(o, tmp, (unsigned)encode_varint(tmp, value));
+    pb_put(o, tmp, (unsigned)gal_encode_varint(tmp, value));
 }
 
 static void pb_put_bytes_field(pb_out *o, unsigned field, const unsigned char *data, unsigned n)
@@ -1543,9 +1482,9 @@ static int rewrite_media_sink(const unsigned char *m, unsigned n, int secondary,
                 config->ui_config_payload_len <= sizeof config->ui_config_payload) {
                 pb_put(&v, config->ui_config_payload, config->ui_config_payload_len);
             } else {
-                ui_len = build_insets_payload(ui, sizeof ui, config->insets_top,
-                                              config->insets_bottom, config->insets_left,
-                                              config->insets_right, config->ui_theme);
+                ui_len = gal_build_insets_payload(ui, sizeof ui, config->insets_top,
+                                                  config->insets_bottom, config->insets_left,
+                                                  config->insets_right, config->ui_theme);
                 pb_put(&v, ui, (unsigned)ui_len);
             }
             if (v.overflow) return -1;
@@ -2997,14 +2936,14 @@ static size_t build_input_report(unsigned char *out, int disp, int relative,
     out[n++] = 0x08u;                                   /* timestamp */
     while (now >= 0x80u) { out[n++] = (unsigned char)(now | 0x80u); now >>= 7; }
     out[n++] = (unsigned char)now;
-    if (disp >= 0) { out[n++] = 0x10u; n += encode_varint(out + n, (uint32_t)disp); }
+    if (disp >= 0) { out[n++] = 0x10u; n += gal_encode_varint(out + n, (uint32_t)disp); }
 
     inner[in++] = 0x08u;                                /* keycode */
-    in += encode_varint(inner + in, code);
+    in += gal_encode_varint(inner + in, code);
     inner[in++] = 0x10u;                                /* delta | down */
     if (relative) {
         if (value >= 0) {
-            in += encode_varint(inner + in, (uint32_t)value);
+            in += gal_encode_varint(inner + in, (uint32_t)value);
         } else {                                        /* int32: sign-extended to 64 bits */
             uint64_t v = (uint64_t)(int64_t)value;
             while (v >= 0x80u) { inner[in++] = (unsigned char)(v | 0x80u); v >>= 7; }
