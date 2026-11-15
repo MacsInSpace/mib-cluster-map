@@ -82,7 +82,6 @@ typedef void *(*video_sink_impl_ctor_fn)(void *, void *, void *, void *);
 /* MessageRouter::queueOutgoingUnencrypted(this, unsigned char channel,
  * void *buf, unsigned int len) -- mangled EhPvj. */
 typedef void (*queue_unencrypted_fn)(void *, unsigned char, void *, unsigned);
-typedef void *(*std_string_assign_cstr_fn)(void *, const char *);
 /* MessageRouter::routeMessage(this, unsigned char channel,
  * shared_ptr<IoBuffer> const&) -- mangled EhRK10shared_ptrI8IoBufferE. */
 typedef void (*route_message_fn)(void *, unsigned char, const void *);
@@ -152,6 +151,7 @@ static void *g_secondary_impl;
 static unsigned g_secondary_service_id;
 static unsigned long g_secondary_frames;
 static unsigned long g_secondary_bytes;
+static int g_ui_config_deferred_to_wire = 0;
 
 /*
  * Off unless explicitly enabled, so a build carrying this code behaves
@@ -523,23 +523,6 @@ static unsigned select_service_id(void *router)
 }
 
 
-static pthread_once_t g_std_string_assign_once = PTHREAD_ONCE_INIT;
-static void *g_std_string_runtime;
-static std_string_assign_cstr_fn g_std_string_assign;
-
-static void resolve_std_string_assign_once(void)
-{
-    void *symbol;
-
-    g_std_string_runtime = dlopen("libcpp.so.4", RTLD_NOW | RTLD_GLOBAL);
-    if (g_std_string_runtime == NULL)
-        g_std_string_runtime = dlopen("libcpp.so", RTLD_NOW | RTLD_GLOBAL);
-    if (g_std_string_runtime == NULL) return;
-
-    symbol = dlsym(g_std_string_runtime, "_ZNSs6assignEPKc");
-    *(void **)(&g_std_string_assign) = symbol;
-}
-
 static void apply_video_config_insets(void *vconf, const gal_secondary_config *config, const char *context_tag)
 {
     unsigned char *obj;
@@ -581,12 +564,6 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
         payload_len = gal_build_insets_payload(payload, sizeof(payload) - 1u,
                                                top, bottom, left, right,
                                                ui_theme);
-        /*
-         * The unknown-fields string has 15 bytes of inline storage. Grow it
-         * with its own C++ runtime when the full protobuf payload needs heap
-         * storage; do not clamp insets, since all four crop offsets can
-         * require two-byte varints.
-         */
     }
 
     if (payload_len > 0u && payload_len <= sizeof(payload)) {
@@ -595,30 +572,17 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
             memcpy(obj + 0x08, payload, payload_len);
             obj[0x08 + payload_len] = 0;
             store_u32(vconf, 0x18u, (uint32_t)payload_len);
+            g_ui_config_deferred_to_wire = 0;
+            gal_hook_logf("event=video.insets result=success tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u len=%zu storage=sso",
+                          context_tag, top, bottom, left, right, ui_theme, payload_len);
+        } else if (payload_len > 15u) {
+            g_ui_config_deferred_to_wire = 1;
+            gal_hook_logf("event=video.insets result=deferred_to_wire tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u len=%zu",
+                          context_tag, top, bottom, left, right, ui_theme, payload_len);
         } else {
-            if (memchr(payload, '\0', payload_len) != NULL) {
-                gal_hook_logf("event=video.insets result=failed tag=%s reason=heap_payload_contains_nul len=%zu",
-                              context_tag, payload_len);
-                return;
-            }
-            payload[payload_len] = '\0';
-            (void)pthread_once(&g_std_string_assign_once, resolve_std_string_assign_once);
-            if (g_std_string_assign == NULL) {
-                gal_hook_logf("event=video.insets result=failed tag=%s reason=libcpp_string_assign_unavailable len=%zu capacity=%u",
-                              context_tag, payload_len, load_u32(vconf, 0x1cu));
-                return;
-            }
-            (void)g_std_string_assign(obj + 0x08, (const char *)payload);
-            if (load_u32(vconf, 0x18u) != payload_len) {
-                gal_hook_logf("event=video.insets result=failed tag=%s reason=libcpp_assign_length_mismatch expected=%zu actual=%u",
-                              context_tag, payload_len,
-                              load_u32(vconf, 0x18u));
-                return;
-            }
+            gal_hook_logf("event=video.insets result=failed tag=%s reason=unsupported_string_capacity len=%zu capacity=%u",
+                          context_tag, payload_len, load_u32(vconf, 0x1cu));
         }
-        gal_hook_logf("event=video.insets result=success tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u len=%zu storage=%s",
-                      context_tag, top, bottom, left, right, ui_theme, payload_len,
-                      payload_len <= 15u && load_u32(vconf, 0x1cu) <= 15u ? "sso" : "heap");
     } else {
         gal_hook_logf("event=video.insets result=failed tag=%s reason=payload_invalid len=%zu",
                       context_tag, payload_len);
@@ -1457,6 +1421,7 @@ static int rewrite_media_sink(const unsigned char *m, unsigned n, int secondary,
                               pb_out *out, discovery_rewrite_stats *stats)
 {
     const gal_secondary_config *config = gal_hook_config();
+    int deferred_to_wire = !g_receiver->legacy && g_ui_config_deferred_to_wire;
     unsigned pos = 0u;
     int vconf_done = 0;
     pb_field f;
@@ -1471,12 +1436,15 @@ static int rewrite_media_sink(const unsigned char *m, unsigned n, int secondary,
 
             vconf_done = 1;
             pb_put(&v, f.data, f.data_len);
-            pb_put_varint(&v, 0x30u); pb_put_varint(&v, 3u);
-            if (config->viewing_distance > 0u) {
-                pb_put_varint(&v, 0x38u); pb_put_varint(&v, config->viewing_distance);
-            }
-            if (config->pixel_aspect_ratio_e4 > 0u) {
-                pb_put_varint(&v, 0x40u); pb_put_varint(&v, config->pixel_aspect_ratio_e4);
+            if (!deferred_to_wire) {
+                pb_put_varint(&v, 0x30u); pb_put_varint(&v, 3u);
+                if (config->viewing_distance > 0u) {
+                    pb_put_varint(&v, 0x38u); pb_put_varint(&v, config->viewing_distance);
+                }
+                if (config->pixel_aspect_ratio_e4 > 0u) {
+                    pb_put_varint(&v, 0x40u);
+                    pb_put_varint(&v, config->pixel_aspect_ratio_e4);
+                }
             }
             if (config->ui_config_payload_len > 0u &&
                 config->ui_config_payload_len <= sizeof config->ui_config_payload) {
@@ -1494,10 +1462,12 @@ static int rewrite_media_sink(const unsigned char *m, unsigned n, int secondary,
             pb_put(out, m + f.start, f.end - f.start);
         }
     }
-    pb_put_varint(out, 0x30u);
-    pb_put_varint(out, secondary ? config->display_id : 0u);
-    pb_put_varint(out, 0x38u);
-    pb_put_varint(out, secondary ? 1u : 0u);
+    if (!deferred_to_wire) {
+        pb_put_varint(out, 0x30u);
+        pb_put_varint(out, secondary ? config->display_id : 0u);
+        pb_put_varint(out, 0x38u);
+        pb_put_varint(out, secondary ? 1u : 0u);
+    }
     if (secondary) stats->secondary_tagged++;
     else stats->primary_tagged++;
     return 0;
@@ -1584,7 +1554,8 @@ static unsigned char *rewrite_discovery_response(const unsigned char *msg, unsig
         }
     }
     /* Only beside the cluster's video service, as on P4521. */
-    if (stats.secondary_tagged > 0u && gal_hook_cluster_input_enabled()) {
+    if (g_receiver->legacy && stats.secondary_tagged > 0u &&
+        gal_hook_cluster_input_enabled()) {
         entry_len = build_cluster_input_entry(entry);
         pb_put(&out, entry, entry_len);
     }
@@ -2898,7 +2869,8 @@ void _ZN13MessageRouter13queueOutgoingEhPvj(void *router, unsigned char channel,
 
     (void)resolve_symbol("_ZN13MessageRouter13queueOutgoingEhPvj", (void **)&g_queue_outgoing);
     if (g_queue_outgoing == NULL) return;
-    if (g_receiver->legacy && channel == 0u && m != NULL && len > 2u &&
+    if ((g_receiver->legacy || g_ui_config_deferred_to_wire) &&
+        channel == 0u && m != NULL && len > 2u &&
         m[0] == 0u && m[1] == 6u &&
         gal_hook_is_enabled() && gal_hook_inject_meta_enabled())
         rewritten = rewrite_discovery_response(m, len, &rewritten_len);
