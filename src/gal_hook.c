@@ -612,7 +612,8 @@ int gal_hook_init(const gal_secondary_config *config)
                           top, bottom, left, right);
             return -1;
         }
-        g_config.dpi = (dpi * factor + 5000u) / 10000u;
+        if (g_config.width != 1920u)
+            g_config.dpi = (dpi * factor + 5000u) / 10000u;
         gal_hook_logf("event=config.hd_frame result=translated frame=%ux%u visible=%ux%u dpi_factor_e4=%u dpi=%u->%u viewport_insets=%u,%u,%u,%u crop_offsets=%u,%u,%u,%u stream_insets=%u,%u,%u,%u",
                       g_config.width, g_config.height, visible_width, visible_height,
                       factor, dpi, g_config.dpi, top, bottom, left, right,

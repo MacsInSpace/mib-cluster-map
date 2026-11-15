@@ -1500,7 +1500,9 @@ static int rewrite_service(const unsigned char *svc, unsigned n, pb_out *out,
             if (rc == 0 && !m.overflow) pb_put_bytes_field(out, 3u, tmp, m.len);
             free(tmp);
             if (rc != 0 || m.overflow) return -1;
-        } else if (f.field == 4u && f.wire == 2u && gal_hook_main_input_id_enabled()) {
+        } else if (f.field == 4u && f.wire == 2u &&
+                   (g_receiver->legacy || !g_ui_config_deferred_to_wire) &&
+                   gal_hook_main_input_id_enabled()) {
             /* GAL's own input services, the main screen's: display id 0.
              * See set_input_service_display_id for why it must be said. */
             pb_put_varint(out, 0x22u);
