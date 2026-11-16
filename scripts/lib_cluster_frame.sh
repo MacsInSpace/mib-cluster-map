@@ -80,6 +80,11 @@ frame_geometry()
 
 FRAME_CONF_MARK="# Cluster map window (written by the installer, switched by the green menu)"
 
+# frame_write_conf CONF W H FULL
+# Replaces the window lines in CONF with those for a W x H window and FULL
+# (0 or 1), through a new file and a rename; returns 1 with CONF untouched
+# if that fails. Every existing line of these keys goes first: the hook takes
+# a key's first line and the player its last, so each must be there once.
 # frame_write_conf CONF W H FULL [HD720] [HD1080]
 # Replaces the frame and window settings atomically.
 frame_write_conf()
