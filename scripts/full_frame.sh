@@ -1,6 +1,14 @@
 #!/bin/sh
 # The green menu's picture switch writes the selected Android Auto frame mode
 # into the unit's settings copy. It takes effect at the next reboot.
+# The green menu's sharper-map switch: CLUSTERMAP_FULL_FRAME on or off in the
+# unit's own copy of the settings, so it can be tried in the car without
+# editing the card and installing again. Changes only the window lines of
+# that copy (lib_cluster_frame.sh); takes effect at the next reboot: gal
+# reads the settings once at its start and hands the same frame values to
+# every player it starts until then. An install from the card writes the
+# card's setting again.
+# From AMDFX60's fork (GPL-3.0).
 #
 #   full_frame.sh on|off|720p|1080p
 # Exit 0: switched, reboot. 3: nothing to change. Anything else: failed.
