@@ -173,9 +173,13 @@ The cluster only shows the head unit's map window at that window's own size:
 800×480 on the Golf, 1010×376 on some SEAT and Skoda clusters. A window of
 another size arrives as coloured stripes. The installer reads the size from
 the display manager (`dmdt gd`, window 33) and opens the player's window at
-it. Android Auto's cluster video is always 800×480, so where the window has
-another shape the phone is asked to leave margins (0×182 for 1010×376) and
-the player scales the rest to fill the window. CarPlay is asked for the
+it. Android Auto normally uses 800×480, so where the window has another shape
+the phone is asked to leave margins (0×182 for 1010×376) and the player scales
+the rest to fill the window. Optional `CLUSTERMAP_720P=1` and
+`CLUSTERMAP_1080P=1` test modes request 1280×720 or 1920×1080 with margins
+leaving the cockpit window's pixels; the player crops them and displays them
+1:1 when dimensions match. The phone/unit may reject the resolution if the
+primary sink does not advertise an HD entry. CarPlay is asked for the
 window's size. If the size cannot be read, the card's `GAL_PLAYER_WINDOW`
 is used when set (for example `GAL_PLAYER_WINDOW=1010x376`), then the size
 the player found on this cockpit at an earlier start, otherwise the
@@ -213,11 +217,13 @@ it must start at the beginning of the line, with no `#` in front.
 |---|---|---|
 | `GAL_SECONDARY_DPI` | auto | map text and turn card too big (lower) or too small (higher). `auto` is the value owners settled on for your make: SEAT 125, Skoda 125, VW 138, Audi A4 B9 140, otherwise 125. A number here is kept as it is |
 | `GAL_PRIMARY_DPI` | unset (the unit's own) | Android Auto on the **centre screen** looks too large or too small. 60 to 400, the unit's own is usually 213; lower shows more. The same as aawireless's DPI setting, but kept in passthrough mode. Remove the `#` in front of the line. Car-tested in #71 |
-| `GAL_SECONDARY_INSETS` | auto | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right; each 0 to 127. `auto` is SEAT `105,127,127,127`, Skoda `40,127,127,127`, VW `52,82,127,127`, Audi A4 B9 and otherwise `40,40,127,127`. They also set where CarPlay keeps its card. See the settings owners have settled on, below |
+| `GAL_SECONDARY_INSETS` | auto | map controls or the ETA hide behind the dials or a warning light. Top, bottom, left, right. In 800×480 and full-frame modes values are frame pixels; in 720p/1080p modes they are visible-cockpit-window pixels, with crop offsets added automatically. `auto` is SEAT `105,127,127,127`, Skoda `40,127,127,127`, VW `52,82,127,127`, Audi A4 B9 and otherwise `40,40,127,127`. They also set where CarPlay keeps its card. See the settings owners have settled on, below |
 | `GAL_CROP_TOP`, `GAL_CROP_BOTTOM` | 15, 10 | you need a custom vertical crop of Android Auto's 800×480 frame. Nonzero crop values disable the installer's margins, but keep its pixel-aspect setting (including `CLUSTERMAP_FULL_FRAME=1`); the player crops those rows and stretches the remaining frame to the full window. For a 1440×455 window, top `15` and bottom `10` leave 455 rows |
 | `GAL_SECONDARY_UI_THEME` | 0 (follows the headlights) | you want the cluster map always dark (2) or always light (1). Waze stays dark whatever is set. 1 or 2 costs two bytes of the insets message, so fewer insets can go above 127 |
 | `CLUSTERMAP_KEEP_SETTINGS` | unset (keep) | you want a clean install. Each install remembers the lines you changed in `gal_dualscreen.conf` and puts them back at the next install wherever the new card still has the shipped default; a line changed on the new card wins, and `update_result.txt` lists what was kept. When you install the same release again, a setting you have edited on the card since the last install is used as the card has it, so a line you switch off stays off. `0` installs only the card's settings: use it once if a setting from an older release keeps coming back. Settings from v1.1.0 and betas before v1.1.1-beta19 are not carried over. The uninstall forgets them |
 | `CLUSTERMAP_FULL_FRAME` | 0 | the map looks soft on a wide window (SEAT, Skoda, Audi). 1 has the phone draw on the whole 800×480 frame with wide pixels instead of leaving margins: more detail, same layout. Also a green-menu switch ("Sharper map"), so it can be tried in the car. From AMDFX60's fork, car-tested on his Skoda Superb (#56) |
+| `CLUSTERMAP_720P` | 0 | experimentally request a 1280×720 secondary stream with margins leaving the cockpit window's pixels. Off by default; available as a green-menu test; the phone/unit may reject it |
+| `CLUSTERMAP_1080P` | 0 | experimentally request a 1920×1080 secondary stream, for example 1440×455 with margins 480×625. Mutually exclusive with 720p and takes precedence over `CLUSTERMAP_FULL_FRAME` |
 | `GAL_PLAYER_NEON` | unset | 0 decodes without the processor's NEON instructions, as up to v1.2.3 (slower). The player does that by itself until the next reboot after a crash; set 0 only if the map keeps dropping back to the car's own |
 | `GAL_PLAYER_PRIORITY` | unset | the cluster map stutters when the unit is busy. 12 raises the player a little above the default 10; it never lowers it. Not car-tested |
 | `GAL_DUALSCREEN_AAP_MINOR` | 5 | the Android Auto version the unit claims (1.x). The map shows at 2 to 7. At 6 or higher Google Maps sends newer navigation messages this unit cannot read; the hook translates them into the old ones (`GAL_DUALSCREEN_NAV_TRANSLATE`, on), so the arrows jar should keep its turn pictograms. Not yet car-tested above 5 (#4) |
@@ -239,8 +245,8 @@ it must start at the beginning of the line, with no `#` in front.
 | `CLUSTERMAP_CARPLAY_WHEEL_ZOOM` | auto | Audi A6/A7 C7.5 (`K3663`) only: the steering-wheel roller zooms the CarPlay map on the cockpit (auto). `reverse` if it zooms the wrong way round, `0` to leave the roller to the car's map. Added only on the exact interface build it was made for; see docs/CarPlay.md |
 | `CLUSTERMAP_CARPLAY_WHEEL_ZOOM_ID` | `82137` | Chinese A6/A7 C7.5 (`K1006_2`) only: the roller's id. Change it only if `/tmp/clustermap-wheelzoom.log` shows the roller with another id |
 | `CLUSTERMAP_CARPLAY_HIDE_NAV` | 0 | CarPlay: the cockpit leaves the map when the iPhone starts a route and returns when it ends (US `P3662`, #10). 1 stops the car being told the iPhone is navigating. Not car-tested. |
-| `GAL_PLAYER_DECODER` | sw | `sw` is the tested software decoder. `hw` uses the unit's own video decoder and frees most of a processor core. If it will not open, the player uses software; if it fails while decoding, it stays off until the next reboot. **Not yet car-tested** |
-| `GAL_PLAYER_NVSS_OUTPUT` | 1 | the cluster stays black with `hw`: try 0 (uncomment the line first) |
+| `GAL_PLAYER_DECODER` | sw | `sw` is the software decoder. `hw` uses NvSS and is Audi-only; Skoda output 1 is 0x0. The Audi 1080p example below is car-tested. If NvSS will not open, the player uses software |
+| `GAL_PLAYER_NVSS_OUTPUT` | 1 | Audi NvSS output device; output 1 is 0x0 on Skoda, so do not enable this hardware-decoder setting there |
 | `GAL_DUALSCREEN_DEBUG`, `GAL_FIX_STREAM_TIMING`, `GAL_PLAYER_STATS`, `GAL_HOOK_LOG_MAX_MB` | 0, 0, 0, 1 | full trace for a bug report: 0, 1, 1, 10, then install over SSH with `enable_hook.sh --debug` |
 
 ### Settings owners have settled on
@@ -268,6 +274,19 @@ on `auto` follows it without editing anything.
 | Audi A6 C7.5 facelift (`K3663`), *auto* | 125 | `40,40,127,127` | nkady, #68 (v1.2.1, out of the box) |
 | VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
 | VW 12.3 in Passat B8 2019 (`K4525`), ETA card showing, with `GAL_SECONDARY_UI_THEME=0` | 138 | `56,73,127,127` | danielszyszko-ui, #41 |
+
+Car-tested Audi 1080p example (1920×1080 stream, 1440×455 cockpit window):
+
+```ini
+CLUSTERMAP_1080P=1
+GAL_PLAYER_DECODER=hw
+GAL_PLAYER_NVSS_OUTPUT=1
+GAL_SECONDARY_DPI=160
+GAL_SECONDARY_INSETS=45,85,75,75
+```
+
+`GAL_PLAYER_DECODER=hw` with `GAL_PLAYER_NVSS_OUTPUT=1` is Audi-only; Skoda
+reports output 1 as `0x0`.
 | VW Golf (`P4521`), ETA card showing, Google Maps and Waze, *auto* for VW | 138 | `52,82,127,127` | tvarszegi1, #8, road-tested |
 | VW Passat B8 2018 (`P4512_1`), small and large dials, *auto* for VW | 138 | `52,82,127,127` | slechtaadam-byte, #47 |
 
