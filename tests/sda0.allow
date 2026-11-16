@@ -1,0 +1,11 @@
+# file:count of /fs/sda0 mentions, checked by tests/regression_guards.sh (#109).
+# Change a count only after reading the new line: a fallback is fine, the only path is not.
+greenmenu/cluster-map.esd:9
+greenmenu/GEM/collect_for_porting_full.sh:1
+greenmenu/GEM/common.sh:4
+player/opengl_gpu.cc:2
+scripts/experiments/zoom_test.sh:2
+scripts/lib_resolve_hook_log.sh:1
+src/gal_hook.c:1
+src/vc_player_mgr.c:2
+src/video_sink_hook.c:1

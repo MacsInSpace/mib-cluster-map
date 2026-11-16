@@ -68,6 +68,79 @@ These shaped the design; changing them has broken things before.
   the map. NavActiveIgnore is needed so a phone route does not end the
   cluster map.
 
+## Settled parts
+
+Since v1.2.0 the default path has not changed: how the hook announces the
+second display, how the player decodes and draws, and how the installer puts
+them on the unit. From v1.2.6 these are treated as settled. Releases from
+v1.2.1 to v1.2.6 changed car lists, per-car options, installer edge cases and
+diagnostics.
+
+**What is settled**
+
+| Part | Files |
+|---|---|
+| Hook: second display, focus, acknowledgements | `src/` |
+| Player: decode, draw, cockpit switch and restore | `player/opengl_gpu.cc` |
+| Installer and uninstaller | `scripts/enable_hook.sh`, `scripts/disable_hook.sh`, `scripts/lib_*.sh` |
+| Green menu | `greenmenu/` |
+
+**What stays open without ceremony:** a line in `config/profiles.conf`, the
+tested-values table in `docs/Install.md`, the README, log collectors, and new
+log lines that change no behaviour.
+
+**A change to a settled part needs one of these**
+
+1. A fault on a car that is listed as working, shown in a log.
+2. A new car that can't be served by a `profiles.conf` word or an existing
+   setting.
+3. A feature. It ships off, behind a setting or a `profiles.conf` word, and
+   with it off the unit must do what it did before. It is switched on for a
+   car only after a log from that car.
+
+And every such change:
+
+- names the report it answers in the commit;
+- is benched under `set -eu` in ksh and dash on an empty unit directory when
+  it touches the installer;
+- passes `tests/regression_guards.sh`, `tests/profile_check_test.sh` and
+  `tools/check_scripts.py` (the build refuses to pack a card otherwise);
+- says in the release notes whether it has run on a car;
+- adds a guard to `tests/regression_guards.sh` when it fixes a fault that
+  reached a release.
+
+A pull request tested on one car is taken as an opt-in setting, not as a new
+default.
+
+**Faults that reached a release, and what guards them now**
+
+| Release | Fault | Cause | Guard |
+|---|---|---|---|
+| v1.2.0 | installer stopped part-way | the bench ran without `set -eu`; the unit runs with it | bench rule above; guard 3 |
+| v1.2.2 | broken picture | NEON routines read unaligned data, which this processor set-up faults on | `tools/neon_audit.py` |
+| up to v1.2.4 | green menu "script not found" after an install from USB or SD slot 2 (#109) | `/fs/sda0` baked into paths | guard 2, `tests/sda0.allow` |
+| up to v1.2.5 | `GAL_DUALSCREEN_ENABLE=0` did nothing (#101) | the installer wrote a fixed `=1` into gal's start-up, and the start-up value beats the settings file | guard 1 |
+| a pull request, caught in review | picture crop on for every car (#85) | a one-car change made the default | guard 4; the opt-in rule |
+
+The pattern in the last three: a value or a path that was right on the test
+car was written as a constant. When fixing one, search for every other place
+the same constant is written.
+
+## Open core work
+
+Four things are not settled. Each has a test that has to pass on a car before
+it becomes a default or is listed as supported.
+
+| Work | State | Test that settles it |
+|---|---|---|
+| The unit takes the cockpit back while the player draws (#105, #24) | cause unknown. v1.2.6 logs it (`context:` lines, `context_check.txt`) and has `GAL_PLAYER_REASSERT=1`, off | 1. A Save logs from an affected car on v1.2.6: the `context:` line gives the time, and the system log around that time should name what switched it. 2. The same car with `GAL_PLAYER_REASSERT=1` for a drive: map stays, at most a few re-asserts, no flicker. 3. A car without the fault (the Golf) with the setting on: no re-assert logged. Default only after 2 on two cars and 3. |
+| CarPlay on the 857727 library (`P3301`, Audi A4 and A6) | no build. One file serves VW and Audi (same SHA-256, #104) | Static first: the same offsets audit as for 857735, against the file we hold. Then behind `CLUSTERMAP_CARPLAY_TRIAL` on one VW and one Audi, each with an uninstall card ready: CarPlay still connects on the centre screen, the cockpit shows the map, a route starts and ends. An Audi result does not follow from a VW one (#14). |
+| Cars with one display for everything (Audi TT `P5098`, #99) | hook verified, phone opens the second display, no window 33 to draw in | The `dmdt gd` and `dmdt gc` sections of Collect in both map views, to find the window and context the stock map uses. Then a trial build that targets it, on that car only, with the uninstall card ready. |
+| 720p and 1080p frame modes (pull request #125); hardware decode on VW | off by default. 720p in software: 30 pictures a second on a Golf at a third more CPU, no gain on 800x480. 1080p in software: 15. 1080p with the hardware decoder: one Audi A3 | 720p on a cockpit window larger than 800x480 (1010x376 or 1280x480) with `GAL_PLAYER_STATS=1`: a steady 30 and a photo against the normal mode. The installer ignores both modes on an 800x480 window. Hardware decode on VW needs the unit's plain decoder (`libnvmedia.so`), since the cockpit is not a display output there: first a probe program on the Golf that decodes one picture. |
+
+For each: one change per run, the tester gets exact steps and the way back,
+and the log decides, not the photo alone.
+
 ### The connection loop
 
 Once the unit claims Android Auto 1.6 or later (`GAL_DUALSCREEN_AAP_MINOR`

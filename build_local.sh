@@ -187,6 +187,9 @@ package() {
   cp "$ROOT/LICENSE" "$D/LICENSE"
   # The unit's shell needs LF line endings and plain ASCII in everything it runs.
   python3 "$ROOT/tools/check_scripts.py" "$D" || { echo "REJECTED: scripts use something units lack"; exit 1; }
+  # Faults that reached a release once must not come back (docs/Development.md, "Settled parts").
+  sh "$ROOT/tests/regression_guards.sh" || { echo "REJECTED: a regression guard failed"; exit 1; }
+  sh "$ROOT/tests/profile_check_test.sh" >/dev/null || { echo "REJECTED: tests/profile_check_test.sh failed"; exit 1; }
   bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/GEM/*.sh "$D"/final/*.sh "$D"/carplay/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
   [ -z "$bad" ] || { echo "REJECTED: CR or non-ASCII in: $bad"; exit 1; }
   (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar carplay/ClusterMapNavAsiaZoom.jar > SHA256SUMS.txt)
