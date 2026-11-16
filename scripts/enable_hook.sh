@@ -97,6 +97,16 @@ finish()
 
 trap finish 0 1 2 15
 
+# Size of a file in bytes, or nothing when it is not there. "wc -c < file
+# 2>/dev/null" still lets the shell print "cannot open" for a missing file
+# (#100, #115 read it as a failed install), and under set -e a failing
+# command in an assignment ends the script, so this always returns 0.
+file_size()
+{
+    if [ -r "$1" ]; then wc -c < "$1" | sed 's/ //g'; fi
+    return 0
+}
+
 usage()
 {
     echo "Usage: $0 [--dpi NUMBER] [--debug|--no-debug]   (debug logging is off unless --debug)"
@@ -498,7 +508,7 @@ AIRPLAY_TRIAL=`sed -n 's/^CLUSTERMAP_CARPLAY_TRIAL=\([0-9]*\)[ 	]*$/\1/p' \
 for d in /mnt/app/eso/lib /eso/lib /mnt/app/armle/lib /mnt/app/usr/lib /mnt/app/root/lib-target; do
     if [ -r "$d/libairplay.so" ]; then AIRPLAY_LIB="$d/libairplay.so"; break; fi
 done
-AIRPLAY_NOW=`wc -c < $AIRPLAY_LIB 2>/dev/null | sed 's/ //g'`
+AIRPLAY_NOW=`file_size "$AIRPLAY_LIB"`
 AIRPLAY_ALLOWED=0
 [ "$AIRPLAY_NOW" = "$AIRPLAY_SIZE" ] && AIRPLAY_ALLOWED=1
 [ "$AIRPLAY_NOW" = "$AIRPLAY_SIZE_2" ] && AIRPLAY_ALLOWED=1
@@ -1218,8 +1228,10 @@ NAVIGNORE_ASKED=`sed -n 's/^CLUSTERMAP_ADD_NAVIGNORE=\([01]\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 # Never where profiles.conf says "nonavignore": with it, Android Auto stopped
 # working on an S2125 (#39, FAILED_NO_GAL_DEVICE). Owners updated to
-# MHI2_ER_VWG11_K3342 run it fine (#39, #28; the #28 freeze was an edited
-# gal.json). The Audi K3346 kept its map through a route without it (#14).
+# MHI2_ER_VWG11_K3342 run it fine with Android Auto (#39, #28; the #28 freeze
+# was an edited gal.json). The Audi A4/Q5 (AUG22) is no longer on that list:
+# a K3344 drops the map at every route without it (#14), and a K3346 runs
+# the Audi build from M.I.B., so there it is added when the owner asks.
 NAVIGNORE_NEVER=0
 if train_has "$PROFILES" "$TRAIN" nonavignore; then NAVIGNORE_NEVER=1; fi
 # Which build: the toolbox's patches VW classes (de.vw.mib.asl.*), most of
@@ -1239,8 +1251,8 @@ echo
 if [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
     echo "WARNING: cannot check the Java interface ($LSD_SH or lsd_jar.sh missing)." >&2
 else
-    NAV_HAVE=`wc -c < /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar 2>/dev/null | sed 's/ //g'`
-    NAV_WANT=`wc -c < "$NAVIGNORE_SRC" 2>/dev/null | sed 's/ //g'`
+    NAV_HAVE=`file_size /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar`
+    NAV_WANT=`file_size "$NAVIGNORE_SRC"`
     # The start-up line without the jar file behind it: Java skips a missing
     # jar without a word, so "loaded" was reported while the cockpit still
     # dropped the map at the first route (#24, a P4512_2 whose lsd/jars held
@@ -1250,7 +1262,7 @@ else
            [ "$KEEP_NAVIGNORE" -eq 0 ]; then
             echo "Java check: NavActiveIgnore has its start-up line, but the jar file is missing."
             if [ -r "$NAVIGNORE_SRC" ] && sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$NAVIGNORE_SRC"; then
-                NAV_HAVE=`wc -c < /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar 2>/dev/null | sed 's/ //g'`
+                NAV_HAVE=`file_size /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar`
             else
                 echo "WARNING: could not copy NavActiveIgnore.jar; the cockpit will drop the map" >&2
                 echo "         when the phone starts a route. Apply it from the toolbox:" >&2
@@ -1298,6 +1310,12 @@ else
         fi
         if [ "$NAV_OK" -eq 1 ]; then
             echo "Java check: NavActiveIgnore is not loaded; adding the $NAVIGNORE_BUILD build ($NAV_WHY)."
+            if ! train_has "$PROFILES" "$TRAIN" navignore; then
+                echo "            It changes the script that starts the centre screen, and is not"
+                echo "            added by itself here: if the screen stays black after the reboot, run"
+                echo "            this package's uninstall (an UNINSTALL file on the card, see"
+                echo "            docs/Install.md), which takes it out again."
+            fi
             if [ ! -r "$NAVIGNORE_SRC" ]; then
                 echo "WARNING: the $NAVIGNORE_BUILD NavActiveIgnore build is not in this package; not added." >&2
             elif sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$NAVIGNORE_SRC"; then
@@ -1311,12 +1329,31 @@ else
             echo "         on firmware $TRAIN. Without it the cluster drops the map as" >&2
             echo "         soon as the phone starts a route. To have this installer add" >&2
             echo "         it, put CLUSTERMAP_ADD_NAVIGNORE=1 in gal_dualscreen.conf and" >&2
-            echo "         install again; or apply it from the toolbox: Customization >" >&2
-            echo "         Navigation > Ignore navigation-active status. It edits the script" >&2
-            echo "         that starts the centre screen: check SSH works first, and keep a" >&2
-            echo "         copy: cp $LSD_SH $LSD_SH.myback" >&2
+            echo "         install again; or apply it yourself:" >&2
+            if [ "$NAVIGNORE_BUILD" = Audi ]; then
+                echo "         M.I.B. > Navigation > NavActiveIgnore > Enable dual navigation" >&2
+                echo "         (the Audi build; the MIB2 Toolbox one is for VW and does not fit)." >&2
+            else
+                echo "         MIB2 Toolbox > Customization > Navigation > Ignore" >&2
+                echo "         navigation-active status." >&2
+            fi
+            echo "         It edits the script that starts the centre screen: check SSH" >&2
+            echo "         works first, and keep a copy: cp $LSD_SH $LSD_SH.myback" >&2
         fi
     fi
+    # VWG11 (K3342): with NavActiveIgnore loaded CarPlay no longer connects, on
+    # four owners' cars (#62, #106, two on #111; dio_manager stops at start-up
+    # in the one set of logs). Android Auto runs fine with it. Cause not found.
+    case "$TRAIN" in
+        *_VWG11_*)
+            if [ "$NAVIGNORE_NEVER" -eq 0 ] && sh "$CARD_ROOT/lsd_jar.sh" loaded NavActiveIgnore.jar; then
+                echo "NOTE: on $TRAIN, owners report that CarPlay no longer connects while"
+                echo "      NavActiveIgnore is loaded (#62, #106, #111). Android Auto is not"
+                echo "      affected. If you use an iPhone and it stops connecting, set"
+                echo "      CLUSTERMAP_ADD_NAVIGNORE=0 and run this package's uninstall, then"
+                echo "      install again (or remove it where you applied it: MIB2 Toolbox)."
+            fi ;;
+    esac
     TBT_OK=0
     if train_has "$PROFILES" "$TRAIN" arrows; then TBT_OK=1; fi
     if [ "$WITH_ARROWS" -eq 1 ] && ! sh "$CARD_ROOT/lsd_jar.sh" loaded VCAndroidAuto.jar; then
@@ -1477,7 +1514,7 @@ case "$WZ" in
 esac
 WZ_ID=`sed -n 's/^CLUSTERMAP_CARPLAY_WHEEL_ZOOM_ID=\([0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
-WZ_LSD=`wc -c < /ifs/lsd.jxe 2>/dev/null | sed 's/ //g'`
+WZ_LSD=`file_size /ifs/lsd.jxe`
 WZ_NAME=
 if train_has "$PROFILES" "$TRAIN" wheelzoom; then
     WZ_NAME=wheelzoom WHEELZOOM_JAR=ClusterMapWheelZoom.jar WHEELZOOM_LSD_SIZE=44688282

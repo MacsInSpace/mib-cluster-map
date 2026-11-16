@@ -5,8 +5,9 @@
 # depend on any other screen being installed.
 # Main -> ClusterMap
 #
-# The entries run scripts straight from the SD card in slot 1:
-#   /fs/sda0/ClusterMap/GEM/
+# The entries run scripts straight from the card. The paths below are for
+# SD slot 1; GEM/common.sh rewrites them on the unit to the card or stick the
+# install ran from (slot 2, USB), since that path differs by unit.
 #
 ###########################################################################################
 screen ClusterMap Main
@@ -18,7 +19,7 @@ keyValue
 
 keyValue
     value   String sys 0x00000000 0
-    label   "SD card must be in slot 1. Reboot after install."
+    label   "Keep the card where it was at install. Reboot after."
     poll    0
 
 script

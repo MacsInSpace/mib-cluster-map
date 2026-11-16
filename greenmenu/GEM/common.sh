@@ -21,6 +21,39 @@ if [ -z "$PKG" ]; then
     exit 0
 fi
 mount -uw "$VOLUME" 2>/dev/null
+
+# The menu screen names each script by its full path, and the card's path is
+# not the same everywhere: /fs/sda0 in slot 1, /fs/sdb0 in slot 2, /fs/usb0_0
+# for a stick, and units differ in which they have. The update copies the
+# screen with /fs/sda0 in it, so after an install from anywhere else every
+# entry said "script not found" (#109, a USB install). Whenever one of these
+# scripts runs (the update runs them too), point the screen at the card it ran
+# from. The menu reads the file when the centre screen starts, so this shows
+# after the reboot the install asks for anyway.
+menu_follow_card()
+{
+    m=/mnt/app/eso/hmi/engdefs/cluster-map.esd
+    [ -f "$m" ] || return 0
+    case "$VOLUME" in
+        /fs/*) ;;
+        *) return 0 ;;
+    esac
+    if grep "\"/" "$m" 2>/dev/null | grep -v "\"$VOLUME/ClusterMap/GEM/" >/dev/null 2>&1; then
+        :
+    else
+        return 0
+    fi
+    mount -uw /mnt/app 2>/dev/null || return 0
+    if sed "s|\"/[^\"]*/ClusterMap/GEM/|\"$VOLUME/ClusterMap/GEM/|" "$m" > "$m.new" 2>/dev/null &&
+       [ -s "$m.new" ] && grep "\"$VOLUME/ClusterMap/GEM/" "$m.new" >/dev/null 2>&1; then
+        mv "$m.new" "$m" 2>/dev/null && echo "Green menu: its entries now run from $VOLUME (after a reboot)."
+    fi
+    rm -f "$m.new" 2>/dev/null
+    mount -ur /mnt/app 2>/dev/null
+    return 0
+}
+menu_follow_card
+
 # A failed "." ends the shell, and with it the whole install, so check first.
 if [ ! -r "$PKG/scripts/lib_unit.sh" ] || [ ! -r "$PKG/profiles.conf" ]; then
     echo "This ClusterMap folder is incomplete: unpack the release zip again."
