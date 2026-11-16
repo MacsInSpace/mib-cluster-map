@@ -434,6 +434,10 @@ static const char* fragmentShaderSource =
     "}\n";
 
 // ---------------- QNX DMDT Context Switching ----------------
+/* The cockpit-context check further down; here so both builds have them. */
+static bool g_reassert = false;               /* GAL_PLAYER_REASSERT=1 */
+static volatile int g_ctxShown = -1;          /* -1 not read yet, -2 context not listed */
+static volatile bool g_switchDone = false;
 /*
  * The cluster shows this player when context 70 points at displayable 3 (and
  * display 4 shows context 70); the stock Kombi map is displayable 33. Both
@@ -513,6 +517,7 @@ static bool g_switchClosed = false;    /* g_switchLock: shutting down */
 static void* display_switch_thread(void* arg) {
     (void)arg;
     dmdt_pair(g_dmdtShow, g_dmdtSelect, "cluster switched to the player");
+    g_switchDone = true;
     return NULL;
 }
 
@@ -528,33 +533,37 @@ static void* display_switch_thread(void* arg) {
  * picture was laid out for the old size and is drawn centred at its own shape;
  * window_fix.sh corrects the settings for the next start.
  */
-static bool g_windowFromArgs = false;
-static void check_map_window() {
-    char cmd[256], out[4096], type[32];
-    int fds[2], w = 0, h = 0, found = 0;
+/*
+ * Run one dmdt query (gd, gs) and return its text. dmdt buffers its output
+ * when it is not a terminal, hence the flush shim. Two seconds at most: a
+ * stuck display tool must not cost the map.
+ */
+static size_t dmdt_capture(const char* query, char* out, size_t outSize) {
+    char cmd[320];
+    int fds[2];
     size_t used = 0u;
     pid_t pid;
-    if (g_windowFromArgs) return;
-    if (pipe(fds) != 0) return;
+    out[0] = 0;
+    if (pipe(fds) != 0) return 0u;
+    snprintf(cmd, sizeof(cmd),
+             "cd /eso && LD_PRELOAD=/eso/lib/gal_dualscreen/libdmdt_flush.so "
+             "LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production "
+             "exec ./bin/apps/dmdt %s 2>/dev/null", query);
     pid = fork();
     if (pid < 0) {
         close(fds[0]);
         close(fds[1]);
-        return;
+        return 0u;
     }
     if (pid == 0) {
         dup2(fds[1], 1);
         close(fds[0]);
         close(fds[1]);
-        execl("/bin/sh", "sh", "-c",
-              "cd /eso && LD_PRELOAD=/eso/lib/gal_dualscreen/libdmdt_flush.so "
-              "LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib IPL_CONFIG_DIR=/etc/eso/production "
-              "exec ./bin/apps/dmdt gd 2>/dev/null", (char*)NULL);
+        execl("/bin/sh", "sh", "-c", cmd, (char*)NULL);
         _exit(127);
     }
     close(fds[1]);
-    /* Two seconds at most: a stuck display tool must not cost the map. */
-    for (int waited = 0; waited < 20 && used + 1u < sizeof(out);) {
+    for (int waited = 0; waited < 20 && used + 1u < outSize;) {
         struct timeval tv = { 0, 100000 };
         fd_set rd;
         FD_ZERO(&rd);
@@ -562,7 +571,7 @@ static void check_map_window() {
         int ready = select(fds[0] + 1, &rd, NULL, NULL, &tv);
         if (ready == 0) { ++waited; continue; }
         if (ready < 0) break;
-        ssize_t n = read(fds[0], out + used, sizeof(out) - 1u - used);
+        ssize_t n = read(fds[0], out + used, outSize - 1u - used);
         if (n <= 0) break;
         used += (size_t)n;
     }
@@ -570,6 +579,15 @@ static void check_map_window() {
     kill(pid, SIGKILL);
     waitpid(pid, NULL, 0);
     out[used] = 0;
+    return used;
+}
+
+static bool g_windowFromArgs = false;
+static void check_map_window() {
+    char cmd[256], out[4096], type[32];
+    int w = 0, h = 0, found = 0;
+    if (g_windowFromArgs) return;
+    if (dmdt_capture("gd", out, sizeof(out)) == 0u) return;
     for (char* line = strtok(out, "\r\n"); line; line = strtok(NULL, "\r\n")) {
         unsigned id = 0u;
         int lw = 0, lh = 0;
@@ -589,6 +607,80 @@ static void check_map_window() {
     windowHeight = h;
     snprintf(cmd, sizeof(cmd), "sh /eso/lib/gal_dualscreen/window_fix.sh %d %d >/dev/null 2>&1 &", w, h);
     if (system(cmd) != 0) LOG("display: could not start window_fix.sh");
+}
+
+/*
+ * Is the cockpit still on this player? The switch above is made once. On some
+ * cars the context is later found back on the car's own map window while the
+ * player is still drawing (#105 Tiguan K3342, #24 P4512_2): the owner sees
+ * the phone's map for a moment, then the car's. What sets it back is not
+ * known. So, five seconds after the switch and then once a minute, read
+ * `dmdt gs` on a thread of its own and note which window the context shows;
+ * the health line prints it. GAL_PLAYER_REASSERT=1 (off by default) also
+ * switches the context to the player again when it is found elsewhere.
+ */
+static volatile bool g_ctxBusy = false;
+static volatile uint64_t g_ctxNextUs = 0;
+static pthread_t g_ctxThread;
+static bool g_ctxThreadStarted = false;       /* main thread only */
+static unsigned g_ctxReasserts = 0;           /* context thread only */
+
+static int parse_context_window(char* out, unsigned context) {
+    bool inContext = false;
+    for (char* line = strtok(out, "\r\n"); line; line = strtok(NULL, "\r\n")) {
+        unsigned id = 0u;
+        if (sscanf(line, " context id: %u", &id) == 1) { inContext = (id == context); continue; }
+        if (inContext && sscanf(line, " %u (", &id) == 1) return (int)id;
+    }
+    return -2;
+}
+
+static void* context_check_thread(void* arg) {
+    char out[4096];
+    (void)arg;
+    if (dmdt_capture("gs", out, sizeof(out)) != 0u) {
+        int shown = parse_context_window(out, g_vcContext);
+        int before = g_ctxShown;
+        g_ctxShown = shown;
+        if (shown >= 0 && shown != (int)g_vcDisplayable) {
+            if (before != shown)
+                LOG("context: cockpit context %u shows window %d, not the player's %u: the unit put it back t=%llu.%03llu",
+                    g_vcContext, shown, g_vcDisplayable, T_ARGS(now_us()));
+            pthread_mutex_lock(&g_switchLock);
+            bool closed = g_switchClosed;
+            pthread_mutex_unlock(&g_switchLock);
+            /* At most ten times a session: never fight the unit in a loop. */
+            if (g_reassert && !closed && g_ctxReasserts < 10u) {
+                ++g_ctxReasserts;
+                dmdt_pair(g_dmdtShow, g_dmdtSelect, "cluster switched to the player again (GAL_PLAYER_REASSERT)");
+                g_ctxNextUs = now_us() + 5000000ULL;
+            }
+        } else if (shown >= 0 && before >= 0 && before != shown) {
+            LOG("context: cockpit context %u shows the player's window %d again t=%llu.%03llu",
+                g_vcContext, shown, T_ARGS(now_us()));
+        }
+    }
+    g_ctxBusy = false;
+    return NULL;
+}
+
+/* Render thread, about once a second. */
+static void context_check_tick(uint64_t nowUs) {
+    if (!g_switchDone || g_ctxBusy) return;
+    if (g_ctxNextUs == 0) { g_ctxNextUs = nowUs + 5000000ULL; return; }
+    if (nowUs < g_ctxNextUs) return;
+    if (g_ctxThreadStarted) pthread_join(g_ctxThread, NULL);
+    g_ctxThreadStarted = false;
+    g_ctxNextUs = nowUs + 60000000ULL;
+    g_ctxBusy = true;
+    if (pthread_create(&g_ctxThread, NULL, context_check_thread, NULL) == 0) g_ctxThreadStarted = true;
+    else g_ctxBusy = false;
+}
+
+/* Main thread, before the stock map is put back. */
+static void context_check_stop() {
+    if (g_ctxThreadStarted) pthread_join(g_ctxThread, NULL);
+    g_ctxThreadStarted = false;
 }
 #endif
 
@@ -617,11 +709,13 @@ static void execute_final_commands() {
     pthread_mutex_unlock(&g_switchLock);
     if (!started) return;
     pthread_join(g_switchThread, NULL);
+    context_check_stop();
     dmdt_pair(g_dmdtRestore, g_dmdtSelect, "stock Kombi map restored");
 }
 #else
 static void request_display_switch() {}
 static void execute_final_commands() {}
+static void context_check_tick(uint64_t) {}
 #endif
 
 // ---------------- Hardware decode (NvSS) ----------------
@@ -1717,6 +1811,9 @@ static void load_player_config() {
             } else if (strcmp(key, "GAL_PLAYER_NEON") == 0) {
                 /* 0: decode without NEON; anything else: NEON where the CPU has it. */
                 g_neonAllowed = atoi(val) != 0;
+            } else if (strcmp(key, "GAL_PLAYER_REASSERT") == 0) {
+                /* 1: switch the cockpit to the player again when the unit set it back. */
+                g_reassert = atoi(val) == 1;
             } else if (strcmp(key, "GAL_PLAYER_PRIORITY") == 0) {
                 int p = atoi(val);
                 if (p >= 0 && p <= 20) g_priority = p;
@@ -2384,11 +2481,16 @@ int main(int argc, char* argv[]) {
                 s_healthUs = frameEndUs;
                 s_healthDec = curDec;
             } else if (frameEndUs - s_healthUs >= 60000000ULL) {
-                LOG("health: %llu pictures decoded in the last minute; brightness %u of 255 (under 16 is black) t=%llu.%03llu",
-                    (unsigned long long)(curDec - s_healthDec), g_lastLuma, T_ARGS(frameEndUs));
+                char ctxNote[64] = "";
+                int ctxShown = g_ctxShown;
+                if (ctxShown >= 0) snprintf(ctxNote, sizeof(ctxNote), "; cockpit context shows window %d", ctxShown);
+                else if (ctxShown == -2) snprintf(ctxNote, sizeof(ctxNote), "; cockpit context not listed");
+                LOG("health: %llu pictures decoded in the last minute; brightness %u of 255 (under 16 is black)%s t=%llu.%03llu",
+                    (unsigned long long)(curDec - s_healthDec), g_lastLuma, ctxNote, T_ARGS(frameEndUs));
                 s_healthUs = frameEndUs;
                 s_healthDec = curDec;
             }
+            context_check_tick(frameEndUs);
             frameCount = 0;
             lastFpsUs = frameEndUs;
 

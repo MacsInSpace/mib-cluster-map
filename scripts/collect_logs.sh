@@ -26,8 +26,9 @@ grep -n 'Xbootclasspath' /mnt/app/eso/hmi/lsd/lsd.sh > $OUT/java_patches.txt 2>&
 { echo "--- lsd/jars"; ls -l /mnt/app/eso/hmi/lsd/jars /mnt/app/eso/hmi/lsd/jars_off; } >> $OUT/java_patches.txt 2>&1
 # dmdt buffers its output when it is not a terminal; the flush shim makes it
 # write before it exits (as in GEM/collect_for_porting.sh).
-# gd lists every window with its size; 33 is the stock cluster map.
-for c in gs gd; do
+# gd lists every window with its size; 33 is the stock cluster map. gc lists
+# every context with the windows it shows (#99, #105).
+for c in gs gd gc; do
     ( cd /eso && LD_PRELOAD="$HERE/lib/libdmdt_flush.so" LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib \
       IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt $c ) > $OUT/dmdt_$c.txt 2>&1
 done
@@ -49,12 +50,51 @@ else
     echo "NOTE: no cockpit display (context $CTX) at this moment. That is normal" >> $OUT/dmdt_gs.txt
     echo "unless the cockpit was in map view when these logs were saved." >> $OUT/dmdt_gs.txt
 fi
+# Which window that context shows right now, against whether a player is
+# running: a player that is drawing while the context is back on the car's own
+# map window means something on the unit switched it back (#105, #24).
+MINE=`sed -n 's/^GAL_VC_DISPLAYABLE_ID=\([0-9]*\).*/\1/p' /eso/lib/gal_dualscreen/gal_dualscreen.conf 2>/dev/null | head -1`
+[ -n "$MINE" ] || MINE=3
+SHOWN=`awk -v c="$CTX" '
+    $1 == "context" && $2 == "id:" { f = ($3 == c); next }
+    f && $1 ~ /^[0-9]+$/ { print $1; exit }' $OUT/dmdt_gs.txt 2>/dev/null`
+PLAYER_UP=no
+grep stream-player $OUT/pidin_ar.txt >/dev/null 2>&1 && PLAYER_UP=yes
+{
+    echo "context=$CTX shows_window=${SHOWN:-none} player_window=$MINE player_running=$PLAYER_UP"
+    if [ "$PLAYER_UP" = yes ] && [ -n "$SHOWN" ] && [ "$SHOWN" != "$MINE" ]; then
+        echo "CHECK: a player is running, but the cockpit context shows window $SHOWN,"
+        echo "       not the player's ($MINE): the unit put its own map back while the"
+        echo "       phone's picture was still being drawn."
+    elif [ "$PLAYER_UP" = yes ] && [ -n "$SHOWN" ]; then
+        echo "CHECK: a player is running and the cockpit context shows its window. OK."
+    elif [ "$PLAYER_UP" = yes ]; then
+        echo "CHECK: a player is running, but the cockpit context is not listed."
+    else
+        echo "CHECK: no player is running (no phone session at this moment)."
+    fi
+} > $OUT/context_check.txt 2>&1
+cat $OUT/context_check.txt >> $OUT/dmdt_gs.txt 2>/dev/null
 # CarPlay map: the supervisor, its player, and harman-f's hook state.
 mkdir -p $OUT/carplay
 cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log \
    /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status /tmp/clustermap-wheelzoom.log $OUT/carplay/ 2>/dev/null
 grep -n -e dio_manager -e libcarplay -e ALTSCREEN111 /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/carplay/config_lines.txt 2>&1
 grep -n carplay0 /mnt/system/etc/pf*.conf > $OUT/carplay/firewall_lines.txt 2>&1
+# Crash archives the unit's dumper keeps (pidin: dumper -d /mnt/ota/system/core).
+# List them all, and copy the newest one of dio_manager (the CarPlay program)
+# when it is small: #111, where CarPlay stops at start-up with NavActiveIgnore.
+CORE_DIR=${CLUSTERMAP_CORE_DIR:-/mnt/ota/system/core}
+ls -l $CORE_DIR > $OUT/core_listing.txt 2>&1
+CORE=`ls -t $CORE_DIR/*dio_manager* 2>/dev/null | sed -n 1p`
+if [ -n "$CORE" ] && [ -f "$CORE" ]; then
+    CORE_SIZE=`wc -c < "$CORE" | sed 's/ //g'`
+    if [ "${CORE_SIZE:-0}" -gt 0 ] && [ "$CORE_SIZE" -le 8388608 ]; then
+        cp "$CORE" $OUT/carplay/ 2>/dev/null && echo "copied: $CORE ($CORE_SIZE bytes)" >> $OUT/core_listing.txt
+    else
+        echo "not copied (over 8 MB): $CORE ($CORE_SIZE bytes)" >> $OUT/core_listing.txt
+    fi
+fi
 sync 2>/dev/null
 ls -l $OUT
 echo "Done: ClusterMap/run_logs/$N. Wait a few seconds, then take the SD card to the laptop."

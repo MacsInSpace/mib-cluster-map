@@ -98,6 +98,14 @@ echo "--- display table (dmdt gs)" >> "$INFO"
 if [ -x /eso/bin/apps/dmdt ]; then
     ( cd /eso && LD_PRELOAD="$PKG/lib/libdmdt_flush.so" LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib \
       IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt gs ) >> "$INFO" 2>&1
+    # Every window with its size, and every context with its windows: a unit
+    # with one display for everything (Audi TT, #99) has no cockpit map
+    # window 33, and these say where its map is drawn instead.
+    for c in gd gc; do
+        echo "--- dmdt $c" >> "$INFO"
+        ( cd /eso && LD_PRELOAD="$PKG/lib/libdmdt_flush.so" LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib \
+          IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt $c ) >> "$INFO" 2>&1
+    done
 else
     echo "dmdt not found" >> "$INFO"
 fi
