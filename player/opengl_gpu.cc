@@ -489,6 +489,7 @@ static bool g_switchClosed = false;    /* g_switchLock: shutting down */
 static void* display_switch_thread(void* arg) {
     (void)arg;
     dmdt_pair(g_dmdtShow, g_dmdtSelect, "cluster switched to the player");
+    LOG("context: checked once a minute; switching back is %s (GAL_PLAYER_REASSERT)", g_reassert ? "on" : "off");
     g_switchDone = true;
     return NULL;
 }
