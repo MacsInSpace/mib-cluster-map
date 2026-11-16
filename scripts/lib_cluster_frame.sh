@@ -1,4 +1,15 @@
-# Shared by enable_hook.sh and the green menu's picture switch.
+# Shared by enable_hook.sh and the green menu's picture switch
+# (full_frame.sh): how Android Auto's frame is fitted to the cluster map
+# window, and the lines of the unit's settings copy that say so.
+# From AMDFX60's fork (GPL-3.0), reported car-tested on a Skoda Superb.
+#
+# Android Auto's frame is always 800x480. Where the window has another
+# shape, the phone is asked to leave margins so the rest (the band) has the
+# window's shape, 0x182 on 1010x376, and the player scales the band to the
+# window. Full frame (CLUSTERMAP_FULL_FRAME=1) asks for no margins and
+# declares non-square pixels instead, pixel_aspect_ratio_e4 = 6000 * W / H
+# (16117 on 1010x376): the phone draws on all 480 lines, squeezed, and the
+# player stretches the frame to the window.
 # Standard 800x480 geometry retains even margins. Optional 720p/1080p modes
 # use asymmetric margins when needed to preserve every cockpit pixel.
 
