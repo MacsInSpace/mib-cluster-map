@@ -10,7 +10,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 |---|---|---|
 | Android Auto | The Google Maps or Waze map, live | **Working** on VW `MHI2_ER_VWG13_P4521`, `K4525`, `P4512` and `P4174` (Golf R, Passat B8, Passat R wagon, Golf Alltrack), VW `MHI2_ER_VWG11_K3342` (Discover Pro 8 in, Passat B8 and Passat GTE), SEAT `MHI2_ER_SEG11_P4708` and `P4709`, Skoda `MHI2_ER_SKG13_P4526` and `P4523`, Audi A4 B9 and Q5 FY `MHI2_ER_AUG22_K3346`, Audi A3/S3 8V `MHI2_ER_AU37x_P5089`, `P5153` and `P4203`, Audi A6 and A7 C7.5 `MHI2_ER_AU57x_K3663`, VW `MHI2_ER_VWG11_P3301`, US `MHI2_US_VWG13_P3662` |
 | Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc), [our fork](https://github.com/MacsInSpace/mib2-android-auto-vc)) | Working on four trains, including SEAT `P4708`/`P4709` |
-| Apple CarPlay | The Apple Maps or Google Maps map, live | **Working** on a Golf R and a Passat B8 (`P4512`, #67), a SEAT (`P4709`), a Golf (`K4525`), a Tiguan (`P4521`) an Audi A7 C7.5 (`K3663`, three cars, #68) and a VW Discover Pro 8 in (`K3342` MU1427, with the `857735` trial line, #62), with the iPhone on a cable. Many wireless adapters never send the cockpit picture ([CarPlay](docs/CarPlay.md#wireless-adapters)). It can switch back to the car's own map while driving, under investigation (#19, #43). See [CarPlay](docs/CarPlay.md) |
+| Apple CarPlay | The Apple Maps or Google Maps map, live | **Working** on a Golf R and a Passat B8 (`P4512`, #67), a SEAT (`P4709`), a Golf (`K4525`), a Tiguan (`P4521`) an Audi A7 C7.5 (`K3663`, three cars, #68) a Golf GTE (`P3657`, #100), a Golf 7 (`K3332`, #45) and two VW Discover Pro 8 in (`K3342` MU1427, #62 and #111; no trial line needed since v1.2.6), with the iPhone on a cable. Many wireless adapters never send the cockpit picture ([CarPlay](docs/CarPlay.md#wireless-adapters)). It can switch back to the car's own map while driving, under investigation (#19, #43). See [CarPlay](docs/CarPlay.md) |
 
 It installs from an SD card as a software update. No toolbox, laptop or
 command line is needed. The installer checks the unit and installs what fits
@@ -116,12 +116,12 @@ no translation at all. The same in nine languages:
 
 | Head unit | Firmware train starts | Today |
 |---|---|---|
-| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367), both road-tested, and `P4512` (Golf R; Passat B8, #47). US `P3662` installs as tested. `P4174` (Passat R wagon, #49) and `P4521_1` (Golf Alltrack) tested. Others wanted |
+| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367), both road-tested, and `P4512` (Golf R; Passat B8, #47). US `P3662` installs as tested. `P4174` (Passat R wagon, #49) and `P4521_1` (Golf Alltrack) tested. `P3657` (Golf GTE, MU1077, #100): the CarPlay map works; Android Auto installs since v1.2.6 but has not been tried with an Android phone, reports welcome. Others wanted |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` and `P4709` (1010×376 cluster window). **Arrows** on both |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | **Map** on `P4526` (#15) and `P4523` (#56), car-confirmed. Others wanted |
-| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | **Map** on `K3342` (MU1427), Passat B8, found and road-tested by owners (#39, #28), and `P3301` (#33); beta18 on K3342 confirmed in #64 and #65; wired CarPlay works on K3342 MU1427 with the `857735` trial line (#62). `K3332` (Golf 7, MU1187) works since v1.2.3 (#45). Set `CLUSTERMAP_ADD_NAVIGNORE=1` to keep the map during an Android Auto route; with an iPhone leave it at 0, because CarPlay stops connecting while NavActiveIgnore is loaded on these units (#62, #106, #111). **`S2125`: update to `K3342` first** (see below); on S2125 itself NavActiveIgnore stopped Android Auto, so the map goes when a route starts |
+| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | **Map** on `K3342` (MU1427), Passat B8, found and road-tested by owners (#39, #28), and `P3301` (#33); beta18 on K3342 confirmed in #64 and #65; wired CarPlay works on K3342 MU1427 (#62, #111; since v1.2.6 without a trial line). `K3332` (Golf 7, MU1187) works since v1.2.3 (#45). Set `CLUSTERMAP_ADD_NAVIGNORE=1` to keep the map during an Android Auto route; with an iPhone leave it at 0, because CarPlay stops connecting while NavActiveIgnore is loaded on these units (#62, #106, #111). For CarPlay the installer hides the iPhone's route from the car instead (`CLUSTERMAP_CARPLAY_HIDE_NAV`, on by itself on these units since v1.2.6), which keeps the map on a route (#111). **`S2125`: update to `K3342` first** (see below); on S2125 itself NavActiveIgnore stopped Android Auto, so the map goes when a route starts |
 | VW Discover Pro, Japan | `MHI2_JP_VW48x_` | **Trial** on `P0953`, which has the same Android Auto program as `P4708` and needs no trial line (#37), being tested |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | **Map** on the A4 B9 `K3346` (#14; 1440×455 cockpit window, context 72, both set by the installer; shown in the map view and the Audi's own cockpit view) and the Q5 FY `K3346` (#96, v1.2.1; an Audi NavActiveIgnore M.I.B. put there is left in place). A3/S3 8V `AU37x_P5089` (#51), `P5153` (#63) and `P4203` (#81, v1.2.4) work. A7 C7.5 `AU57x_K3663`: Android Auto and CarPlay on the cockpit (context 73, set by the installer; its CarPlay library, 694088 bytes, is accepted without a trial line since v1.2.1). The A6 C7.5 has the same firmware, and Android Auto works there too (#68; a 2016 facelift out of the box on v1.2.1). With the Audi NavActiveIgnore, a CarPlay route (Waze) stays on the A7's cockpit. On the A7, the steering-wheel roller zooms the CarPlay map ([CarPlay](docs/CarPlay.md#steering-wheel-zoom-audi-a6a7-c75)); the installer adds the Audi build of NavActiveIgnore there (M.I.B.'s; the toolbox's VW build does not fit this unit). An RS3 is still to be tried. The update needs developer mode (see Install) |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | **Map** on the A4 B9 `K3346` (#14; 1440×455 cockpit window, context 72, both set by the installer; shown in the map view and the Audi's own cockpit view) and the Q5 FY `K3346` (#96, v1.2.1; an Audi NavActiveIgnore M.I.B. put there is left in place). A3/S3 8V `AU37x_P5089` (#51), `P5153` (#63) and `P4203` (#81, v1.2.4) work. A7 C7.5 `AU57x_K3663`: Android Auto and CarPlay on the cockpit (context 73, set by the installer; its CarPlay library, 694088 bytes, is accepted without a trial line since v1.2.1). The A6 C7.5 has the same firmware, and Android Auto works there too (#68; a 2016 facelift out of the box on v1.2.1). With the Audi NavActiveIgnore, a CarPlay route (Waze) stays on the A7's cockpit. On the A7, the steering-wheel roller zooms the CarPlay map ([CarPlay](docs/CarPlay.md#steering-wheel-zoom-audi-a6a7-c75)); the installer adds the Audi build of NavActiveIgnore there (M.I.B.'s; the toolbox's VW build does not fit this unit). An RS3 is still to be tried. The pre-facelift A6 C7 `AU57x_P3236` is not supported yet: its Android Auto program matches no profile, and its files are wanted (#122, #127). The update needs developer mode (see Install) |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies |
 
@@ -141,6 +141,45 @@ Not listed, or "wanted"? Run the update anyway: it installs nothing and
 collects what is needed to add your unit. The quickest way to get it working
 is to port it yourself with those files: see
 [Port your own car](CONTRIBUTING.md#port-your-own-car).
+
+## Limitations
+
+The cockpit shows the picture the phone makes for a second display. The car
+side only offers that display and plays what arrives: it draws nothing of its
+own and cannot change what an app sends. Most questions that come back are one
+of these:
+
+- **Which apps show a map.** Each app decides whether it draws on the cockpit.
+  Google Maps, Waze and Yandex do. Yanosik, TomTom and Mapy.com send only
+  their icon, and opening one of them on the centre screen replaces the map on
+  the cockpit with that icon (#120, #123, #107). Only the app's makers can
+  change that.
+- **Day and night colours.** Google Maps follows the car. Waze stays dark on
+  the cockpit whatever the centre screen shows (#129, #40).
+- **What is on the map.** Alerts, speed limits, the turn card and the arrival
+  card are the app's. Waze shows no alerts on the cockpit (#128). You can
+  change the size (`GAL_SECONDARY_DPI`) and the area the app keeps clear
+  (`GAL_SECONDARY_INSETS`), not the content. At a high DPI Google Maps drops
+  its arrival card.
+- **Zoom.** Android Auto has no zoom for the cockpit map; the steering-wheel
+  roller only changes the car's own hidden map. With CarPlay the roller zooms
+  on the Audi A6/A7 C7.5.
+- **Wireless adapters.** A cable always gives the most. Many wireless CarPlay
+  adapters never ask the car for the cockpit picture
+  ([CarPlay](docs/CarPlay.md#wireless-adapters)). Some Android Auto adapters
+  stop working when the car offers a second display: with a SmartBox-D824 the
+  centre screen stays black (#101). For those, use a cable, or set
+  `GAL_DUALSCREEN_ENABLE=0` and install again to have Android Auto as before
+  without the cockpit map. AAWireless TWO and a Motorola MA1 are reported
+  working.
+- **The car's own overlays.** Lines the cockpit draws over its map, such as
+  the street name bar on an Audi A6/A7, stay there (#126). Raise the bottom
+  inset so the app keeps that strip clear.
+- **Smoothness.** The picture is decoded in software at up to 30 pictures a
+  second, 800×480. It will not match the centre screen.
+- **Arrival time and lanes in the dials.** The car's own guidance screens are
+  not fed; with `CLUSTERMAP_TURN_INFO=1` VW, SEAT and Skoda get the arrow,
+  distance and road name. Audi has no such jar.
 
 ## Where the project stands
 
