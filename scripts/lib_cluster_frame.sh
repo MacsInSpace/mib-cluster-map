@@ -21,6 +21,12 @@ frame_full_ok()
 {
     [ `expr $1 \* 480` -gt `expr $2 \* 800` ]
 }
+# frame_geometry W H FULL
+# Sets BAND_MARGIN_W/H (the margins of the band, whatever FULL says: the
+# insets are measured in it) and MARGIN_W/H and PIXEL_ASPECT_E4 for FULL.
+# FULL=1 on a window that is not wider than 5:3 gives the margins, as 0 does;
+# CLUSTERMAP_FULL_FRAME is still written as asked, so a later correction of
+# the window (window_fix.sh) can apply it.
 
 # frame_hd_ok W H FRAME_W FRAME_H
 frame_hd_ok()
