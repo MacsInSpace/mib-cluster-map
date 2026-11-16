@@ -49,6 +49,31 @@ else
     echo "NOTE: no cockpit display (context $CTX) at this moment. That is normal" >> $OUT/dmdt_gs.txt
     echo "unless the cockpit was in map view when these logs were saved." >> $OUT/dmdt_gs.txt
 fi
+# Which window that context shows right now, against whether a player is
+# running: a player that is drawing while the context is back on the car's own
+# map window means something on the unit switched it back (#105, #24).
+MINE=`sed -n 's/^GAL_VC_DISPLAYABLE_ID=\([0-9]*\).*/\1/p' /eso/lib/gal_dualscreen/gal_dualscreen.conf 2>/dev/null | head -1`
+[ -n "$MINE" ] || MINE=3
+SHOWN=`awk -v c="$CTX" '
+    $1 == "context" && $2 == "id:" { f = ($3 == c); next }
+    f && $1 ~ /^[0-9]+$/ { print $1; exit }' $OUT/dmdt_gs.txt 2>/dev/null`
+PLAYER_UP=no
+grep stream-player $OUT/pidin_ar.txt >/dev/null 2>&1 && PLAYER_UP=yes
+{
+    echo "context=$CTX shows_window=${SHOWN:-none} player_window=$MINE player_running=$PLAYER_UP"
+    if [ "$PLAYER_UP" = yes ] && [ -n "$SHOWN" ] && [ "$SHOWN" != "$MINE" ]; then
+        echo "CHECK: a player is running, but the cockpit context shows window $SHOWN,"
+        echo "       not the player's ($MINE): the unit put its own map back while the"
+        echo "       phone's picture was still being drawn."
+    elif [ "$PLAYER_UP" = yes ] && [ -n "$SHOWN" ]; then
+        echo "CHECK: a player is running and the cockpit context shows its window. OK."
+    elif [ "$PLAYER_UP" = yes ]; then
+        echo "CHECK: a player is running, but the cockpit context is not listed."
+    else
+        echo "CHECK: no player is running (no phone session at this moment)."
+    fi
+} > $OUT/context_check.txt 2>&1
+cat $OUT/context_check.txt >> $OUT/dmdt_gs.txt 2>/dev/null
 # CarPlay map: the supervisor, its player, and harman-f's hook state.
 mkdir -p $OUT/carplay
 cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log \

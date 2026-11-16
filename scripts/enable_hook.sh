@@ -513,6 +513,15 @@ AIRPLAY_ALLOWED=0
 [ "$AIRPLAY_NOW" = "$AIRPLAY_SIZE" ] && AIRPLAY_ALLOWED=1
 [ "$AIRPLAY_NOW" = "$AIRPLAY_SIZE_2" ] && AIRPLAY_ALLOWED=1
 [ -n "$AIRPLAY_TRIAL" ] && [ "$AIRPLAY_NOW" = "$AIRPLAY_TRIAL" ] && AIRPLAY_ALLOWED=1
+# A build that is car-tested on this train only: a "carplay<size>" word on its
+# train line in profiles.conf (857735 on VW K3342: #62, #111; the same size
+# gave a black centre screen on an Audi K3346, #14, so it is not accepted
+# everywhere).
+AIRPLAY_BY_TRAIN=0
+if [ -n "$AIRPLAY_NOW" ] && train_has "$PROFILES" "$TRAIN" "carplay$AIRPLAY_NOW"; then
+    AIRPLAY_ALLOWED=1
+    AIRPLAY_BY_TRAIN=1
+fi
 # CLUSTERMAP_CARPLAY=0: the Android Auto map only. CarPlay's preload and
 # firewall rule are left out, for wireless adapters that do not get along
 # with them (#55, #56). The same as --no-carplay, from the card.
@@ -697,7 +706,9 @@ else
         mv "$PRELOAD_WRITE_DIR/libcarplay_cluster.so.new" "$PRELOAD_WRITE_DIR/libcarplay_cluster.so" && CARPLAY_OK=1
     if [ "$CARPLAY_OK" -eq 1 ]; then
         echo "Installed the CarPlay map files to: $PRELOAD_WRITE_DIR"
-        if [ "$AIRPLAY_NOW" != "$AIRPLAY_SIZE" ] && [ "$AIRPLAY_NOW" != "$AIRPLAY_SIZE_2" ]; then
+        if [ "$AIRPLAY_BY_TRAIN" -eq 1 ]; then
+            echo "CarPlay map: this unit's CarPlay library ($AIRPLAY_NOW bytes) is car-tested on $TRAIN."
+        elif [ "$AIRPLAY_NOW" != "$AIRPLAY_SIZE" ] && [ "$AIRPLAY_NOW" != "$AIRPLAY_SIZE_2" ]; then
             echo "CarPlay map: UNTESTED CarPlay library ($AIRPLAY_NOW bytes), allowed by"
             echo "             CLUSTERMAP_CARPLAY_TRIAL. The hook checks the names and first"
             echo "             bytes of the functions it attaches to. That does not prove this"
@@ -971,7 +982,16 @@ DPI_ENV=
 # whether the tooling finds it. Emitted only when --log asked for a path.
 LOG_ENV=
 [ -n "$LOG_PATH_REQUESTED" ] && LOG_ENV="\"GAL_HOOK_LOG=$HOOK_LOG_PATH\", "
-INJECTION="\"LD_PRELOAD=$PRELOAD_SO_ALIAS\", \"GAL_DUALSCREEN_ENABLE=1\", \"GAL_DUALSCREEN_DEBUG=$DEBUG\", $OPT_ENV$LOG_ENV$DPI_ENV"
+# The master switch is the card's: the hook takes a key from its settings file
+# only when the environment has none, so a fixed 1 here made
+# GAL_DUALSCREEN_ENABLE=0 in gal_dualscreen.conf do nothing (#101).
+HOOK_ENABLE=1
+if [ "`sed -n 's/^GAL_DUALSCREEN_ENABLE=\([01]\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`" = 0 ]; then
+    HOOK_ENABLE=0
+    echo "GAL_DUALSCREEN_ENABLE=0: the hook is installed but switched off. Android Auto"
+    echo "  runs as stock, with no map on the cockpit, until it is 1 again."
+fi
+INJECTION="\"LD_PRELOAD=$PRELOAD_SO_ALIAS\", \"GAL_DUALSCREEN_ENABLE=$HOOK_ENABLE\", \"GAL_DUALSCREEN_DEBUG=$DEBUG\", $OPT_ENV$LOG_ENV$DPI_ENV"
 
 # Refuse to write an array that smartphone_integrator would silently
 # truncate. At 11 entries the ENTIRE injection was dropped once -- GAL ran
@@ -1576,15 +1596,22 @@ fi
 # CLUSTERMAP_CARPLAY_HIDE_NAV=1: the CarPlay hook does not pass on to the car
 # that the iPhone has started a route (libcarplay_cluster.so reads the marker
 # file each time). For cars whose cockpit leaves the map during a CarPlay
-# route although the stream keeps running (US P3662, #10). Off by default;
-# not car-tested.
+# route although the stream keeps running (US P3662, #10). Off by default,
+# except on a train with the "hidenav" word in profiles.conf (VW VWG11, where
+# NavActiveIgnore stops CarPlay connecting: car-tested on a K3342, #111);
+# CLUSTERMAP_CARPLAY_HIDE_NAV=0 turns it off there too.
 HIDE_NAV_MARKER=$PRELOAD_WRITE_DIR/carplay_hide_nav
 HIDE_NAV=`sed -n 's/^CLUSTERMAP_CARPLAY_HIDE_NAV=\([01]\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+HIDE_NAV_WHY="CLUSTERMAP_CARPLAY_HIDE_NAV=1"
+if [ -z "$HIDE_NAV" ] && train_has "$PROFILES" "$TRAIN" hidenav; then
+    HIDE_NAV=1
+    HIDE_NAV_WHY="the default on $TRAIN; CLUSTERMAP_CARPLAY_HIDE_NAV=0 turns it off"
+fi
 if mount -uw "$APP_MOUNT" 2>/dev/null; then
     if [ "$HIDE_NAV" = 1 ] && [ "$CARPLAY_OK" -eq 1 ]; then
         : > "$HIDE_NAV_MARKER"
-        echo "CarPlay map: the iPhone's route is hidden from the car (CLUSTERMAP_CARPLAY_HIDE_NAV=1; not car-tested)."
+        echo "CarPlay map: the iPhone's route is hidden from the car, so the cockpit keeps the map ($HIDE_NAV_WHY)."
     else
         rm -f "$HIDE_NAV_MARKER"
     fi
