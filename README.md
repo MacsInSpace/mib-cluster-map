@@ -92,6 +92,21 @@ something hides behind the dials.
 Starting points from other owners are in the
 [Install guide](docs/Install.md#settings-owners-have-settled-on).
 
+Optional `CLUSTERMAP_720P=1` and `CLUSTERMAP_1080P=1` settings test Android
+Auto streams at 1280×720 and 1920×1080, cropped to the cockpit window. The
+car-tested Audi 1080p example for a 1440×455 window is:
+
+```ini
+CLUSTERMAP_1080P=1
+GAL_PLAYER_DECODER=hw
+GAL_PLAYER_NVSS_OUTPUT=1
+GAL_SECONDARY_DPI=160
+GAL_SECONDARY_INSETS=45,85,75,75
+```
+
+Hardware decode/output 1 is Audi-only: Skoda reports output 1 as `0x0`. See
+the [install guide](docs/Install.md) for test-mode details.
+
 The update writes what it did to `ClusterMap/update_result.txt` on the card.
 It also adds a **ClusterMap** screen to the green engineering menu (hold MENU >
 `Testmode` > `Green Developer Menu`) for status, logs, uninstall and the
@@ -168,7 +183,7 @@ phone is unplugged and plugged in again.
 |---|---|
 | Android Auto map, installer and uninstaller over SSH | Tested on cars (Golf `P4521`, SEAT `P4708`) |
 | Software update and green menu routes | Tested on cars (Golf `P4521`, Golf R `P4512`) |
-| Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Fails on the car and falls back to software decoding; under investigation |
+| Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Audi 1080p car-tested with `GAL_PLAYER_NVSS_OUTPUT=1`; Skoda output 1 is `0x0` |
 | CarPlay map | Shown on a car (Golf R, iPhone over USB) after a firewall fix; layout between the dials under test |
 | Long drives, reverse camera, waking from sleep | Road-tested on `K4525`; otherwise little testing |
 | Autorun install without the service menu (`Swdlautorun.txt`, on by default) | Tested on a car (Golf `P4521`); Audi untested |

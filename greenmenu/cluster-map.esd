@@ -39,6 +39,14 @@ script
     label   "Sharper map OFF (standard; reboot after)"
 
 script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_720p.sh"
+    label   "Test: 720p picture 1:1 (reboot after)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_1080p.sh"
+    label   "Test: 1080p picture 1:1 (reboot after)"
+
+script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/uninstall.sh"
     label   "Uninstall and restore original state"
 
