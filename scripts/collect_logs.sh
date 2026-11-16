@@ -55,6 +55,20 @@ cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log
    /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status /tmp/clustermap-wheelzoom.log $OUT/carplay/ 2>/dev/null
 grep -n -e dio_manager -e libcarplay -e ALTSCREEN111 /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/carplay/config_lines.txt 2>&1
 grep -n carplay0 /mnt/system/etc/pf*.conf > $OUT/carplay/firewall_lines.txt 2>&1
+# Crash archives the unit's dumper keeps (pidin: dumper -d /mnt/ota/system/core).
+# List them all, and copy the newest one of dio_manager (the CarPlay program)
+# when it is small: #111, where CarPlay stops at start-up with NavActiveIgnore.
+CORE_DIR=${CLUSTERMAP_CORE_DIR:-/mnt/ota/system/core}
+ls -l $CORE_DIR > $OUT/core_listing.txt 2>&1
+CORE=`ls -t $CORE_DIR/*dio_manager* 2>/dev/null | sed -n 1p`
+if [ -n "$CORE" ] && [ -f "$CORE" ]; then
+    CORE_SIZE=`wc -c < "$CORE" | sed 's/ //g'`
+    if [ "${CORE_SIZE:-0}" -gt 0 ] && [ "$CORE_SIZE" -le 8388608 ]; then
+        cp "$CORE" $OUT/carplay/ 2>/dev/null && echo "copied: $CORE ($CORE_SIZE bytes)" >> $OUT/core_listing.txt
+    else
+        echo "not copied (over 8 MB): $CORE ($CORE_SIZE bytes)" >> $OUT/core_listing.txt
+    fi
+fi
 sync 2>/dev/null
 ls -l $OUT
 echo "Done: ClusterMap/run_logs/$N. Wait a few seconds, then take the SD card to the laptop."
