@@ -26,8 +26,9 @@ grep -n 'Xbootclasspath' /mnt/app/eso/hmi/lsd/lsd.sh > $OUT/java_patches.txt 2>&
 { echo "--- lsd/jars"; ls -l /mnt/app/eso/hmi/lsd/jars /mnt/app/eso/hmi/lsd/jars_off; } >> $OUT/java_patches.txt 2>&1
 # dmdt buffers its output when it is not a terminal; the flush shim makes it
 # write before it exits (as in GEM/collect_for_porting.sh).
-# gd lists every window with its size; 33 is the stock cluster map.
-for c in gs gd; do
+# gd lists every window with its size; 33 is the stock cluster map. gc lists
+# every context with the windows it shows (#99, #105).
+for c in gs gd gc; do
     ( cd /eso && LD_PRELOAD="$HERE/lib/libdmdt_flush.so" LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib \
       IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt $c ) > $OUT/dmdt_$c.txt 2>&1
 done
