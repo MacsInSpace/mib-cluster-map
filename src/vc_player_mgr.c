@@ -401,16 +401,22 @@ void vc_player_start(void)
         const gal_secondary_config *cfg = gal_hook_config();
         char margins_env[48];
         char aspect_env[56];
+        char width_env[40];
+        char height_env[40];
         (void)snprintf(margins_env, sizeof(margins_env), "GAL_SECONDARY_MARGINS=%ux%u",
                        cfg->margin_width, cfg->margin_height);
         (void)snprintf(aspect_env, sizeof(aspect_env), "GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4=%u",
                        cfg->pixel_aspect_ratio_e4 ? cfg->pixel_aspect_ratio_e4 : 10000u);
+        (void)snprintf(width_env, sizeof(width_env), "GAL_SECONDARY_WIDTH=%u", cfg->width);
+        (void)snprintf(height_env, sizeof(height_env), "GAL_SECONDARY_HEIGHT=%u", cfg->height);
         char *envp[] = {
             (char *)"IPL_CONFIG_DIR=/etc/eso/production",
             (char *)"LD_LIBRARY_PATH=/proc/boot:/lib:/lib/dll:/usr/lib:/mnt/app/root/lib-target:/mnt/app/usr/lib:/mnt/app/armle/lib:/mnt/app/armle/lib/dll:/mnt/app/armle/usr/lib:/eso/lib:/mnt/app/eso/lib:/fs/sdb0/lib",
             (char *)"PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/eso/bin:/mnt/app/eso/bin:/fs/sdb0/bin:/mnt/app/navigation",
             margins_env,
             aspect_env,
+            width_env,
+            height_env,
             NULL
         };
         int log_fd = use_spawn ? open_player_log() : -1;
