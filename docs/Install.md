@@ -101,10 +101,21 @@ Open it with MENU (hold) > `Testmode` > `Green Developer Menu` >
 | 2. Install cluster map | The same installer as route 1 |
 | 3. Save logs to SD | For a problem report. Before rebooting: logs are in RAM |
 | 4. Uninstall and restore original state | Full revert |
-| ClusterMapPicture > 1. Sharper map ON, 2. Sharper map OFF | `CLUSTERMAP_FULL_FRAME` without editing the card. Reboot after |
+| ClusterMapPicture > 1, 2. Sharper map ON / OFF | `CLUSTERMAP_FULL_FRAME` without editing the card. Reboot after |
+| ClusterMapPicture > 3, 4, 5. Map always light / always dark / follows the headlights | `GAL_SECONDARY_UI_THEME`. Google Maps; Waze stays dark. Reboot after |
+| ClusterMapOptions > 1, 2. Hardware decoder ON / OFF | `GAL_PLAYER_DECODER`. From the next phone connection |
+| ClusterMapOptions > 3, 4. Keep the phone's map ON / OFF | `GAL_PLAYER_REASSERT`, for "phone map for a moment, then the car's map". From the next phone connection |
+| ClusterMapOptions > 5, 6. Cluster map OFF / ON | `GAL_DUALSCREEN_ENABLE`, for a wireless adapter that stops working with the map. Nothing is removed. Reboot after |
 | ClusterMapSupport > 1. Collect files for porting (quick) | About 2.5 MB, read only |
 | ClusterMapSupport > 2. Collect for porting, with Java image (55 MB, slow) | Only for a turn-arrows port |
 | ClusterMapSupport > 3. Switch to turn-by-turn arrows instead (no map) | Removes the map, installs the arrows. Install switches back |
+| ClusterMapSupport > 4, 5. Performance figures in the log ON / OFF | `GAL_PLAYER_STATS`, when a report is about speed |
+
+A switch changes the unit's copy of the settings, and the next install from a
+card keeps the choice unless the card's `gal_dualscreen.conf` sets that line
+itself. Settings that add or remove files on the unit (turn info, music info,
+NavActiveIgnore, the CarPlay map) are not in the menu: change them on the card
+and install.
 
 The status check says `supported: yes (tested firmware)`, `yes (UNTESTED
 firmware ...)` (it may work; please report the result) or `NO` (stop; nothing

@@ -447,7 +447,17 @@ static void load_config_file(void)
          * parsed line as applied and an injected variable that overrode
          * the file looks like it came from the file.
          */
-        if (getenv(key) != NULL) {
+        /*
+         * The master switch is the one key the file decides even when gal's
+         * start-up already carries it: the installer writes the value it
+         * found at install time into the start-up, and a later change in the
+         * file (the green menu's "Cluster map OFF/ON") has to count. Up to
+         * v1.2.5 a fixed start-up value made the file's line do nothing
+         * (#101).
+         */
+        if (strcmp(key, "GAL_DUALSCREEN_ENABLE") == 0 && (strcmp(val, "0") == 0 || strcmp(val, "1") == 0)) {
+            if (setenv(key, val, 1) == 0) ++applied;
+        } else if (getenv(key) != NULL) {
             ++already;
         } else if (setenv(key, val, 0) == 0) {
             ++applied;
