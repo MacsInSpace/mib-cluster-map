@@ -99,11 +99,12 @@ Open it with MENU (hold) > `Testmode` > `Green Developer Menu` >
 |---|---|
 | 1. Status and compatibility check | Firmware train, verdict, what is installed, Java patches |
 | 2. Install cluster map | The same installer as route 1 |
-| Uninstall and restore original state | Full revert |
-| Switch to turn-by-turn arrows instead (no map) | Removes the map, installs the arrows. Install switches back |
-| Save logs to SD | For a problem report. Before rebooting: logs are in RAM |
-| Collect files for porting (quick) | About 2.5 MB, read only |
-| Collect for porting, with Java image (55 MB, slow) | Only for a turn-arrows port |
+| 3. Save logs to SD | For a problem report. Before rebooting: logs are in RAM |
+| 4. Uninstall and restore original state | Full revert |
+| ClusterMapPicture > 1. Sharper map ON, 2. Sharper map OFF | `CLUSTERMAP_FULL_FRAME` without editing the card. Reboot after |
+| ClusterMapSupport > 1. Collect files for porting (quick) | About 2.5 MB, read only |
+| ClusterMapSupport > 2. Collect for porting, with Java image (55 MB, slow) | Only for a turn-arrows port |
+| ClusterMapSupport > 3. Switch to turn-by-turn arrows instead (no map) | Removes the map, installs the arrows. Install switches back |
 
 The status check says `supported: yes (tested firmware)`, `yes (UNTESTED
 firmware ...)` (it may work; please report the result) or `NO` (stop; nothing

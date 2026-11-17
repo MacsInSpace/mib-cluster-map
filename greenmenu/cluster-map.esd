@@ -3,7 +3,12 @@
 # Custom Green Engineering Menu screen: phone map on the digital cluster
 # Attached to the top level of the green engineering menu, so it does not
 # depend on any other screen being installed.
-# Main -> ClusterMap
+# Main -> ClusterMap, with two screens under it:
+#   ClusterMapPicture  the picture switches
+#   ClusterMapSupport  the rare entries (porting files, turn arrows)
+# The four entries most owners use stay on the first screen, numbered, so a
+# reply can say "ClusterMap > 3". Screen names are one word and unique across
+# every menu file on the unit.
 #
 # The entries run scripts straight from the card. The paths below are for
 # SD slot 1; GEM/common.sh rewrites them on the unit to the card or stick the
@@ -31,29 +36,45 @@ script
     label   "2. Install cluster map"
 
 script
-    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_on.sh"
-    label   "Sharper map ON (full frame; reboot after)"
-
-script
-    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_off.sh"
-    label   "Sharper map OFF (standard; reboot after)"
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/savelogs.sh"
+    label   "3. Save logs to SD"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/uninstall.sh"
-    label   "Uninstall and restore original state"
+    label   "4. Uninstall and restore original state"
+
+###########################################################################################
+screen ClusterMapPicture ClusterMap
+
+keyValue
+    value   String sys 0x00000000 0
+    label   "Picture: each change needs a reboot after."
+    poll    0
 
 script
-    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/switch_to_turn_by_turn.sh"
-    label   "Switch to turn-by-turn arrows instead (no map)"
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_on.sh"
+    label   "1. Sharper map ON (full frame)"
 
 script
-    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/savelogs.sh"
-    label   "Save logs to SD"
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_off.sh"
+    label   "2. Sharper map OFF (standard)"
+
+###########################################################################################
+screen ClusterMapSupport ClusterMap
+
+keyValue
+    value   String sys 0x00000000 0
+    label   "Support: files for porting, and the turn arrows."
+    poll    0
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/collect_for_porting.sh"
-    label   "Collect files for porting (quick)"
+    label   "1. Collect files for porting (quick)"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/collect_for_porting_full.sh"
-    label   "Collect for porting, with Java image (55 MB, slow)"
+    label   "2. Collect for porting, with Java image (55 MB, slow)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/switch_to_turn_by_turn.sh"
+    label   "3. Switch to turn-by-turn arrows instead (no map)"
