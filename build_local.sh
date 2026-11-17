@@ -56,6 +56,9 @@ build_hook() {
     $P-strip --strip-debug build/libcarplay_cluster.so
     $P-gcc -O2 -Wall -Wextra -I./src tools/profile_check.c src/profile_table.c -o build/profile_check
     $P-strip -s build/profile_check
+    # The hardware decoder check (green menu, ClusterMapSupport).
+    $P-gcc -O1 -Wall -Wextra tools/nvprobe/nvprobe.c -o build/nvprobe
+    $P-strip -s build/nvprobe
   '
 }
 
@@ -141,6 +144,8 @@ package() {
   rm -rf "$S"; mkdir -p "$D/scripts" "$D/lib" "$D/GEM" "$D/docs" "$S/Custom/GreenMenu"
   cp "$ROOT/build/libgal_hook.so" "$ROOT/build/stream-player" "$ROOT/build/profile_check" "$D/"
   cp "$ROOT/build/libdmdt_flush.so" "$D/lib/"
+  mkdir -p "$D/hwcheck"
+  cp "$ROOT/build/nvprobe" "$ROOT/tools/nvprobe/clip_800x480.h264" "$ROOT/tools/nvprobe/clip_800x480.expect" "$D/hwcheck/"
   mkdir -p "$D/carplay"
   cp "$ROOT/build/libcarplay_cluster.so" "$ROOT/carplay/carplay_cluster.sh" "$D/carplay/"
   cp "$ROOT/build/ClusterMapWheelZoom.jar" "$ROOT/build/ClusterMapNavAsiaZoom.jar" "$D/carplay/"
@@ -192,7 +197,7 @@ package() {
   sh "$ROOT/tests/profile_check_test.sh" >/dev/null || { echo "REJECTED: tests/profile_check_test.sh failed"; exit 1; }
   bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/GEM/*.sh "$D"/final/*.sh "$D"/carplay/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
   [ -z "$bad" ] || { echo "REJECTED: CR or non-ASCII in: $bad"; exit 1; }
-  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar carplay/ClusterMapNavAsiaZoom.jar > SHA256SUMS.txt)
+  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check hwcheck/nvprobe hwcheck/clip_800x480.h264 profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar carplay/ClusterMapNavAsiaZoom.jar > SHA256SUMS.txt)
   python3 "$ROOT/tools/make_metainfo.py" "$S" "${RELEASE_VERSION:-$BUILD_ID}"
   VER=${RELEASE_VERSION:-$BUILD_ID}
   Z="$ROOT/dist/mib-cluster-map_$VER.zip"

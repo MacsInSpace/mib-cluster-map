@@ -1,6 +1,8 @@
 /*
  * nvprobe: can the unit's Tegra H.264 decoder be used without a display
- * output?  An experiment, not part of the package.
+ * output?  Ships in the package: the green menu's "Hardware decoder check"
+ * runs it (greenmenu/GEM/hw_check.sh) and the player's GAL_PLAYER_DECODER=hw
+ * uses the same calls where NvSS cannot draw to the cockpit.
  *
  * The player's hardware path (libnvss_video.so) decodes and draws straight to
  * a display output.  On VW and Skoda the cockpit is not such an output (0x0),
@@ -14,7 +16,14 @@
  * (its BeginSequence at 0x46a0, DecodePicture at 0x506c, decoder set-up at
  * 0x411c).  Nothing is assumed from headers.
  *
- *   nvprobe <file.h264> <log file> [max pictures]
+ *   nvprobe <file.h264> <log file> [max pictures | expected sums file]
+ *
+ * With an expected-sums file (tools/nvprobe/clip_800x480.expect, made from a
+ * reference decode of the clip) the last line is the verdict:
+ *   VERDICT: usable       every picture decoded, and every one exact
+ *   VERDICT: not usable   with the reason
+ * H.264 decoding is exact, so a unit whose libraries have another layout than
+ * the one read here gives wrong sums (or stops), not a false pass.
  *
  * Result on a Golf MHI2_ER_VWG13_P4521, 2026-11-17 (probe 1): it works.
  *   800x480:  300 of 300 pictures, 115 a second, 3.1 ms of processor time a
@@ -59,8 +68,8 @@ static void logf_(const char *fmt, ...)
 
 static void on_signal(int sig)
 {
-    char b[160];
-    int n = snprintf(b, sizeof(b), "STOPPED by signal %d at stage: %s\n", sig, g_stage);
+    char b[320];
+    int n = snprintf(b, sizeof(b), "STOPPED by signal %d at stage: %s\nVERDICT: not usable (stopped at: %s)\n", sig, g_stage, g_stage);
     if (g_log >= 0) { write(g_log, b, n); fsync(g_log); }
     write(1, b, n);
     _exit(3);
@@ -107,6 +116,10 @@ static unsigned g_decoded, g_shown, g_renderFail, g_lockFail, g_maxPictures = 10
 static double g_renderMs, g_renderMax, g_lockMs, g_copyMs;
 static unsigned g_locks, g_copies;
 static uint8_t *g_copyBuf;
+#define MAX_EXPECT 600
+static long g_expect[MAX_EXPECT];
+static int g_expectCount = -1;     /* -1: no expected sums given */
+static unsigned g_exact, g_wrong;
 static int g_yWord = -1;        /* which word of the lock map points at the luma plane, once found */
 static int g_pitchWord = -1;
 
@@ -277,6 +290,18 @@ static void inspect(Pic *p)
             t = now_ms();
             for (row = 0; row < g_h; row++) memcpy(g_copyBuf + (size_t)row * g_w, y + (size_t)row * pitch, g_w);
             g_copyMs += now_ms() - t; g_copies++;
+            if (g_expectCount >= 0) {
+                /* The same samples as tools/nvprobe/clip_800x480.expect. */
+                unsigned sx, sy; long got = 0;
+                for (sy = 8; sy < g_h; sy += 16)
+                    for (sx = 8; sx < g_w; sx += 16) got += g_copyBuf[(size_t)sy * g_w + sx];
+                if ((int)g_shown < g_expectCount && g_expect[g_shown] == got) g_exact++;
+                else {
+                    if (g_wrong++ < 3)
+                        logf_("show %u: picture differs from the reference (sum %ld, expected %ld)", g_shown, got,
+                              (int)g_shown < g_expectCount ? g_expect[g_shown] : -1L);
+                }
+            }
             if (g_shown < 4 || g_shown % 60 == 0) {
                 unsigned k; size_t step = ((size_t)g_w * g_h) / 4096;
                 for (k = 0; k < 4096; k++) sum += g_copyBuf[k * step];
@@ -304,12 +329,25 @@ int main(int argc, char **argv)
 {
     if (argc < 3) { fprintf(stderr, "nvprobe <file.h264> <log> [max pictures]\n"); return 2; }
     g_log = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, 0666);
-    if (argc > 3) g_maxPictures = (unsigned)atoi(argv[3]);
+    if (argc > 3 && argv[3][0] >= '0' && argv[3][0] <= '9') g_maxPictures = (unsigned)atoi(argv[3]);
+    else if (argc > 3) {
+        FILE *e = fopen(argv[3], "r");
+        char line[128];
+        g_expectCount = 0;
+        while (e && fgets(line, sizeof(line), e)) {
+            int index; long sum;
+            if (sscanf(line, "sum %d %ld", &index, &sum) == 2 && index >= 0 && index < MAX_EXPECT) {
+                g_expect[index] = sum;
+                if (index + 1 > g_expectCount) g_expectCount = index + 1;
+            }
+        }
+        if (e) fclose(e);
+    }
     g_devnull = open("/dev/null", O_WRONLY);
     signal(SIGSEGV, on_signal); signal(SIGBUS, on_signal); signal(SIGILL, on_signal);
     signal(SIGALRM, on_signal); signal(SIGFPE, on_signal);
     alarm(60);
-    logf_("nvprobe 2: %s", argv[1]);
+    logf_("nvprobe 3: %s", argv[1]);
 
     g_stage = "dlopen";
     void *nm = dlopen("libnvmedia.so", RTLD_NOW | RTLD_GLOBAL);
@@ -377,6 +415,14 @@ int main(int argc, char **argv)
         logf_("RESULT: lock %.2f ms average over %u; luma copy %.2f ms average over %u", g_lockMs / g_locks, g_locks,
               g_copies ? g_copyMs / g_copies : 0.0, g_copies);
     logf_("RESULT: processor time used by this program %.0f ms of %.0f ms (%.0f %%)", cpu, wall, wall > 0 ? cpu * 100.0 / wall : 0.0);
+
+    if (g_expectCount >= 0) {
+        if (g_expectCount == 0) logf_("VERDICT: not usable (the expected sums file could not be read)");
+        else if (g_renderFail || g_lockFail) logf_("VERDICT: not usable (%u decode and %u lock failures)", g_renderFail, g_lockFail);
+        else if ((int)g_shown != g_expectCount) logf_("VERDICT: not usable (%u of %d pictures)", g_shown, g_expectCount);
+        else if (g_wrong || (int)g_exact != g_expectCount) logf_("VERDICT: not usable (%u of %d pictures differ from the reference)", g_wrong, g_expectCount);
+        else logf_("VERDICT: usable (%u of %d pictures exact, %.1f ms each)", g_exact, g_expectCount, wall / g_expectCount);
+    }
 
     g_stage = "closing";
     video_parser_destroy(parser);
