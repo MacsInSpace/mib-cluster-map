@@ -43,7 +43,9 @@ done
 # 4. #85: a change for one car switched the picture crop on for every car.
 #    Features ship off: every 0/1 feature switch in the shipped settings that
 #    is active must be at its documented default.
-for k in CLUSTERMAP_FULL_FRAME CLUSTERMAP_ADD_NAVIGNORE GAL_FIX_STREAM_TIMING GAL_PLAYER_STATS; do
+[ "`sed -n 's/^CLUSTERMAP_FULL_FRAME=//p' config/gal_dualscreen.conf | tail -1`" = auto ] ||
+    bad "config/gal_dualscreen.conf must ship CLUSTERMAP_FULL_FRAME=auto (on only where a make line says fullframe)"
+for k in CLUSTERMAP_720P CLUSTERMAP_1080P CLUSTERMAP_ADD_NAVIGNORE GAL_FIX_STREAM_TIMING GAL_PLAYER_STATS; do
     v=`sed -n "s/^$k=\(.*\)$/\1/p" config/gal_dualscreen.conf | tail -1`
     [ -z "$v" ] || [ "$v" = 0 ] || bad "config/gal_dualscreen.conf ships $k=$v; it has to ship 0"
 done

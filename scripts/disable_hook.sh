@@ -152,13 +152,21 @@ echo "  restored from: $RESTORE_SOURCE"
 # nothing to clean up (a disable without a prior enable, or a second
 # disable in a row).
 if [ -d "$PRELOAD_WRITE_DIR" ] || [ -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" ] ||
-   [ -f "$APP_MOUNT/navigation/stream-player" ]; then
+   [ -f "$APP_MOUNT/navigation/stream-player" ] ||
+   [ -f "$APP_MOUNT/navigation/opengl-render-qnx.clustermap-off" ]; then
     if mount -uw "$APP_MOUNT" 2>/dev/null; then
         APP_WRITABLE=1
         rm -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" 2>/dev/null || true
         # The CarPlay map's safe area, read only by its hook.
         rm -f "$APP_MOUNT/root/mibr-carplay111-safearea.conf" 2>/dev/null || true
         rm -f "$APP_MOUNT/root/mibr-carplay111-nav-query.enabled" "$APP_MOUNT/root/mibr-carplay111-nav."* 2>/dev/null || true
+        # The older cluster renderer the install switched off (enable_hook.sh):
+        # back as it was, started again by its own startup line at the next boot.
+        if [ -f "$APP_MOUNT/navigation/opengl-render-qnx.clustermap-off" ] &&
+           [ ! -f "$APP_MOUNT/navigation/opengl-render-qnx" ] &&
+           mv "$APP_MOUNT/navigation/opengl-render-qnx.clustermap-off" "$APP_MOUNT/navigation/opengl-render-qnx" 2>/dev/null; then
+            echo "  put back: $APP_MOUNT/navigation/opengl-render-qnx (older cluster renderer)"
+        fi
         # enable_hook.sh put the player here; nothing else on the unit uses it.
         if rm -f "$APP_MOUNT/navigation/stream-player" 2>/dev/null; then
             echo "  removed player: $APP_MOUNT/navigation/stream-player"
