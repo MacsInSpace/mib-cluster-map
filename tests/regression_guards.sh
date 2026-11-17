@@ -53,5 +53,15 @@ done
 [ "`sed -n 's/^GAL_PLAYER_DECODER=//p' config/gal_dualscreen.conf | tail -1`" = sw ] ||
     bad "config/gal_dualscreen.conf must ship GAL_PLAYER_DECODER=sw"
 
+# 5. Every script the menu names has to exist, and so does whatever those
+#    scripts call from the package's scripts folder (a menu entry whose
+#    script was never packed says "script not found" in the car).
+for f in `sed -n 's|.*"/fs/sda0/ClusterMap/GEM/\([^"]*\)".*|\1|p' greenmenu/cluster-map.esd`; do
+    [ -f "greenmenu/GEM/$f" ] || bad "cluster-map.esd names GEM/$f, which does not exist"
+done
+for f in `sed -n 's|.*"\$PKG/scripts/\([a-z_]*\.sh\)".*|\1|p' greenmenu/GEM/*.sh | sort -u`; do
+    grep -q "scripts/$f" build_local.sh || bad "a menu script calls scripts/$f, which build_local.sh does not pack"
+done
+
 [ $FAIL = 0 ] && echo "regression guards ok"
 exit $FAIL

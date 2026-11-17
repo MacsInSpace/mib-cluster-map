@@ -5,6 +5,7 @@
 # depend on any other screen being installed.
 # Main -> ClusterMap, with two screens under it:
 #   ClusterMapPicture  the picture switches
+#   ClusterMapOptions  on/off switches (scripts/menu_switch.sh)
 #   ClusterMapSupport  the rare entries (porting files, turn arrows)
 # The four entries most owners use stay on the first screen, numbered, so a
 # reply can say "ClusterMap > 3". Screen names are one word and unique across
@@ -46,26 +47,60 @@ script
 ###########################################################################################
 screen ClusterMapPicture ClusterMap
 
-keyValue
-    value   String sys 0x00000000 0
-    label   "Picture: each change needs a reboot after."
-    poll    0
-
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_on.sh"
-    label   "1. Sharper map ON (full frame)"
+    label   "1. Sharper map ON (needs reboot)"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_off.sh"
-    label   "2. Sharper map OFF (standard)"
+    label   "2. Sharper map OFF (needs reboot)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_theme_light.sh"
+    label   "3. Map always light (needs reboot)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_theme_dark.sh"
+    label   "4. Map always dark (needs reboot)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_theme_auto.sh"
+    label   "5. Map follows the headlights (needs reboot)"
 
 ###########################################################################################
-screen ClusterMapSupport ClusterMap
+screen ClusterMapOptions ClusterMap
 
 keyValue
     value   String sys 0x00000000 0
-    label   "Support: files for porting, and the turn arrows."
+    label   "Without a reboot: unplug the phone and plug it in again."
     poll    0
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_hw_on.sh"
+    label   "1. Hardware decoder ON"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_hw_off.sh"
+    label   "2. Hardware decoder OFF"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_keepmap_on.sh"
+    label   "3. Keep the phone's map ON"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_keepmap_off.sh"
+    label   "4. Keep the phone's map OFF"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_map_off.sh"
+    label   "5. Cluster map OFF, for a wireless adapter (needs reboot)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_map_on.sh"
+    label   "6. Cluster map ON (needs reboot)"
+
+###########################################################################################
+screen ClusterMapSupport ClusterMap
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/collect_for_porting.sh"
@@ -78,3 +113,11 @@ script
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/switch_to_turn_by_turn.sh"
     label   "3. Switch to turn-by-turn arrows instead (no map)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_stats_on.sh"
+    label   "4. Performance figures in the log ON"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_stats_off.sh"
+    label   "5. Performance figures in the log OFF"
