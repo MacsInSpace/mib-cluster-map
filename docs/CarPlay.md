@@ -276,7 +276,7 @@ The installer skips CarPlay, and still installs the Android Auto map, when:
 
 | Step | State |
 |---|---|
-| Hardware decoder in `stream-player` (`GAL_PLAYER_DECODER=hw`, off by default) | Built; first car test under way (with Android Auto) |
+| Hardware decoder in `stream-player` (`GAL_PLAYER_DECODER=hw`, off by default) | Works with Android Auto on a Golf (`P4521`); not yet tried with CarPlay |
 | harman-f's hook built from source, with its notice | Done, no warnings |
 | `stream-player` input from the CarPlay socket | Done (`--no-ack`) |
 | Installer: `dio_manager` entry, library check, uninstall | Done; simulated against this unit's configuration |
