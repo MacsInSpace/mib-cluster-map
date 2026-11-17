@@ -102,6 +102,16 @@ if ! frame_write_conf "$CONF" "$MAP_W" "$MAP_H" "$WANT" "$WANT_720" "$WANT_1080"
     echo "Could not write $CONF. Nothing changed."
     exit 1
 fi
+# Saved with the owner's lines too, so the next install keeps the choice
+# (lib_keep_settings.sh): the card ships CLUSTERMAP_FULL_FRAME=auto, which is
+# on for some cars.
+OWNER="$PRELOAD_WRITE_DIR/gal_dualscreen.owner.conf"
+{ [ -f "$OWNER" ] && sed -e '/^CLUSTERMAP_FULL_FRAME=/d' -e '/^CLUSTERMAP_720P=/d' -e '/^CLUSTERMAP_1080P=/d' "$OWNER"
+  echo "CLUSTERMAP_FULL_FRAME=$WANT"
+  echo "CLUSTERMAP_720P=$WANT_720"
+  echo "CLUSTERMAP_1080P=$WANT_1080"; } > "$OWNER.new" 2>/dev/null &&
+    mv "$OWNER.new" "$OWNER" 2>/dev/null ||
+    { rm -f "$OWNER.new" 2>/dev/null; echo "Note: the choice could not be saved for the next install; it holds until then."; }
 sync
 if [ "$WANT_720" = 1 ] || [ "$WANT_1080" = 1 ]; then
     echo "${FRAME_MODE} picture: ON (test)."

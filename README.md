@@ -73,6 +73,7 @@ tested on that car:
 | SEAT | 1010×376 | 140 | `105,127,127,127` |
 | Skoda | 1010×376 | 125 | `40,127,127,127` |
 | VW | 800×480 | 138 | `52,82,127,127` |
+| VW (Tiguan) | 1010×376 | 115, full frame | `102,52,127,127` |
 | Any other | | 125 | `40,40,127,127` |
 
 When owners of another car settle on values that work, they are added to

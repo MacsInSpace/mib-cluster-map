@@ -102,7 +102,8 @@ Open it with MENU (hold) > `Testmode` > `Green Developer Menu` >
 | 3. Save logs to SD | For a problem report. Before rebooting: logs are in RAM |
 | 4. Uninstall and restore original state | Full revert |
 | ClusterMapPicture > 1, 2. Sharper map ON / OFF | `CLUSTERMAP_FULL_FRAME` without editing the card. Reboot after |
-| ClusterMapPicture > 3, 4, 5. Map always light / always dark / follows the headlights | `GAL_SECONDARY_UI_THEME`. Google Maps; Waze stays dark. Reboot after |
+| ClusterMapPicture > 3, 4. Sharpest map, 720p / 1080p | `CLUSTERMAP_720P` / `CLUSTERMAP_1080P`: the cockpit window's own pixels 1:1. Only on a window larger than 800×480; 1080p needs the hardware decoder. Sharper map ON or OFF goes back. Reboot after |
+| ClusterMapPicture > 5, 6, 7. Map always light / always dark / follows the headlights | `GAL_SECONDARY_UI_THEME`. Google Maps; Waze stays dark. Reboot after |
 | ClusterMapOptions > 1, 2. Hardware decoder ON / OFF | `GAL_PLAYER_DECODER`. From the next phone connection |
 | ClusterMapOptions > 3, 4. Keep the phone's map ON / OFF | `GAL_PLAYER_REASSERT`, for "phone map for a moment, then the car's map". From the next phone connection |
 | ClusterMapOptions > 5, 6. Cluster map OFF / ON | `GAL_DUALSCREEN_ENABLE`, for a wireless adapter that stops working with the map. Nothing is removed. Reboot after |
@@ -234,7 +235,7 @@ it must start at the beginning of the line, with no `#` in front.
 | `GAL_CROP_TOP`, `GAL_CROP_BOTTOM` | 15, 10 | you need a custom vertical crop of Android Auto's 800×480 frame. Nonzero crop values disable the installer's margins, but keep its pixel-aspect setting (including `CLUSTERMAP_FULL_FRAME=1`); the player crops those rows and stretches the remaining frame to the full window. For a 1440×455 window, top `15` and bottom `10` leave 455 rows |
 | `GAL_SECONDARY_UI_THEME` | 0 (follows the headlights) | you want the cluster map always dark (2) or always light (1). Waze stays dark whatever is set. 1 or 2 costs two bytes of the insets message, so fewer insets can go above 127 |
 | `CLUSTERMAP_KEEP_SETTINGS` | unset (keep) | you want a clean install. Each install remembers the lines you changed in `gal_dualscreen.conf` and puts them back at the next install wherever the new card still has the shipped default; a line changed on the new card wins, and `update_result.txt` lists what was kept. When you install the same release again, a setting you have edited on the card since the last install is used as the card has it, so a line you switch off stays off. `0` installs only the card's settings: use it once if a setting from an older release keeps coming back. Settings from v1.1.0 and betas before v1.1.1-beta19 are not carried over. The uninstall forgets them |
-| `CLUSTERMAP_FULL_FRAME` | 0 | the map looks soft on a wide window (SEAT, Skoda, Audi). 1 has the phone draw on the whole 800×480 frame with wide pixels instead of leaving margins: more detail, same layout. Also a green-menu switch ("Sharper map"), so it can be tried in the car. From AMDFX60's fork, car-tested on his Skoda Superb (#56) |
+| `CLUSTERMAP_FULL_FRAME` | auto | the map looks soft on a wide window (SEAT, Skoda, Audi). 1 has the phone draw on the whole 800×480 frame with wide pixels instead of leaving margins: more detail, same layout. Also a green-menu switch ("Sharper map"), so it can be tried in the car. From AMDFX60's fork, car-tested on his Skoda Superb (#56). `auto` is 1 where owners settled on it (VW 1010×376, the Tiguan cockpit) and 0 elsewhere |
 | `CLUSTERMAP_720P` | 0 | experimentally request a 1280×720 secondary stream with margins leaving the cockpit window's pixels. Off by default; available as a green-menu test; the phone/unit may reject it |
 | `CLUSTERMAP_1080P` | 0 | experimentally request a 1920×1080 secondary stream, for example 1440×455 with margins 480×625. Mutually exclusive with 720p and takes precedence over `CLUSTERMAP_FULL_FRAME` |
 | `GAL_PLAYER_NEON` | unset | 0 decodes without the processor's NEON instructions, as up to v1.2.3 (slower). The player does that by itself until the next reboot after a crash; set 0 only if the map keeps dropping back to the car's own |
@@ -280,6 +281,7 @@ on `auto` follows it without editing anything.
 | SEAT, for Waze | 110 | `105,127,127,127` | DaniFR3, #4 |
 | VW 12.3 in Passat B8 (`K4525`) | 145 | `56,73,127,127` | d4nt387, #8 |
 | VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
+| VW Tiguan / Tiguan Allspace (`P4521`), 1010×376 cockpit, full frame, *auto* for VW 1010×376 since v1.2.7 | 115 | `102,52,127,127` | brzeskibartosz, #95 (turn card showing; ETA card not yet) |
 | Skoda 1010×376 (`P4526`), *auto* | 125 | `40,127,127,127` | raskrivuska, #15 |
 | Audi A4 B9 1440×455 (`K3346`), *auto* | 140 | `40,40,127,127` | mariuszhejnold-arch, #14 |
 | Audi Q5 FY 1440×455 (`K3346`), *auto* | 140 | `40,40,127,127` | pioottr20, #96 (context 72) |
