@@ -643,6 +643,22 @@ if [ "$CONF_DPI" = auto ] || [ "$CONF_INSETS" = auto ]; then
         echo "WARNING: could not fill in the auto settings; the hook uses its built-in values." >&2
     fi
 fi
+# GAL_PLAYER_DECODER=auto (the shipped value): hw on a train whose line in
+# profiles.conf has the "hwdecode" word, sw everywhere else. A line the owner
+# wrote as sw or hw, on the card or with the green menu's switch, is not
+# touched. If this fails the line stays auto, which the player reads as sw.
+CONF_DECODER=`sed -n 's/^GAL_PLAYER_DECODER=\([^ 	]*\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | head -1`
+if [ "$CONF_DECODER" = auto ]; then
+    if train_has "$PROFILES" "$TRAIN" hwdecode; then AUTO_DECODER=hw; else AUTO_DECODER=sw; fi
+    if sed "s/^GAL_PLAYER_DECODER=auto[ 	]*$/GAL_PLAYER_DECODER=$AUTO_DECODER/" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" \
+           > "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" &&
+       mv "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf"; then
+        [ "$AUTO_DECODER" = hw ] && echo "Decoder: the unit's own video decoder, the tested default on $TRAIN (GAL_PLAYER_DECODER=sw, or the green menu's Hardware decoder OFF, for software)."
+    else
+        rm -f "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new"
+        echo "WARNING: could not fill in the decoder setting; the player uses software." >&2
+    fi
+fi
 # Audi A4 B9 (AUG22) shows its cockpit map in context 72, not 70 (#14). The
 # shipped 70 is changed in the installed copy; any other number is kept.
 if [ "$CAR_CONTEXT" != 70 ] &&

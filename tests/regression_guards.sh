@@ -50,8 +50,15 @@ done
 for k in GAL_PLAYER_REASSERT CLUSTERMAP_CARPLAY_TRIAL GAL_PROFILE_TRIAL CLUSTERMAP_KEEP_SETTINGS; do
     grep -q "^$k=" config/gal_dualscreen.conf && bad "config/gal_dualscreen.conf ships an active $k line"
 done
-[ "`sed -n 's/^GAL_PLAYER_DECODER=//p' config/gal_dualscreen.conf | tail -1`" = sw ] ||
-    bad "config/gal_dualscreen.conf must ship GAL_PLAYER_DECODER=sw"
+[ "`sed -n 's/^GAL_PLAYER_DECODER=//p' config/gal_dualscreen.conf | tail -1`" = auto ] ||
+    bad "config/gal_dualscreen.conf must ship GAL_PLAYER_DECODER=auto (sw unless the train has hwdecode)"
+# hw by default only where a car of that train has run it (Development.md).
+[ "`grep '^train ' config/profiles.conf | grep -c ' hwdecode'`" = "`grep -c . tests/hwdecode.allow`" ] ||
+    bad "a train gained or lost the hwdecode word: it needs a car test, then a line in tests/hwdecode.allow"
+for t in `cat tests/hwdecode.allow`; do
+    grep "^train $t " config/profiles.conf | grep -q ' hwdecode' || bad "tests/hwdecode.allow lists $t, which has no hwdecode word"
+done
+grep -q 'strcmp(val, "hw") == 0' player/opengl_gpu.cc || bad "the player must read anything but hw (auto too) as software"
 
 # 5. Every script the menu names has to exist, and so does whatever those
 #    scripts call from the package's scripts folder (a menu entry whose
