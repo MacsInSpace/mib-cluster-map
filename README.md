@@ -94,8 +94,18 @@ Starting points from other owners are in the
 
 The update writes what it did to `ClusterMap/update_result.txt` on the card.
 It also adds a **ClusterMap** screen to the green engineering menu (hold MENU >
-`Testmode` > `Green Developer Menu`) for status, logs, uninstall and the
-turn-arrows switch.
+`Testmode` > `Green Developer Menu`): status, install, logs and uninstall on
+the first screen, and three screens under it:
+
+| Screen | What is there |
+|---|---|
+| `ClusterMapPicture` | Sharper map on/off, map always light / always dark / following the headlights (reboot after) |
+| `ClusterMapOptions` | Hardware decoder on/off, keep the phone's map on/off (reconnect the phone), cluster map off/on (reboot after) |
+| `ClusterMapSupport` | Files for porting, the turn-arrows switch, the hardware decoder check, performance figures in the log |
+
+A switch changes one setting on the unit without editing the card, says
+"already set" when there is nothing to change, and is kept by the next
+install. The [Install guide](docs/Install.md#route-2-green-menu) has every entry.
 
 The green menu and SSH routes, every setting, and recovery are in the
 [Install guide](docs/Install.md).
@@ -207,7 +217,7 @@ phone is unplugged and plugged in again.
 |---|---|
 | Android Auto map, installer and uninstaller over SSH | Tested on cars (Golf `P4521`, SEAT `P4708`) |
 | Software update and green menu routes | Tested on cars (Golf `P4521`, Golf R `P4512`) |
-| Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Fails on the car and falls back to software decoding; under investigation |
+| Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Works on a Golf (`P4521`): 30 pictures a second at about a third of the processor time, also through a wireless adapter. Other cars: run **Hardware decoder check** in `ClusterMapSupport` and report what it says |
 | CarPlay map | Shown on a car (Golf R, iPhone over USB) after a firewall fix; layout between the dials under test |
 | Long drives, reverse camera, waking from sleep | Road-tested on `K4525`; otherwise little testing |
 | Autorun install without the service menu (`Swdlautorun.txt`, on by default) | Tested on a car (Golf `P4521`); Audi untested |
