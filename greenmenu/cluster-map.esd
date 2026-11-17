@@ -110,9 +110,13 @@ script
     label   "3. Switch to turn-by-turn arrows instead (no map)"
 
 script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/hw_check.sh"
+    label   "4. Hardware decoder check"
+
+script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_stats_on.sh"
-    label   "4. Performance figures in the log ON (reconnect phone)"
+    label   "5. Performance figures in the log ON (reconnect phone)"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_stats_off.sh"
-    label   "5. Performance figures in the log OFF (reconnect phone)"
+    label   "6. Performance figures in the log OFF (reconnect phone)"

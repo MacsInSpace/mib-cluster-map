@@ -9,6 +9,16 @@ if train_supported; then echo "  supported: yes ($SUPPORT_NOTE)"; else echo "  s
 if grep -q 'libgal_hook.so' "$CONFIG" 2>/dev/null; then echo "Hook: installed"; else echo "Hook: not installed"; fi
 if [ -f /mnt/app/eso/lib/gal_dualscreen/libgal_hook.so ]; then echo "  library: present"; else echo "  library: missing"; fi
 if [ -f /mnt/app/navigation/stream-player ]; then echo "  player: present"; else echo "  player: missing"; fi
+UC=/mnt/app/eso/lib/gal_dualscreen/gal_dualscreen.conf
+if [ -r "$UC" ]; then
+    echo "Switches (ClusterMapOptions, ClusterMapPicture):"
+    for k in GAL_PLAYER_DECODER GAL_PLAYER_REASSERT GAL_DUALSCREEN_ENABLE GAL_SECONDARY_UI_THEME CLUSTERMAP_FULL_FRAME GAL_PLAYER_STATS; do
+        v=`sed -n "s/^[ 	]*$k[ 	]*=[ 	]*\([^ 	]*\)[ 	]*\$/\1/p" "$UC" | sed -n '1p'`
+        echo "  $k=${v:-(not set)}"
+    done
+fi
+echo "Hardware decoder libraries:"
+hw_libs
 if grep -q 'libcarplay_cluster.so' "$CONFIG" 2>/dev/null; then
     echo "CarPlay map: installed, `sed -n 's/.*"ALTSCREEN111_WIDTH=\([0-9]*\)", "ALTSCREEN111_HEIGHT=\([0-9]*\)".*/\1x\2/p' "$CONFIG"`"
     if [ -r /tmp/mibr-carplay111.state ]; then echo "  CarPlay cluster stream: `cat /tmp/mibr-carplay111.state`"; else echo "  CarPlay cluster stream: none yet (connect an iPhone)"; fi

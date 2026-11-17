@@ -109,6 +109,8 @@ if [ -x /eso/bin/apps/dmdt ]; then
 else
     echo "dmdt not found" >> "$INFO"
 fi
+echo "--- hardware decoder libraries" >> "$INFO"
+hw_libs >> "$INFO" 2>&1
 echo "--- Java patches loaded" >> "$INFO"
 grep -n "bootclasspath/p" /mnt/app/eso/hmi/lsd/lsd.sh >> "$INFO" 2>&1
 sync 2>/dev/null

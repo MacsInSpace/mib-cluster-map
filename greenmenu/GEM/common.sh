@@ -161,3 +161,48 @@ case "$TRAIN" in
     MST2_*)  FAMILY="MIB2 Standard (Technisat/Preh, MST2)" ;;
     *)       FAMILY="unknown" ;;
 esac
+
+# The three libraries the hardware decoder goes through, with their sizes: a
+# unit whose sizes match a car that passed the check has the same files.
+hw_libs()
+{
+    for f in /mnt/app/armle/usr/lib/libnvmedia.so /mnt/app/root/lib-target/libnvparser.so /mnt/app/armle/lib/libnvss_video.so; do
+        if [ -f "$f" ]; then echo "  `basename $f`: `wc -c < "$f" | sed 's/ //g'` bytes"
+        else
+            g=
+            for d in /lib /usr/lib /mnt/app/armle/lib /mnt/app/armle/usr/lib /mnt/app/root/lib-target; do
+                if [ -f "$d/`basename $f`" ]; then g="$d/`basename $f`"; break; fi
+            done
+            if [ -n "$g" ]; then echo "  `basename $f`: `wc -c < "$g" | sed 's/ //g'` bytes ($g)"
+            else echo "  `basename $f`: not found"; fi
+        fi
+    done
+}
+
+# hw_check: decode the package's test clip with the unit's decoder into
+# memory and compare every picture with the reference (tools/nvprobe).
+# Prints the verdict; returns 0 only for "usable". About two seconds; touches
+# nothing on the unit. /tmp takes plain files only, no folders.
+hw_check()
+{
+    HWC=/tmp/clustermap_hwcheck
+    if [ ! -f "$PKG/hwcheck/nvprobe" ]; then echo "Hardware decoder: the check is not on this card."; return 2; fi
+    cp "$PKG/hwcheck/nvprobe" ${HWC}_bin 2>/dev/null
+    cp "$PKG/hwcheck/clip_800x480.h264" ${HWC}.h264 2>/dev/null
+    cp "$PKG/hwcheck/clip_800x480.expect" ${HWC}.expect 2>/dev/null
+    chmod 755 ${HWC}_bin 2>/dev/null
+    LD_LIBRARY_PATH=/eso/lib:/mnt/app/usr/lib:/mnt/app/armle/lib:/mnt/app/armle/graphics:/mnt/app/armle/lib/dll:/mnt/app/armle/usr/lib:/mnt/app/root/lib-target:/lib:/usr/lib:/lib/dll \
+        ${HWC}_bin ${HWC}.h264 ${HWC}.txt ${HWC}.expect >/dev/null 2>&1
+    HWC_VERDICT=`grep '^VERDICT: ' ${HWC}.txt 2>/dev/null | sed -n '1p'`
+    if [ -z "$HWC_VERDICT" ]; then
+        HWC_VERDICT="VERDICT: not usable (`sed -n '$p' ${HWC}.txt 2>/dev/null`)"
+    fi
+    mkdir -p "$PKG/logs" 2>/dev/null
+    cp ${HWC}.txt "$PKG/logs/hw_check.txt" 2>/dev/null
+    rm -f ${HWC}_bin ${HWC}.h264 ${HWC}.expect ${HWC}.txt
+    echo "Hardware decoder: `echo "$HWC_VERDICT" | sed 's/^VERDICT: //'`"
+    case "$HWC_VERDICT" in
+        "VERDICT: usable"*) return 0 ;;
+    esac
+    return 1
+}

@@ -109,7 +109,8 @@ Open it with MENU (hold) > `Testmode` > `Green Developer Menu` >
 | ClusterMapSupport > 1. Collect files for porting (quick) | About 2.5 MB, read only |
 | ClusterMapSupport > 2. Collect for porting, with Java image (55 MB, slow) | Only for a turn-arrows port |
 | ClusterMapSupport > 3. Switch to turn-by-turn arrows instead (no map) | Removes the map, installs the arrows. Install switches back |
-| ClusterMapSupport > 4, 5. Performance figures in the log ON / OFF | `GAL_PLAYER_STATS`, when a report is about speed |
+| ClusterMapSupport > 4. Hardware decoder check | Decodes a one-second test clip with the unit's own decoder and compares every picture with the reference. Says `usable` or `not usable`; changes nothing |
+| ClusterMapSupport > 5, 6. Performance figures in the log ON / OFF | `GAL_PLAYER_STATS`, when a report is about speed |
 
 A switch changes the unit's copy of the settings, and the next install from a
 card keeps the choice unless the card's `gal_dualscreen.conf` sets that line

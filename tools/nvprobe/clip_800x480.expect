@@ -1,0 +1,34 @@
+# Sum of the luma samples at every 16th pixel (from 8,8) of each picture of
+# clip_800x480.h264, from a reference decode (ffmpeg). H.264 decoding is exact:
+# a decoder that gives other sums is giving wrong pictures.
+pictures 30
+sum 0 189293
+sum 1 189327
+sum 2 189698
+sum 3 189660
+sum 4 189580
+sum 5 189617
+sum 6 189283
+sum 7 189360
+sum 8 189292
+sum 9 189254
+sum 10 189303
+sum 11 189250
+sum 12 189125
+sum 13 189274
+sum 14 189331
+sum 15 189414
+sum 16 189332
+sum 17 189365
+sum 18 189291
+sum 19 189302
+sum 20 189200
+sum 21 189319
+sum 22 189212
+sum 23 189196
+sum 24 189241
+sum 25 189336
+sum 26 189266
+sum 27 189270
+sum 28 189373
+sum 29 189528
