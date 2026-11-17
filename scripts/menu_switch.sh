@@ -71,6 +71,6 @@ echo "$WHAT."
 if [ "$WHEN" = reboot ]; then
     echo "Hold the power button for 10 seconds to reboot the unit."
 else
-    echo "It counts from the next phone connection: unplug the phone and plug it in again."
+    echo "Reconnect the phone: unplug it and plug it in again."
 fi
 exit 0

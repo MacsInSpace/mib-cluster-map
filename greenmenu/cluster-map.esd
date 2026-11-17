@@ -70,26 +70,21 @@ script
 ###########################################################################################
 screen ClusterMapOptions ClusterMap
 
-keyValue
-    value   String sys 0x00000000 0
-    label   "Without a reboot: unplug the phone and plug it in again."
-    poll    0
-
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_hw_on.sh"
-    label   "1. Hardware decoder ON"
+    label   "1. Hardware decoder ON (reconnect phone)"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_hw_off.sh"
-    label   "2. Hardware decoder OFF"
+    label   "2. Hardware decoder OFF (reconnect phone)"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_keepmap_on.sh"
-    label   "3. Keep the phone's map ON"
+    label   "3. Keep the phone's map ON (reconnect phone)"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_keepmap_off.sh"
-    label   "4. Keep the phone's map OFF"
+    label   "4. Keep the phone's map OFF (reconnect phone)"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_map_off.sh"
@@ -116,8 +111,8 @@ script
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_stats_on.sh"
-    label   "4. Performance figures in the log ON"
+    label   "4. Performance figures in the log ON (reconnect phone)"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_stats_off.sh"
-    label   "5. Performance figures in the log OFF"
+    label   "5. Performance figures in the log OFF (reconnect phone)"
