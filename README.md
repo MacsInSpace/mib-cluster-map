@@ -217,7 +217,7 @@ phone is unplugged and plugged in again.
 |---|---|
 | Android Auto map, installer and uninstaller over SSH | Tested on cars (Golf `P4521`, SEAT `P4708`) |
 | Software update and green menu routes | Tested on cars (Golf `P4521`, Golf R `P4512`) |
-| Hardware video decoding (`GAL_PLAYER_DECODER=hw`, off by default) | Works on a Golf (`P4521`): 30 pictures a second at about a third of the processor time, also through a wireless adapter. Other cars: run **Hardware decoder check** in `ClusterMapSupport` and report what it says |
+| Hardware video decoding (`GAL_PLAYER_DECODER=hw`; the default on `P4521`, off elsewhere) | Works on a Golf (`P4521`): 30 pictures a second at about a third of the processor time, also through a wireless adapter. Other cars: run **Hardware decoder check** in `ClusterMapSupport` and report what it says |
 | CarPlay map | Shown on a car (Golf R, iPhone over USB) after a firewall fix; layout between the dials under test |
 | Long drives, reverse camera, waking from sleep | Road-tested on `K4525`; otherwise little testing |
 | Autorun install without the service menu (`Swdlautorun.txt`, on by default) | Tested on a car (Golf `P4521`); Audi untested |
