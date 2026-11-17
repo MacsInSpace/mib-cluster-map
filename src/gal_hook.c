@@ -1,5 +1,6 @@
 #include "vc_player_mgr.h"
 #include "gal_hook.h"
+#include "hd_frame_geometry.h"
 #include "vc_stream_out.h"
 #include "focus_ctl.h"
 
@@ -303,10 +304,13 @@ static void load_environment(void)
     value = getenv("GAL_SECONDARY_MARGINS");
     if (value != NULL && value[0] != 0) {
         unsigned w, h;
-        /* Even, and leaving at least half the frame. */
-        if (sscanf(value, "%ux%u", &w, &h) == 2 && w <= 400u && h <= 240u) {
-            g_config.margin_width = w & ~1u;
-            g_config.margin_height = h & ~1u;
+        int hd_mode = (g_config.width == 1280u && g_config.height == 720u) ||
+                      (g_config.width == 1920u && g_config.height == 1080u);
+        if (sscanf(value, "%ux%u", &w, &h) == 2 &&
+            (hd_mode ? (w <= 1600u && h <= 920u) :
+                       (w <= 400u && h <= 240u))) {
+            g_config.margin_width = hd_mode ? w : (w & ~1u);
+            g_config.margin_height = hd_mode ? h : (h & ~1u);
         }
     }
     {
@@ -319,6 +323,10 @@ static void load_environment(void)
             gal_hook_logf("event=config.crop result=invalid top=%s bottom=%s",
                           top_value != NULL ? top_value : "0",
                           bottom_value != NULL ? bottom_value : "0");
+        } else if ((crop_top != 0u || crop_bottom != 0u) &&
+                   (g_config.width != 800u || g_config.height != 480u)) {
+            gal_hook_logf("event=config.crop result=ignored reason=high_resolution_frame frame=%ux%u top=%u bottom=%u",
+                          g_config.width, g_config.height, crop_top, crop_bottom);
         } else if (crop_top != 0u || crop_bottom != 0u) {
             /* The player crops the uncropped frame; keep full-frame pixel aspect. */
             g_config.margin_width = 0u;
@@ -570,26 +578,64 @@ int gal_hook_init(const gal_secondary_config *config)
     if (g_aap_minor > 255u) { g_aap_minor = 2u; g_aap_minor_overridden = 0; }
     g_cluster_input = environment_flag_default_on("GAL_DUALSCREEN_CLUSTER_INPUT");
 
-    /*
-     * The cluster takes 800x480 and nothing else, so the resolution is not
-     * a tuning knob and is pinned here regardless of what was configured.
-     *
-     * VideoSink::codecResolutionToPixels (0xfa870 in libautoreceiver.so)
-     * maps codec_resolution enum 1 to exactly 800x480 and returns -8 for
-     * anything it does not recognise, and the captured discovery response
-     * from a working head unit declares enum 1 for its cluster sink. The
-     * hook already advertises VIDEO_CODEC_RESOLUTION_800_480 to the phone,
-     * so letting width/height say something else only desynchronises our
-     * own decoder from the stream the phone actually sends -- which is how
-     * the 400x400 attempt went wrong: 400x400 is a possible VISIBLE area
-     * inside the coded frame, not a coded-frame size. Outer margins are
-     * fixed to zero in this build; UiConfig carries the UI safe area.
-     */
-    if (g_config.width != 800u || g_config.height != 480u) {
-        gal_hook_logf("event=config.resolution result=pinned requested=%ux%u using=800x480 reason=cluster_accepts_only_800x480",
+    if (!((g_config.width == 800u && g_config.height == 480u) ||
+          (g_config.width == 1280u && g_config.height == 720u) ||
+          (g_config.width == 1920u && g_config.height == 1080u))) {
+        gal_hook_logf("event=config.resolution result=pinned requested=%ux%u using=800x480 reason=unsupported_frame_size",
                       g_config.width, g_config.height);
         g_config.width = 800u;
         g_config.height = 480u;
+    }
+    {
+        int hd_mode = g_config.width > 800u || g_config.height > 480u;
+        if (hd_mode) {
+            if (g_config.margin_width > g_config.width - 320u ||
+                g_config.margin_height > g_config.height - 160u) {
+                gal_hook_logf("event=config.margins result=dropped margins=%ux%u frame=%ux%u reason=visible_area_too_small",
+                              g_config.margin_width, g_config.margin_height,
+                              g_config.width, g_config.height);
+                g_config.margin_width = 0u;
+                g_config.margin_height = 0u;
+            }
+        } else {
+            g_config.margin_width &= ~1u;
+            g_config.margin_height &= ~1u;
+        }
+    }
+    if (g_config.width > 800u && g_config.pixel_aspect_ratio_e4 <= 10000u) {
+        unsigned visible_width = g_config.width - g_config.margin_width;
+        unsigned visible_height = g_config.height - g_config.margin_height;
+        unsigned factor = (visible_width * 480u > visible_height * 800u) ?
+            (visible_width * 10000u + 400u) / 800u :
+            (visible_height * 10000u + 240u) / 480u;
+        unsigned dpi = g_config.dpi;
+        unsigned top = g_config.insets_top, bottom = g_config.insets_bottom;
+        unsigned left = g_config.insets_left, right = g_config.insets_right;
+        if (dpi > 0x3fffu ||
+            !gal_hd_frame_translate_insets(
+                g_config.width, g_config.height,
+                g_config.margin_width, g_config.margin_height,
+                top, bottom, left, right,
+                &g_config.insets_top, &g_config.insets_bottom,
+                &g_config.insets_left, &g_config.insets_right)) {
+            errno = EINVAL;
+            gal_hook_logf("event=config.invalid reason=hd_insets_out_of_range frame=%ux%u margins=%ux%u insets=%u,%u,%u,%u",
+                          g_config.width, g_config.height,
+                          g_config.margin_width, g_config.margin_height,
+                          top, bottom, left, right);
+            return -1;
+        }
+        if (g_config.width != 1920u)
+            g_config.dpi = (dpi * factor + 5000u) / 10000u;
+        gal_hook_logf("event=config.hd_frame result=translated frame=%ux%u visible=%ux%u dpi_factor_e4=%u dpi=%u->%u viewport_insets=%u,%u,%u,%u crop_offsets=%u,%u,%u,%u stream_insets=%u,%u,%u,%u",
+                      g_config.width, g_config.height, visible_width, visible_height,
+                      factor, dpi, g_config.dpi, top, bottom, left, right,
+                      g_config.margin_height / 2u,
+                      g_config.margin_height - g_config.margin_height / 2u,
+                      g_config.margin_width / 2u,
+                      g_config.margin_width - g_config.margin_width / 2u,
+                      g_config.insets_top, g_config.insets_bottom,
+                      g_config.insets_left, g_config.insets_right);
     }
     /*
      * Width and height are pinned above and can no longer be zero, so this

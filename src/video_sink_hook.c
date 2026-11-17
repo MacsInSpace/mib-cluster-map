@@ -12,6 +12,7 @@
 #include "focus_ctl.h"
 #include "firmware_profiles.h"
 #include "nav_translate.h"
+#include "video_insets_payload.h"
 
 #include <dlfcn.h>
 #include <pthread.h>
@@ -55,6 +56,17 @@
  */
 #define VIDEO_SINK_SIZE 0x50u
 #define VIDEO_CODEC_RESOLUTION_800_480 1
+#define VIDEO_CODEC_RESOLUTION_1280_720 2
+#define VIDEO_CODEC_RESOLUTION_1920_1080 3
+
+static uint32_t secondary_resolution_enum(const gal_secondary_config *config)
+{
+    if (config != NULL && config->width == 1280u && config->height == 720u)
+        return VIDEO_CODEC_RESOLUTION_1280_720;
+    if (config != NULL && config->width == 1920u && config->height == 1080u)
+        return VIDEO_CODEC_RESOLUTION_1920_1080;
+    return VIDEO_CODEC_RESOLUTION_800_480;
+}
 
 /* (GalReceiver *this, ProtocolEndpointBase *endpoint) -- see the hook's
  * own definition below for why both parameters are mandatory. */
@@ -139,6 +151,7 @@ static void *g_secondary_impl;
 static unsigned g_secondary_service_id;
 static unsigned long g_secondary_frames;
 static unsigned long g_secondary_bytes;
+static int g_ui_config_deferred_to_wire;
 
 /*
  * Off unless explicitly enabled, so a build carrying this code behaves
@@ -509,92 +522,18 @@ static unsigned select_service_id(void *router)
     return 0xffu;
 }
 
-
 static size_t encode_varint(unsigned char *buf, uint32_t val)
 {
-    size_t len = 0;
-    while (val >= 0x80u) {
-        buf[len++] = (unsigned char)((val & 0x7fu) | 0x80u);
-        val >>= 7;
-    }
-    buf[len++] = (unsigned char)(val & 0x7fu);
-    return len;
-}
-
-static size_t build_insets_payload(unsigned char *out, size_t max_out,
-                                   uint32_t top, uint32_t bottom,
-                                   uint32_t left, uint32_t right,
-                                   uint32_t ui_theme)
-{
-    unsigned char insets[16];
-    size_t insets_len = 0;
-    unsigned char uiconfig[24];
-    size_t uiconfig_len = 0;
-    size_t total_len = 0;
-
-    /* Two varint bytes each at most, so insets[] and uiconfig[] cannot overflow. */
-    if (top > 0x3fffu || bottom > 0x3fffu || left > 0x3fffu || right > 0x3fffu) {
-        return 0;
-    }
-    if (top > 0u) {
-        insets[insets_len++] = 0x08; /* tag 1: top */
-        insets_len += encode_varint(insets + insets_len, top);
-    }
-    /*
-     * Protobuf convention: omitting an integer field defaults it to 0.
-     * Omitting bottom when bottom==0 saves 2 bytes (0x10 0x00), allowing
-     * left=150 and right=150 (2-byte varints) to fit into 14B <= 15B SSO!
-     */
-    if (bottom > 0u) {
-        insets[insets_len++] = 0x10; /* tag 2: bottom */
-        insets_len += encode_varint(insets + insets_len, bottom);
-    }
-    if (left > 0u) {
-        insets[insets_len++] = 0x18; /* tag 3: left */
-        insets_len += encode_varint(insets + insets_len, left);
-    }
-    if (right > 0u) {
-        insets[insets_len++] = 0x20; /* tag 4: right */
-        insets_len += encode_varint(insets + insets_len, right);
-    }
-
-    /*
-     * UiConfig field 2 becomes DisplayParams.contentInsets on the phone.
-     * Field 1 is deliberately absent: ipq.c() uses field 1 to shrink the
-     * encoded content rectangle, which produces black borders.
-     */
-    uiconfig[uiconfig_len++] = 0x12; /* tag 2: UI content safe area */
-    uiconfig_len += encode_varint(uiconfig + uiconfig_len, (uint32_t)insets_len);
-    memcpy(uiconfig + uiconfig_len, insets, insets_len);
-    uiconfig_len += insets_len;
-    /*
-     * UiConfig field 4 is UiTheme: 0=automatic, 1=light, 2=dark/night.
-     * Automatic is the protobuf default, so it is left out rather than sent
-     * as 0: the two bytes saved let three of the four insets go above 127
-     * (two varint bytes each) and still fit the 15-byte string. The car's
-     * night-mode sensor then sets day or night, as on the centre screen.
-     * (From AMDFX60's fork.)
-     */
-    if (ui_theme == 1u || ui_theme == 2u) {
-        uiconfig[uiconfig_len++] = 0x20; /* tag 4: ui_theme, wire type varint */
-        uiconfig[uiconfig_len++] = (unsigned char)ui_theme;
-    }
-
-    out[total_len++] = 0x5a; /* tag 11: UiConfig */
-    total_len += encode_varint(out + total_len, (uint32_t)uiconfig_len);
-    if (total_len + uiconfig_len > max_out) {
-        return 0; /* Exceeds SSO capacity */
-    }
-    memcpy(out + total_len, uiconfig, uiconfig_len);
-    total_len += uiconfig_len;
-    return total_len;
+    return gal_encode_varint(buf, val);
 }
 
 static void apply_video_config_insets(void *vconf, const gal_secondary_config *config, const char *context_tag)
 {
     unsigned char *obj;
-    unsigned char payload[16];
+    unsigned char payload[32];
     size_t payload_len;
+    int hd_mode = config != NULL &&
+                  (config->width > 800u || config->height > 480u);
     uint32_t top = (config != NULL) ? config->insets_top : 40u;
     uint32_t bottom = (config != NULL) ? config->insets_bottom : 40u;
     uint32_t left = (config != NULL) ? config->insets_left : 127u;
@@ -612,6 +551,7 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
                       context_tag, viewing_distance);
     }
 
+    if (!hd_mode) g_ui_config_deferred_to_wire = 0;
     if (load_u32(vconf, 0x1cu) > 15u || load_u32(vconf, 0x18u) != 0u) {
         gal_hook_logf("event=video.insets result=skipped tag=%s reason=string_not_sso_or_not_empty vconf=%p len=%u cap=%u",
                       context_tag, vconf, load_u32(vconf, 0x18u), load_u32(vconf, 0x1cu));
@@ -619,11 +559,17 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
     }
 
     if (config != NULL && config->ui_config_payload_len > 0u) {
+        if (config->ui_config_payload_len > sizeof(payload)) {
+            gal_hook_logf("event=video.insets result=failed tag=%s reason=custom_payload_too_large len=%u",
+                          context_tag, config->ui_config_payload_len);
+            return;
+        }
         payload_len = config->ui_config_payload_len;
         memcpy(payload, config->ui_config_payload, payload_len);
     } else {
-        payload_len = build_insets_payload(payload, 15u, top, bottom, left, right,
-                                           ui_theme);
+        payload_len = gal_build_insets_payload(
+            payload, hd_mode ? sizeof(payload) : 15u,
+            top, bottom, left, right, ui_theme);
         /*
          * Too long for the string: used to send nothing at all, silently, so
          * the phone fell back to the whole frame. Now cut the smallest value
@@ -646,19 +592,24 @@ static void apply_video_config_insets(void *vconf, const gal_secondary_config *c
                 }
                 if (least == NULL) break;
                 *least = 127u;
-                payload_len = build_insets_payload(payload, 15u, top, bottom, left, right,
-                                                   ui_theme);
+                payload_len = gal_build_insets_payload(payload, 15u, top, bottom,
+                                                       left, right, ui_theme);
             }
             gal_hook_logf("event=video.insets result=clamped tag=%s top=%u bottom=%u left=%u right=%u len=%zu",
                           context_tag, top, bottom, left, right, payload_len);
         }
     }
 
-    if (payload_len > 0u && payload_len <= 15u) {
+    if (hd_mode && payload_len > 15u) {
+        g_ui_config_deferred_to_wire = 1;
+        gal_hook_logf("event=video.insets result=deferred_to_wire tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u len=%zu",
+                      context_tag, top, bottom, left, right, ui_theme, payload_len);
+    } else if (payload_len > 0u && payload_len <= 15u) {
         obj = (unsigned char *)vconf;
         memcpy(obj + 0x08, payload, payload_len);
         obj[0x08 + payload_len] = 0;
         store_u32(vconf, 0x18u, (uint32_t)payload_len);
+        if (hd_mode) g_ui_config_deferred_to_wire = 0;
         gal_hook_logf("event=video.insets result=success tag=%s top=%u bottom=%u left=%u right=%u ui_theme=%u len=%zu",
                       context_tag, top, bottom, left, right, ui_theme, payload_len);
     }
@@ -679,7 +630,7 @@ static void set_video_config_ui_insets(void *sink, const gal_secondary_config *c
 
     fps_val = load_u32(vconf, 0x2cu);
     /* In protobuf schema, fps is enum (VIDEO_FPS_30 = 2), not integer 30 */
-    if (load_u32(vconf, 0x28u) != VIDEO_CODEC_RESOLUTION_800_480 ||
+    if (load_u32(vconf, 0x28u) != secondary_resolution_enum(gal_hook_config()) ||
         (fps_val != 2u && fps_val != 30u)) {
         gal_hook_logf("event=video.insets result=mismatch vconf=%p res=%u fps=%u",
                       vconf, load_u32(vconf, 0x28u), fps_val);
@@ -725,6 +676,8 @@ static int build_secondary_sink(void *primary, void *controller)
     unsigned primary_config_count;
     void *primary_config_data;
     int found_video_config = 0;
+    int used_hd_fallback = 0;
+    unsigned requested_resolution = secondary_resolution_enum(config);
     unsigned patched_displayable = 0u;
 
     if (g_build_attempted) return g_secondary_registered ? 0 : -1;
@@ -816,22 +769,41 @@ static int build_secondary_sink(void *primary, void *controller)
     }
     for (index = 0u; index < primary_config_count; ++index) {
         unsigned char *entry = (unsigned char *)primary_config_data + index * g_profile->cfg_entry_size;
-        if (load_u32(entry, 0u) == VIDEO_CODEC_RESOLUTION_800_480 &&
+        if (load_u32(entry, 0u) == requested_resolution &&
             load_u32(entry, 4u) == config->fps) {
             memcpy(secondary_config_entry, entry, g_profile->cfg_entry_size);
-            store_u32(secondary_config_entry, 16u, config->dpi);
-            store_u32(secondary_config_entry, 20u, config->margin_width);
-            store_u32(secondary_config_entry, 24u, config->margin_height);
             found_video_config = 1;
-            gal_hook_logf("event=secondary.video_config result=success primary_index=%u resolution_enum=%u fps=%u dpi=%u margins=%ux%u",
-                          index, load_u32(entry, 0u), load_u32(entry, 4u),
-                          config->dpi, config->margin_width, config->margin_height);
             break;
         }
     }
+    if (!found_video_config &&
+        (requested_resolution == VIDEO_CODEC_RESOLUTION_1280_720 ||
+         requested_resolution == VIDEO_CODEC_RESOLUTION_1920_1080)) {
+        for (index = 0u; index < primary_config_count; ++index) {
+            unsigned char *entry = (unsigned char *)primary_config_data +
+                                   index * g_profile->cfg_entry_size;
+            if (load_u32(entry, 0u) == VIDEO_CODEC_RESOLUTION_800_480 &&
+                load_u32(entry, 4u) == config->fps) {
+                memcpy(secondary_config_entry, entry, g_profile->cfg_entry_size);
+                store_u32(secondary_config_entry, 0u, requested_resolution);
+                found_video_config = 1;
+                used_hd_fallback = 1;
+                break;
+            }
+        }
+    }
+    if (found_video_config) {
+        store_u32(secondary_config_entry, 16u, config->dpi);
+        store_u32(secondary_config_entry, 20u, config->margin_width);
+        store_u32(secondary_config_entry, 24u, config->margin_height);
+        gal_hook_logf("event=secondary.video_config result=success source=%s resolution_enum=%u fps=%u dpi=%u margins=%ux%u",
+                      used_hd_fallback ? "800x480_template" : "exact_primary_mode",
+                      requested_resolution, config->fps, config->dpi,
+                      config->margin_width, config->margin_height);
+    }
     if (!found_video_config) {
-        gal_hook_logf("event=secondary.video_config result=failed reason=no_matching_800x480_fps count=%u requested_fps=%u",
-                      primary_config_count, config->fps);
+        gal_hook_logf("event=secondary.video_config result=failed reason=no_matching_resolution_fps count=%u resolution_enum=%u requested_fps=%u",
+                      primary_config_count, requested_resolution, config->fps);
         goto fail;
     }
     secondary_config_vector[0] = 1u;
@@ -932,13 +904,12 @@ static int build_secondary_sink(void *primary, void *controller)
               (uint32_t)(uintptr_t)g_secondary_impl);
 
     /*
-     * 800x480 (the only resolution the cluster takes), configured fps,
-     * the configured margins, configured DPI, decoder depth 3 and square
-     * pixels.
+     * The selected primary configuration's resolution, configured fps,
+     * margins, DPI, decoder depth 3 and pixel aspect.
      */
     /* Pass decoder_depth=3 for phone MediaCodec 3-frame pipelining */
     add_configuration(g_secondary_sink,
-        VIDEO_CODEC_RESOLUTION_800_480, (int)config->fps,
+        (int)requested_resolution, (int)config->fps,
         (int)config->margin_width, (int)config->margin_height,
         (int)config->dpi, 3, (int)config->pixel_aspect_ratio_e4);
     /* The older receiver's VideoConfiguration has no unknown-field string
@@ -1463,6 +1434,7 @@ static int rewrite_media_sink(const unsigned char *m, unsigned n, int secondary,
                               pb_out *out, discovery_rewrite_stats *stats)
 {
     const gal_secondary_config *config = gal_hook_config();
+    int deferred_to_wire = !g_receiver->legacy && g_ui_config_deferred_to_wire;
     unsigned pos = 0u;
     int vconf_done = 0;
     pb_field f;
@@ -1477,20 +1449,23 @@ static int rewrite_media_sink(const unsigned char *m, unsigned n, int secondary,
 
             vconf_done = 1;
             pb_put(&v, f.data, f.data_len);
-            pb_put_varint(&v, 0x30u); pb_put_varint(&v, 3u);
-            if (config->viewing_distance > 0u) {
-                pb_put_varint(&v, 0x38u); pb_put_varint(&v, config->viewing_distance);
-            }
-            if (config->pixel_aspect_ratio_e4 > 0u) {
-                pb_put_varint(&v, 0x40u); pb_put_varint(&v, config->pixel_aspect_ratio_e4);
+            if (!deferred_to_wire) {
+                pb_put_varint(&v, 0x30u); pb_put_varint(&v, 3u);
+                if (config->viewing_distance > 0u) {
+                    pb_put_varint(&v, 0x38u); pb_put_varint(&v, config->viewing_distance);
+                }
+                if (config->pixel_aspect_ratio_e4 > 0u) {
+                    pb_put_varint(&v, 0x40u);
+                    pb_put_varint(&v, config->pixel_aspect_ratio_e4);
+                }
             }
             if (config->ui_config_payload_len > 0u &&
                 config->ui_config_payload_len <= sizeof config->ui_config_payload) {
                 pb_put(&v, config->ui_config_payload, config->ui_config_payload_len);
             } else {
-                ui_len = build_insets_payload(ui, sizeof ui, config->insets_top,
-                                              config->insets_bottom, config->insets_left,
-                                              config->insets_right, config->ui_theme);
+                ui_len = gal_build_insets_payload(
+                    ui, sizeof ui, config->insets_top, config->insets_bottom,
+                    config->insets_left, config->insets_right, config->ui_theme);
                 pb_put(&v, ui, (unsigned)ui_len);
             }
             if (v.overflow) return -1;
@@ -1500,10 +1475,12 @@ static int rewrite_media_sink(const unsigned char *m, unsigned n, int secondary,
             pb_put(out, m + f.start, f.end - f.start);
         }
     }
-    pb_put_varint(out, 0x30u);
-    pb_put_varint(out, secondary ? config->display_id : 0u);
-    pb_put_varint(out, 0x38u);
-    pb_put_varint(out, secondary ? 1u : 0u);
+    if (!deferred_to_wire) {
+        pb_put_varint(out, 0x30u);
+        pb_put_varint(out, secondary ? config->display_id : 0u);
+        pb_put_varint(out, 0x38u);
+        pb_put_varint(out, secondary ? 1u : 0u);
+    }
     if (secondary) stats->secondary_tagged++;
     else stats->primary_tagged++;
     return 0;
@@ -1536,7 +1513,9 @@ static int rewrite_service(const unsigned char *svc, unsigned n, pb_out *out,
             if (rc == 0 && !m.overflow) pb_put_bytes_field(out, 3u, tmp, m.len);
             free(tmp);
             if (rc != 0 || m.overflow) return -1;
-        } else if (f.field == 4u && f.wire == 2u && gal_hook_main_input_id_enabled()) {
+        } else if (f.field == 4u && f.wire == 2u &&
+                   (g_receiver->legacy || !g_ui_config_deferred_to_wire) &&
+                   gal_hook_main_input_id_enabled()) {
             /* GAL's own input services, the main screen's: display id 0.
              * See set_input_service_display_id for why it must be said. */
             pb_put_varint(out, 0x22u);
@@ -1590,7 +1569,8 @@ static unsigned char *rewrite_discovery_response(const unsigned char *msg, unsig
         }
     }
     /* Only beside the cluster's video service, as on P4521. */
-    if (stats.secondary_tagged > 0u && gal_hook_cluster_input_enabled()) {
+    if (g_receiver->legacy && stats.secondary_tagged > 0u &&
+        gal_hook_cluster_input_enabled()) {
         entry_len = build_cluster_input_entry(entry);
         pb_put(&out, entry, entry_len);
     }
@@ -2904,7 +2884,8 @@ void _ZN13MessageRouter13queueOutgoingEhPvj(void *router, unsigned char channel,
 
     (void)resolve_symbol("_ZN13MessageRouter13queueOutgoingEhPvj", (void **)&g_queue_outgoing);
     if (g_queue_outgoing == NULL) return;
-    if (g_receiver->legacy && channel == 0u && m != NULL && len > 2u &&
+    if ((g_receiver->legacy || g_ui_config_deferred_to_wire) &&
+        channel == 0u && m != NULL && len > 2u &&
         m[0] == 0u && m[1] == 6u &&
         gal_hook_is_enabled() && gal_hook_inject_meta_enabled())
         rewritten = rewrite_discovery_response(m, len, &rewritten_len);

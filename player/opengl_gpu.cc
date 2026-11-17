@@ -256,6 +256,8 @@ static bool g_isSocket = false;
 
 int windowWidth  = 800;
 int windowHeight = 480;
+static int g_streamFrameWidth = 800;
+static int g_streamFrameHeight = 480;
 
 static GLfloat backgroundColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
@@ -288,10 +290,14 @@ static bool g_neonAllowed = true;
 static const char kNoNeonMarker[] = "/tmp/clustermap-player-noneon";
 static GLfloat fittedVertices[12];
 static GLfloat croppedTexCoords[8];
+static bool g_lumaExact = false;
 static void fit_frame(int frameW, int frameH) {
-    float sx = 1.0f, sy = 1.0f, cu = 0.0f, cv = 0.0f, par = 1.0f;
+    float sx = 1.0f, sy = 1.0f, cu = 0.0f, cv = 0.0f;
+    float cu1 = 1.0f, cv1 = 1.0f, par = 1.0f;
     int contentW = frameW, contentH = frameH;
     int marginTop = 0, marginLeft = 0;
+    bool hdFrame = (frameW == 1280 && frameH == 720) ||
+                   (frameW == 1920 && frameH == 1080);
     bool cropConfigured = frameW == 800 && frameH == 480 &&
                           (g_cropTop > 0 || g_cropBottom > 0) &&
                           g_cropTop + g_cropBottom < frameH;
@@ -314,8 +320,20 @@ static void fit_frame(int frameW, int frameH) {
             contentH = frameH - g_marginH;
             cu = (float)marginLeft / (float)frameW;
             cv = (float)marginTop / (float)frameH;
+            cu1 = 1.0f - cu;
+            cv1 = 1.0f - cv;
         }
         par = (float)g_pixelAspectE4 / 10000.0f;
+    } else if (hdFrame && g_marginW >= 0 && g_marginH >= 0 &&
+               g_marginW < frameW && g_marginH < frameH) {
+        int marginRight = g_marginW - g_marginW / 2;
+        int marginBottom = g_marginH - g_marginH / 2;
+        contentW = frameW - g_marginW;
+        contentH = frameH - g_marginH;
+        cu = (float)(g_marginW / 2) / (float)frameW;
+        cv = (float)(g_marginH / 2) / (float)frameH;
+        cu1 = 1.0f - (float)marginRight / (float)frameW;
+        cv1 = 1.0f - (float)marginBottom / (float)frameH;
     }
     if (!cropConfigured && contentW > 0 && contentH > 0) {
         float contentAspect = (float)contentW * par / (float)contentH;
@@ -325,13 +343,23 @@ static void fit_frame(int frameW, int frameH) {
     }
     const GLfloat v[12] = { -sx, sy, 0.0f,  sx, sy, 0.0f,  sx, -sy, 0.0f,  -sx, -sy, 0.0f };
     if (!cropConfigured) {
-        const GLfloat t[8] = { cu, cv,  1.0f - cu, cv,  1.0f - cu, 1.0f - cv,  cu, 1.0f - cv };
+        const GLfloat t[8] = { cu, cv,  cu1, cv,  cu1, cv1,  cu, cv1 };
         memcpy(croppedTexCoords, t, sizeof t);
     }
     memcpy(fittedVertices, v, sizeof v);
-    LOG("render: %dx%d frame, %dx%d after margins/crop, pixel aspect %.4f, crop=%s, in a %dx%d window, drawn %dx%d",
-        frameW, frameH, contentW, contentH, par, cropConfigured ? "stretch" : "off", windowWidth, windowHeight,
-        (int)(sx * windowWidth + 0.5f), (int)(sy * windowHeight + 0.5f));
+    g_lumaExact = hdFrame && !cropConfigured && sx == 1.0f && sy == 1.0f &&
+                  par == 1.0f && contentW == windowWidth &&
+                  contentH == windowHeight;
+    if (hdFrame) {
+        LOG("render: %dx%d frame, %dx%d after margins/crop, pixel aspect %.4f, crop=%s, in a %dx%d window, drawn %dx%d, %s",
+            frameW, frameH, contentW, contentH, par, cropConfigured ? "stretch" : "off", windowWidth, windowHeight,
+            (int)(sx * windowWidth + 0.5f), (int)(sy * windowHeight + 0.5f),
+            g_lumaExact ? "1:1 (exact pixels)" : "scaled");
+    } else {
+        LOG("render: %dx%d frame, %dx%d after margins/crop, pixel aspect %.4f, crop=%s, in a %dx%d window, drawn %dx%d",
+            frameW, frameH, contentW, contentH, par, cropConfigured ? "stretch" : "off", windowWidth, windowHeight,
+            (int)(sx * windowWidth + 0.5f), (int)(sy * windowHeight + 0.5f));
+    }
 }
 
 #ifdef __QNX__
@@ -736,7 +764,8 @@ static int  (*p_nvssClose)(void*) = NULL;
 
 static void put_u32(unsigned char* p, unsigned at, uint32_t v) { memcpy(p + at, &v, 4); }
 
-static bool nvss_open(int width, int height) {
+static bool nvss_open(int frameW, int frameH, int windowW, int windowH,
+                      int marginW, int marginH) {
     if (access(NVSS_OFF_MARKER, F_OK) == 0) {
         LOG("hwdecode: off for this boot (%s), using software decode", NVSS_OFF_MARKER);
         return false;
@@ -769,25 +798,61 @@ static bool nvss_open(int width, int height) {
     rc = p_nvssOpen(&g_nvssHandle, &op);
     if (rc != 0 || !g_nvssHandle) { LOG("hwdecode: NvSSVideoOpen=0x%x, using software decode", (unsigned)rc); g_nvssHandle = NULL; return false; }
 
-    NvssStreamConfig cfg = { (uint32_t)width, (uint32_t)height, 30.0f };
+    int sourceX = marginW / 2;
+    int sourceY = marginH / 2;
+    int sourceW = frameW - marginW;
+    int sourceH = frameH - marginH;
+    if (sourceW <= 0 || sourceH <= 0) {
+        LOG("hwdecode: invalid frame margins %dx%d in %dx%d; using software decode",
+            marginW, marginH, frameW, frameH);
+        p_nvssClose(g_nvssHandle);
+        g_nvssHandle = NULL;
+        return false;
+    }
+    NvssStreamConfig cfg = { (uint32_t)frameW, (uint32_t)frameH, 30.0f };
     rc = p_nvssConfigure(g_nvssHandle, &cfg);
     if (rc != 0) { LOG("hwdecode: NvSSVideoStreamConfigure=0x%x, using software decode", (unsigned)rc); p_nvssClose(g_nvssHandle); g_nvssHandle = NULL; return false; }
 
     unsigned char attrs[64];
     memset(attrs, 0, sizeof(attrs));
     if (p_nvssGetAttribs(g_nvssHandle, attrs) == 0) {
-        /* Whole picture to the whole layer, and the layer shown. */
+        /* Crop the margins to the requested window, and show the layer. */
         attrs[8] = 1;
-        put_u32(attrs, 12, 0); put_u32(attrs, 16, 0); put_u32(attrs, 20, width); put_u32(attrs, 24, height);
-        put_u32(attrs, 28, 0); put_u32(attrs, 32, 0); put_u32(attrs, 36, width); put_u32(attrs, 40, height);
+        put_u32(attrs, 12, (uint32_t)sourceX); put_u32(attrs, 16, (uint32_t)sourceY);
+        put_u32(attrs, 20, (uint32_t)sourceW); put_u32(attrs, 24, (uint32_t)sourceH);
+        put_u32(attrs, 28, 0); put_u32(attrs, 32, 0);
+        put_u32(attrs, 36, (uint32_t)windowW); put_u32(attrs, 40, (uint32_t)windowH);
         attrs[60] = 1; attrs[61] = 0;
         rc = p_nvssSetAttribs(g_nvssHandle, attrs);
-        if (rc != 0) LOG("hwdecode: NvSSVideoSetAttribs=0x%x (continuing with the defaults)", (unsigned)rc);
+        if (rc != 0) {
+            if (frameW == 800 && frameH == 480) {
+                LOG("hwdecode: NvSSVideoSetAttribs=0x%x (continuing with the defaults)", (unsigned)rc);
+            } else {
+                LOG("hwdecode: NvSSVideoSetAttribs=0x%x, using software decode", (unsigned)rc);
+                p_nvssClose(g_nvssHandle);
+                g_nvssHandle = NULL;
+                return false;
+            }
+        }
     } else {
-        LOG("hwdecode: NvSSVideoGetAttribs failed (continuing with the defaults)");
+        if (frameW == 800 && frameH == 480) {
+            LOG("hwdecode: NvSSVideoGetAttribs failed (continuing with the defaults)");
+        } else {
+            LOG("hwdecode: NvSSVideoGetAttribs failed, using software decode");
+            p_nvssClose(g_nvssHandle);
+            g_nvssHandle = NULL;
+            return false;
+        }
     }
-    LOG("hwdecode: NvSS decoder ready on displayable 3 (output=%u, %dx%d) in %llu ms",
-        g_nvssOutput, width, height, (unsigned long long)((now_us() - began) / 1000ULL));
+    if (frameW == 800 && frameH == 480) {
+        LOG("hwdecode: NvSS decoder ready on displayable 3 (output=%u, %dx%d) in %llu ms",
+            g_nvssOutput, frameW, frameH,
+            (unsigned long long)((now_us() - began) / 1000ULL));
+    } else {
+        LOG("hwdecode: NvSS decoder ready on displayable 3 (output=%u, frame=%dx%d crop=%d,%d %dx%d window=%dx%d) in %llu ms",
+            g_nvssOutput, frameW, frameH, sourceX, sourceY, sourceW, sourceH,
+            windowW, windowH, (unsigned long long)((now_us() - began) / 1000ULL));
+    }
     g_nvssActive = true;
     return true;
 }
@@ -827,7 +892,7 @@ static void nvss_disable_for_boot(const char* why) {
     LOGE("hwdecode: switched off for this boot (%s)", why);
 }
 #else
-static bool nvss_open(int, int) { return false; }
+static bool nvss_open(int, int, int, int, int, int) { return false; }
 static int nvss_decode(const uint8_t*, int) { return -1; }
 static void nvss_close() {}
 static void nvss_disable_for_boot(const char*) {}
@@ -2034,11 +2099,21 @@ static void load_player_config() {
                     windowWidth = w;
                     windowHeight = h;
                 }
+            } else if (strcmp(key, "GAL_SECONDARY_WIDTH") == 0) {
+                int w = atoi(val);
+                if (w == 800 || w == 1280 || w == 1920) g_streamFrameWidth = w;
+            } else if (strcmp(key, "GAL_SECONDARY_HEIGHT") == 0) {
+                int h = atoi(val);
+                if (h == 480 || h == 720 || h == 1080) g_streamFrameHeight = h;
             } else if (strcmp(key, "GAL_SECONDARY_MARGINS") == 0) {
                 int w = 0, h = 0;
-                if (sscanf(val, "%dx%d", &w, &h) == 2 && w >= 0 && w <= 400 && h >= 0 && h <= 240) {
-                    g_marginW = w & ~1;
-                    g_marginH = h & ~1;
+                bool hdFrame = g_streamFrameWidth > 800 ||
+                               g_streamFrameHeight > 480;
+                if (sscanf(val, "%dx%d", &w, &h) == 2 && w >= 0 && h >= 0 &&
+                    (hdFrame ? (w <= 1600 && h <= 920) :
+                               (w <= 400 && h <= 240))) {
+                    g_marginW = hdFrame ? w : (w & ~1);
+                    g_marginH = hdFrame ? h : (h & ~1);
                 }
             } else if (strcmp(key, "GAL_CROP_TOP") == 0) {
                 int v = atoi(val);
@@ -2090,13 +2165,42 @@ static void load_player_config() {
      * gal passes the frame it asked the phone for; it wins over the file,
      * which may have been switched since gal started (full_frame.sh).
      */
+    env_val = getenv("GAL_SECONDARY_WIDTH");
+    if (env_val) {
+        int w = atoi(env_val);
+        if (w == 800 || w == 1280 || w == 1920) g_streamFrameWidth = w;
+    }
+    env_val = getenv("GAL_SECONDARY_HEIGHT");
+    if (env_val) {
+        int h = atoi(env_val);
+        if (h == 480 || h == 720 || h == 1080) g_streamFrameHeight = h;
+    }
     env_val = getenv("GAL_SECONDARY_MARGINS");
     if (env_val) {
         int w = 0, h = 0;
-        if (sscanf(env_val, "%dx%d", &w, &h) == 2 && w >= 0 && w <= 400 && h >= 0 && h <= 240) {
-            g_marginW = w & ~1;
-            g_marginH = h & ~1;
+        bool hdFrame = g_streamFrameWidth > 800 || g_streamFrameHeight > 480;
+        if (sscanf(env_val, "%dx%d", &w, &h) == 2 && w >= 0 && h >= 0 &&
+            (hdFrame ? (w <= 1600 && h <= 920) :
+                       (w <= 400 && h <= 240))) {
+            g_marginW = hdFrame ? w : (w & ~1);
+            g_marginH = hdFrame ? h : (h & ~1);
         }
+    }
+    if (!((g_streamFrameWidth == 800 && g_streamFrameHeight == 480) ||
+          (g_streamFrameWidth == 1280 && g_streamFrameHeight == 720) ||
+          (g_streamFrameWidth == 1920 && g_streamFrameHeight == 1080))) {
+        LOG("config: invalid Android Auto frame %dx%d; using 800x480",
+            g_streamFrameWidth, g_streamFrameHeight);
+        g_streamFrameWidth = 800;
+        g_streamFrameHeight = 480;
+        if (g_marginW > 400 || g_marginH > 240) {
+            g_marginW = 0;
+            g_marginH = 0;
+        }
+    }
+    if (g_streamFrameWidth == 800 && g_streamFrameHeight == 480) {
+        g_marginW &= ~1;
+        g_marginH &= ~1;
     }
     env_val = getenv("GAL_CROP_TOP");
     if (env_val) {
@@ -2327,15 +2431,20 @@ int main(int argc, char* argv[]) {
 #ifdef __QNX__
     check_map_window();
 #endif
-    /* The hardware decoder fills the window with the frame, so it is used
-     * only when the two are the same size. */
+    /* The hardware decoder fills the window with the frame, so at 800x480 it
+     * is used only when the two are the same size; a 720p or 1080p stream
+     * (CLUSTERMAP_720P/1080P) keeps its margins and is placed 1:1. */
     const bool hwAsked = g_hwDecoder;
-    if (g_hwDecoder && (windowWidth != 800 || windowHeight != 480)) {
+    bool hdStream = g_streamFrameWidth > 800 || g_streamFrameHeight > 480;
+    if (g_hwDecoder && !hdStream &&
+        (windowWidth != 800 || windowHeight != 480)) {
         LOG("hwdecode: the window is %dx%d, not Android Auto's 800x480; not drawing straight to the display",
             windowWidth, windowHeight);
         g_hwDecoder = false;
     }
-    if (g_hwDecoder && nvss_open(windowWidth, windowHeight)) {
+    if (g_hwDecoder && nvss_open(
+            g_streamFrameWidth, g_streamFrameHeight, windowWidth, windowHeight,
+            hdStream ? g_marginW : 0, hdStream ? g_marginH : 0)) {
         ack_connect();
         pthread_t hwThread;
         if (pthread_create(&hwThread, NULL, DecoderThreadFunc, NULL) != 0) {
@@ -2570,6 +2679,15 @@ int main(int argc, char* argv[]) {
 
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, g_texY);
+            if (g_streamFrameWidth > 800 || g_streamFrameHeight > 480) {
+                static GLint lastLumaFilter = -1;
+                GLint filter = g_lumaExact ? GL_NEAREST : GL_LINEAR;
+                if (filter != lastLumaFilter) {
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+                    lastLumaFilter = filter;
+                }
+            }
             if (firstFrame || w != prevFbW || h != prevFbH) {
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, w, h, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, pY);
             } else {

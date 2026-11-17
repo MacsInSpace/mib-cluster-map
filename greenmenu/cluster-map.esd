@@ -56,16 +56,24 @@ script
     label   "2. Sharper map OFF (needs reboot)"
 
 script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_720p.sh"
+    label   "3. Sharpest map, 720p (needs reboot)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/full_frame_1080p.sh"
+    label   "4. Sharpest map, 1080p, hardware decoder (needs reboot)"
+
+script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_theme_light.sh"
-    label   "3. Map always light (needs reboot)"
+    label   "5. Map always light (needs reboot)"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_theme_dark.sh"
-    label   "4. Map always dark (needs reboot)"
+    label   "6. Map always dark (needs reboot)"
 
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_theme_auto.sh"
-    label   "5. Map follows the headlights (needs reboot)"
+    label   "7. Map follows the headlights (needs reboot)"
 
 ###########################################################################################
 screen ClusterMapOptions ClusterMap
