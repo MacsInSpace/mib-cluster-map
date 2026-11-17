@@ -6,7 +6,7 @@ the maintained fork of
 [adi961/mib2-android-auto-vc](https://github.com/adi961/mib2-android-auto-vc),
 MIT licensed (see `LICENSE` beside this file).
 
-sha256 `3f407362b2e639df615e0070d3fe7de93175179c4da80a857afb4ec20579e435`
+sha256 `f900b4b1f65b10b210fab833d61182c9937d52dca38dfa9275bab1a6bc3d20e1`
 
 It shows Android Auto turn arrows, distance and track information on the
 cluster. It cannot be active together with the cluster map, so the package
@@ -21,8 +21,8 @@ SD" collects, and it tells the cluster when the turn pictogram changes, which
 
 ## VCAndroidAutoMusic.jar
 
-The music-only build of the same fork (commit `610b15d`, `make music`),
-sha256 `a1c0443943e29aa808db6fbfbbbb67333ad951d538003a4d195454e006956227`. It shows the
+The music-only build of the same fork (commit `32f4756`, `make music`),
+sha256 `a7a19e701b040134b4e00b26a3c995808df3ac26d20f7ad7f5221988e8e94b4e`. It shows the
 track playing (title, artist, cover) on the cockpit's media screen and
 nothing else. With CarPlay it shows title, artist and album: the stock
 CarPlay code never asks for them, so the jar subscribes to the iPhone's
@@ -35,8 +35,8 @@ not yet car-tested.
 
 ## VCAndroidAutoTurns.jar
 
-The full jar with the cockpit view left alone (commit `610b15d`,
-`make turns`), sha256 `bec87512880fb4621613429c516e460d9a67c85530a33df707d02229146c7d6b`.
+The full jar with the cockpit view left alone (commit `32f4756`,
+`make turns`), sha256 `bde2e39321ba3e3efb296129d53db5ac4c44ec8e43996a1802a59100c9a40048`.
 It differs from a full build of the same commit in two classes only: Variant
 and ActiveRgType. The full jar answers ActiveRgType with 0, the cockpit's
 arrow view, whenever Android Auto guides, and on VW that view replaces the
@@ -72,3 +72,9 @@ false, ...)`). Not yet car-tested.
 From `58e2329` (both builds) the cockpit also gets the iPhone's album cover
 with CarPlay, when the media service has no cover of its own. Listen only, as
 before. Not yet car-tested.
+
+From `32f4756` (full and turns builds) the arrow on a roundabout points the
+right way in left-hand traffic (UK, Ireland, Australia): Android measures the
+exit angle in the direction of travel, and clockwise roundabouts had left and
+right swapped (#24). Anticlockwise roundabouts are unchanged. Not yet
+car-tested.
