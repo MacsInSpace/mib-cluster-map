@@ -833,6 +833,323 @@ static void nvss_close() {}
 static void nvss_disable_for_boot(const char*) {}
 #endif
 
+// ---------------- Hardware decode into memory (NvMedia) ----------------
+/*
+ * GAL_PLAYER_DECODER=hw on units whose cockpit is not a display output of
+ * its own (VW, Skoda, SEAT: NvSS above fails there with "Invalid display
+ * width/height"). libnvss_video.so sits on two lower libraries, libnvparser.so
+ * (H.264 parser with callbacks) and libnvmedia.so (decoder and picture
+ * surfaces). This uses those two the way libnvss_video.so does, without its
+ * mixer and output: every picture is decoded into a surface, the surface is
+ * locked and its three planes are copied into the frame pool, and from there
+ * everything is the software path (drawing, pacing, the cockpit switch).
+ *
+ * Every offset was read from libnvss_video.so of MHI2_ER_VWG13_P4521
+ * (BeginSequence 0x46a0, DecodePicture 0x506c, decoder set-up 0x411c) and
+ * proved on that car with scripts/experiments/nvprobe.c: 800x480 at about
+ * 3 ms of processor time a picture, pixels identical to a reference decode.
+ *
+ * A failure before the stream starts leaves software decode. A failure in
+ * the stream marks hardware decode off for the rest of the boot
+ * (NVSS_OFF_MARKER) and ends the player, as the NvSS path does.
+ */
+static bool g_nvmActive = false;
+static bool g_nvmWanted = false;         /* hw asked and NvSS could not draw to this cockpit */
+#ifdef __QNX__
+#define NVM_MAX_PICS 24
+struct NvmPic { void* surface; int refs; };
+static void* (*p_nvmDeviceCreate)(void) = NULL;
+static void  (*p_nvmDeviceDestroy)(void*) = NULL;
+static void* (*p_nvmDecoderCreate)(int, uint16_t, uint16_t, uint16_t, uint32_t, uint32_t) = NULL;
+static void  (*p_nvmDecoderDestroy)(void*) = NULL;
+static int   (*p_nvmDecoderRender)(void*, void*, const void*, uint32_t, const void*) = NULL;
+static void* (*p_nvmSurfaceCreate)(void*, int, uint16_t, uint16_t) = NULL;
+static void  (*p_nvmSurfaceDestroy)(void*) = NULL;
+static int   (*p_nvmSurfaceLock)(void*, void*) = NULL;
+static void  (*p_nvmSurfaceUnlock)(void*) = NULL;
+static void* (*p_nvpCreate)(void*) = NULL;
+static void  (*p_nvpDestroy)(void*) = NULL;
+static int   (*p_nvpParse)(void*, void*) = NULL;
+static int   (*p_nvpSetAttribute)(void*, int, int, void*) = NULL;
+
+static void* g_nvmDevice = NULL;
+static void* g_nvmDecoder = NULL;
+static void* g_nvmParser = NULL;
+static NvmPic g_nvmPics[NVM_MAX_PICS];
+static int g_nvmPicCount = 0;
+static unsigned g_nvmCodedW = 0, g_nvmCodedH = 0, g_nvmW = 0, g_nvmH = 0;
+static bool g_nvmFull = false, g_nvmBt709 = false;
+static bool g_nvmFailed = false;
+static bool g_nvmWarm = false;          /* the first picture is not shown, as in software */
+static int g_nvmPacketBytes = 0;
+static bool g_nvmPacketKey = false;
+static uint64_t g_nvmPacketStartUs = 0;
+static uint64_t g_nvmPublished = 0;
+
+static uint32_t nvm_r32(const void* p, unsigned at) { uint32_t v; memcpy(&v, (const uint8_t*)p + at, 4); return v; }
+static uint16_t nvm_r16(const void* p, unsigned at) { uint16_t v; memcpy(&v, (const uint8_t*)p + at, 2); return v; }
+static uint8_t  nvm_r8(const void* p, unsigned at) { return ((const uint8_t*)p)[at]; }
+static void nvm_w32(uint8_t* p, unsigned at, uint32_t v) { memcpy(p + at, &v, 4); }
+static void nvm_w16(uint8_t* p, unsigned at, uint16_t v) { memcpy(p + at, &v, 2); }
+
+static void nvm_free_pictures() {
+    if (g_nvmDecoder) { p_nvmDecoderDestroy(g_nvmDecoder); g_nvmDecoder = NULL; }
+    for (int i = 0; i < g_nvmPicCount; ++i)
+        if (g_nvmPics[i].surface) p_nvmSurfaceDestroy(g_nvmPics[i].surface);
+    memset(g_nvmPics, 0, sizeof(g_nvmPics));
+    g_nvmPicCount = 0;
+}
+
+/* Returns how many decode buffers the stream needs, 0 to refuse it. */
+static int nvm_cb_begin(void*, const void* seq) {
+    int codec = (int)nvm_r32(seq, 0x00);
+    int buffers = (int)nvm_r32(seq, 0x10);
+    unsigned dw = nvm_r32(seq, 0x18), dh = nvm_r32(seq, 0x1c);
+    unsigned w = nvm_r32(seq, 0x20), h = nvm_r32(seq, 0x24);
+    unsigned chroma = nvm_r8(seq, 0x30);
+    unsigned fullRange = nvm_r8(seq, 0x44);
+    unsigned matrix = nvm_r32(seq, 0x50);
+    uint32_t maxBitstream = nvm_r32(seq, 0x58);
+    if (codec != 4 || w == 0 || h == 0 || w > 1920 || h > 1088 || chroma > 1) {
+        LOG("hwdecode: stream not usable (codec %d, %ux%u, chroma %u)", codec, w, h, chroma);
+        g_nvmFailed = true;
+        return 0;
+    }
+    if (dw == 0 || dw > w) dw = w;
+    if (dh == 0 || dh > h) dh = h;
+    if (g_nvmDecoder && w == g_nvmCodedW && h == g_nvmCodedH) { g_nvmW = dw; g_nvmH = dh; return buffers; }
+    nvm_free_pictures();
+    g_nvmCodedW = w; g_nvmCodedH = h; g_nvmW = dw; g_nvmH = dh;
+    g_nvmFull = fullRange != 0;
+    g_nvmBt709 = matrix == 1 || ((matrix == 2 || matrix == 3) && dh >= 720);
+    LOG("colour: stream range %d, matrix %u (%ux%u); drawn as %s", g_nvmFull ? 2 : 1, matrix, dw, dh,
+        !g_colorAuto ? "full-range BT.601 (GAL_PLAYER_COLOR=old)" :
+        g_nvmFull ? (g_nvmBt709 ? "full-range BT.709" : "full-range BT.601") :
+                    (g_nvmBt709 ? "limited-range BT.709" : "limited-range BT.601"));
+
+    uint16_t refs = 0;
+    if (buffers > 0) { int r = buffers - 1; if (r > 16) r = 16; refs = (uint16_t)r; }
+    uint64_t began = now_us();
+    g_nvmDecoder = p_nvmDecoderCreate(0, (uint16_t)w, (uint16_t)h, refs, maxBitstream, 3);
+    if (!g_nvmDecoder) { LOG("hwdecode: NvMediaVideoDecoderCreate failed (%ux%u, refs %u)", w, h, refs); g_nvmFailed = true; return 0; }
+    int want = buffers + 3;
+    if (want > NVM_MAX_PICS) want = NVM_MAX_PICS;
+    if (want < 4) want = 4;
+    for (g_nvmPicCount = 0; g_nvmPicCount < want; ++g_nvmPicCount) {
+        void* surface = p_nvmSurfaceCreate(g_nvmDevice, 0, (uint16_t)((w + 15) & 0xfff0), (uint16_t)((h + 15) & 0xfff0));
+        if (!surface) break;
+        g_nvmPics[g_nvmPicCount].surface = surface;
+        g_nvmPics[g_nvmPicCount].refs = 0;
+    }
+    if (g_nvmPicCount < buffers + 1) {
+        LOG("hwdecode: only %d of %d picture surfaces", g_nvmPicCount, want);
+        g_nvmFailed = true;
+        return 0;
+    }
+    LOG("hwdecode: decoder ready in memory (%ux%u shown %ux%u, %d reference pictures, %d surfaces) in %llu ms",
+        w, h, dw, dh, refs, g_nvmPicCount, (unsigned long long)((now_us() - began) / 1000ULL));
+    return buffers;
+}
+
+static int nvm_cb_alloc(void*, void** out) {
+    *out = NULL;
+    for (int i = 0; i < g_nvmPicCount; ++i)
+        if (g_nvmPics[i].refs == 0) { g_nvmPics[i].refs = 1; *out = &g_nvmPics[i]; return 1; }
+    LOG("hwdecode: no free picture surface");
+    g_nvmFailed = true;
+    return 0;
+}
+static void nvm_cb_addref(void*, void* p) { if (p) ((NvmPic*)p)->refs++; }
+static void nvm_cb_release(void*, void* p) { if (p && ((NvmPic*)p)->refs > 0) ((NvmPic*)p)->refs--; }
+static void nvm_cb_nalu(void*, const uint8_t*, int) {}
+
+/* The decoder's picture description, field by field as libnvss_video.so
+ * fills it (0x50e0..0x52a8) from the parser's picture data. */
+static int nvm_cb_decode(void*, void* pd) {
+    static uint8_t pic[0x2d8];
+    static const struct { uint16_t to, from; uint8_t byteSource; } kBytes[] = {
+        {0x10,0x0c,0},{0x11,0x10,0},{0x12,0x88,0},{0x13,0xb6,1},{0x14,0xb7,1},{0x15,0xa4,0},{0x16,0xa8,0},
+        {0x17,0x80,0},{0x18,0xb5,1},{0x19,0xba,1},{0x1a,0xbb,1},{0x1b,0xac,0},{0x1c,0x9c,0},{0x1d,0xa0,0},
+        {0x1e,0x70,0},{0x1f,0x74,0},{0x20,0x78,0},{0x21,0x7c,0},{0x22,0x84,0},{0x23,0xb8,1},{0x24,0xb9,1},
+        {0x25,0xb4,1},{0x26,0xb0,0},{0x27,0xca,1},{0x28,0xcb,1},{0x34,0xc8,1},{0x35,0xc9,1},
+    };
+    NvmPic* cur = (NvmPic*)(uintptr_t)nvm_r32(pd, 0x08);
+    if (!cur || !cur->surface || !g_nvmDecoder) { g_nvmFailed = true; return 0; }
+    memset(pic, 0, sizeof(pic));
+    nvm_w32(pic, 0x00, nvm_r32(pd, 0xc0));
+    nvm_w32(pic, 0x04, nvm_r32(pd, 0xc4));
+    nvm_w32(pic, 0x08, nvm_r32(pd, 0x24));
+    nvm_w16(pic, 0x0c, nvm_r16(pd, 0x2c));
+    nvm_w16(pic, 0x0e, nvm_r16(pd, 0xbc));
+    for (unsigned i = 0; i < sizeof(kBytes) / sizeof(kBytes[0]); ++i)
+        pic[kBytes[i].to] = kBytes[i].byteSource ? nvm_r8(pd, kBytes[i].from) : (uint8_t)nvm_r32(pd, kBytes[i].from);
+    nvm_w32(pic, 0x2c, nvm_r32(pd, 0xd0));
+    nvm_w32(pic, 0x30, nvm_r32(pd, 0xd4));
+    memcpy(pic + 0x36, (const uint8_t*)pd + 0x660, 0x60);
+    memcpy(pic + 0x96, (const uint8_t*)pd + 0x6c0, 0x80);
+    for (unsigned i = 0; i < 16; ++i) {
+        unsigned from = 0xe0 + i * 0x1c, to = 0x118 + i * 0x1c;
+        NvmPic* ref = (NvmPic*)(uintptr_t)nvm_r32(pd, from);
+        uint32_t flags = nvm_r32(pd, from + 0x10);
+        nvm_w32(pic, to + 0x00, ref ? (uint32_t)(uintptr_t)ref->surface : 0u);
+        nvm_w32(pic, to + 0x04, nvm_r32(pd, from + 0x08));
+        nvm_w32(pic, to + 0x08, flags & 1u);
+        nvm_w32(pic, to + 0x0c, (flags >> 1) & 1u);
+        nvm_w32(pic, to + 0x10, nvm_r32(pd, from + 0x14));
+        nvm_w32(pic, to + 0x14, nvm_r32(pd, from + 0x18));
+        nvm_w16(pic, to + 0x18, (uint16_t)nvm_r32(pd, from + 0x04));
+    }
+    uint32_t bitstream[2];
+    bitstream[0] = nvm_r32(pd, 0x38);
+    bitstream[1] = nvm_r32(pd, 0x34);
+    int rc = p_nvmDecoderRender(g_nvmDecoder, cur->surface, pic, 1, bitstream);
+    if (rc != 0) { LOG("hwdecode: NvMediaVideoDecoderRender=0x%x", (unsigned)rc); g_nvmFailed = true; return 0; }
+    return 1;
+}
+
+/* A decoded picture: copy its planes into the frame pool, as the software
+ * path does from an AVFrame. Lock map: {width, height, Y, Y pitch, U, U
+ * pitch, V, V pitch}; the pitch of an 800 wide picture is 832. */
+static int nvm_cb_display(void*, void* p, long long) {
+    NvmPic* picture = (NvmPic*)p;
+    if (!picture || !picture->surface) return 1;
+    if (!g_nvmWarm) {
+        g_nvmWarm = true;
+        LOG("decoder: warmup frame consumed; rendering next decoded frame.");
+        return 1;
+    }
+    uint32_t map[64];
+    memset(map, 0, sizeof(map));
+    int rc = p_nvmSurfaceLock(picture->surface, map);
+    if (rc != 0) { LOG("hwdecode: NvMediaVideoSurfaceLock=0x%x", (unsigned)rc); g_nvmFailed = true; return 0; }
+    int w = (int)g_nvmW, h = (int)g_nvmH;
+    const uint8_t* srcY = (const uint8_t*)(uintptr_t)map[2];
+    const uint8_t* srcU = (const uint8_t*)(uintptr_t)map[4];
+    const uint8_t* srcV = (const uint8_t*)(uintptr_t)map[6];
+    uint32_t pitchY = map[3], pitchU = map[5], pitchV = map[7];
+    if (!srcY || !srcU || !srcV || (int)map[0] < w || (int)map[1] < h ||
+        pitchY < (uint32_t)w || pitchU < (uint32_t)(w / 2) || pitchV < (uint32_t)(w / 2) || pitchY > 4096u) {
+        LOG("hwdecode: unexpected picture layout (%ux%u, planes %p %p %p, pitches %u %u %u)",
+            (unsigned)map[0], (unsigned)map[1], (const void*)srcY, (const void*)srcU, (const void*)srcV,
+            (unsigned)pitchY, (unsigned)pitchU, (unsigned)pitchV);
+        p_nvmSurfaceUnlock(picture->surface);
+        g_nvmFailed = true;
+        return 0;
+    }
+    pthread_mutex_lock(&g_frameMutex);
+    RGBABuffer* buf = g_framePool.getWriteBuffer(w, h);
+    buf->packetBytes = g_nvmPacketBytes;
+    buf->isKeyframe = g_nvmPacketKey;
+    buf->colorFull = g_nvmFull;
+    buf->colorBt709 = g_nvmBt709;
+    uint8_t* dstY = buf->pixels;
+    uint8_t* dstU = dstY + (w * h);
+    uint8_t* dstV = dstU + ((w / 2) * (h / 2));
+    for (int y = 0; y < h; ++y) memcpy(dstY + y * w, srcY + (size_t)y * pitchY, w);
+    if ((g_decodedFrameCount & 31u) == 0) {
+        uint64_t sum = 0, count = 0;
+        for (int y = 8; y < h; y += 16)
+            for (int x = 8; x < w; x += 16, ++count) sum += dstY[y * w + x];
+        g_lastLuma = count ? (unsigned)(sum / count) : 0u;
+    }
+    for (int y = 0; y < h / 2; ++y) memcpy(dstU + y * (w / 2), srcU + (size_t)y * pitchU, w / 2);
+    for (int y = 0; y < h / 2; ++y) memcpy(dstV + y * (w / 2), srcV + (size_t)y * pitchV, w / 2);
+    g_framePool.publishWrite();
+    g_newFrameReady = true;
+    g_decodedFrameCount++;
+    g_lastDecodeDurationUs = now_us() - g_nvmPacketStartUs;
+    pthread_cond_signal(&g_frameCond);
+    pthread_mutex_unlock(&g_frameMutex);
+    p_nvmSurfaceUnlock(picture->surface);
+    if (g_nvmPublished++ == 0)
+        LOG("hwdecode: first picture from the hardware decoder (%dx%d, pitches %u/%u) t=%llu.%03llu",
+            w, h, (unsigned)pitchY, (unsigned)pitchU, T_ARGS(now_us()));
+    return 1;
+}
+
+/* Loads the two libraries and makes the parser. The decoder itself is made
+ * when the stream's first sequence header arrives. */
+static bool nvm_open() {
+    if (access(NVSS_OFF_MARKER, F_OK) == 0) {
+        LOG("hwdecode: off for this boot (%s), using software decode", NVSS_OFF_MARKER);
+        return false;
+    }
+    void* media = dlopen("libnvmedia.so", RTLD_NOW | RTLD_GLOBAL);
+    void* parserLib = dlopen("libnvparser.so", RTLD_NOW | RTLD_GLOBAL);
+    if (!media || !parserLib) {
+        const char* e = dlerror();
+        LOG("hwdecode: dlopen failed (%s), using software decode", e ? e : "unknown");
+        return false;
+    }
+#define NVM_LOAD(dst, lib, name) do { *(void**)(&(dst)) = dlsym(lib, name); \
+        if (!(dst)) { LOG("hwdecode: %s missing, using software decode", name); return false; } } while (0)
+    NVM_LOAD(p_nvmDeviceCreate, media, "NvMediaDeviceCreate");
+    NVM_LOAD(p_nvmDeviceDestroy, media, "NvMediaDeviceDestroy");
+    NVM_LOAD(p_nvmDecoderCreate, media, "NvMediaVideoDecoderCreate");
+    NVM_LOAD(p_nvmDecoderDestroy, media, "NvMediaVideoDecoderDestroy");
+    NVM_LOAD(p_nvmDecoderRender, media, "NvMediaVideoDecoderRender");
+    NVM_LOAD(p_nvmSurfaceCreate, media, "NvMediaVideoSurfaceCreate");
+    NVM_LOAD(p_nvmSurfaceDestroy, media, "NvMediaVideoSurfaceDestroy");
+    NVM_LOAD(p_nvmSurfaceLock, media, "NvMediaVideoSurfaceLock");
+    NVM_LOAD(p_nvmSurfaceUnlock, media, "NvMediaVideoSurfaceUnlock");
+    NVM_LOAD(p_nvpCreate, parserLib, "video_parser_create");
+    NVM_LOAD(p_nvpDestroy, parserLib, "video_parser_destroy");
+    NVM_LOAD(p_nvpParse, parserLib, "video_parser_parse");
+    NVM_LOAD(p_nvpSetAttribute, parserLib, "video_parser_set_attribute");
+#undef NVM_LOAD
+    g_nvmDevice = p_nvmDeviceCreate();
+    if (!g_nvmDevice) { LOG("hwdecode: NvMediaDeviceCreate failed, using software decode"); return false; }
+    /* As libnvss_video.so at 0x5944: seven callbacks, then {callbacks,
+     * context, clock rate, error threshold, H.264}. */
+    static void* callbacks[12];
+    static uint32_t params[16];
+    callbacks[0] = (void*)nvm_cb_begin;  callbacks[1] = (void*)nvm_cb_decode;  callbacks[2] = (void*)nvm_cb_display;
+    callbacks[3] = (void*)nvm_cb_nalu;   callbacks[4] = (void*)nvm_cb_alloc;   callbacks[5] = (void*)nvm_cb_release;
+    callbacks[6] = (void*)nvm_cb_addref;
+    params[0] = (uint32_t)(uintptr_t)callbacks; params[1] = (uint32_t)(uintptr_t)params;
+    params[2] = 1000000u; params[3] = 50u; params[4] = 4u;
+    g_nvmParser = p_nvpCreate(params);
+    if (!g_nvmParser) {
+        LOG("hwdecode: video_parser_create failed, using software decode");
+        p_nvmDeviceDestroy(g_nvmDevice); g_nvmDevice = NULL;
+        return false;
+    }
+    uint8_t one = 1;
+    p_nvpSetAttribute(g_nvmParser, 4, 1, &one);
+    LOG("hwdecode: the unit's decoder is used, decoding into memory (libnvmedia.so)");
+    g_nvmActive = true;
+    return true;
+}
+
+/* One access unit. false = the hardware decoder failed. */
+static bool nvm_decode(const uint8_t* data, int size, bool key) {
+    static uint32_t packet[16];
+    memset(packet, 0, sizeof(packet));
+    packet[0] = (uint32_t)(uintptr_t)data;
+    packet[1] = (uint32_t)size;
+    g_nvmPacketBytes = size;
+    g_nvmPacketKey = key;
+    g_nvmPacketStartUs = now_us();
+    int ok = p_nvpParse(g_nvmParser, packet);
+    if (!ok && !g_nvmFailed) { LOG("hwdecode: the parser refused %d bytes", size); g_nvmFailed = true; }
+    return !g_nvmFailed;
+}
+
+static void nvm_close() {
+    if (g_nvmParser) { p_nvpDestroy(g_nvmParser); g_nvmParser = NULL; }
+    if (g_nvmDevice) {
+        nvm_free_pictures();
+        p_nvmDeviceDestroy(g_nvmDevice); g_nvmDevice = NULL;
+        LOG("hwdecode: decoder closed (%llu pictures)", (unsigned long long)g_nvmPublished);
+    }
+    g_nvmActive = false;
+}
+#else
+static bool nvm_open() { return false; }
+static bool nvm_decode(const uint8_t*, int, bool) { return false; }
+static void nvm_close() {}
+#endif
+
 static void write_ack();
 
 static void crash_signal_handler(int sig) {
@@ -1196,6 +1513,8 @@ static void* DecoderThreadFunc(void* arg) {
 
     bool hasDecodedKeyframe = false;
     bool hasRenderedWarmupFrame = false;
+    /* In this thread: the parser calls back on the thread that feeds it. */
+    if (g_nvmWanted) nvm_open();
     bool gotData = false;
     bool behind = false;
     pthread_t readerThread;
@@ -1404,6 +1723,24 @@ static void* DecoderThreadFunc(void* arg) {
                     write_ack();
                     continue;
                 }
+                if (packet->size > 0 && g_nvmActive) {
+                    /* Hardware path into memory: the unit's decoder fills
+                     * the frame pool; drawing and pacing are the software
+                     * path's. */
+                    if (!hasDecodedKeyframe) {
+                        if (!parser->key_frame) continue;
+                        hasDecodedKeyframe = true;
+                        LOG("decoder: first IDR/I keyframe received t=%llu.%03llu; warming up one frame.", T_ARGS(now_us()));
+                        request_display_switch();
+                    }
+                    if (!nvm_decode(packet->data, packet->size, parser->key_frame == 1)) {
+                        nvss_disable_for_boot("decode into memory failed");
+                        g_running = false;
+                        pthread_cond_broadcast(&g_frameCond);
+                        break;
+                    }
+                    continue;
+                }
                 if (packet->size > 0) {
                     uint64_t t_dec_start = now_us();
                     int ret = avcodec_send_packet(codecCtx, packet);
@@ -1564,6 +1901,7 @@ static void* DecoderThreadFunc(void* arg) {
     av_free(inbuf);
     av_frame_free(&frame);
     av_packet_free(&packet);
+    nvm_close();
     avcodec_free_context(&codecCtx);
     av_parser_close(parser);
     LOG("decoder: worker thread exited cleanly");
@@ -1991,8 +2329,9 @@ int main(int argc, char* argv[]) {
 #endif
     /* The hardware decoder fills the window with the frame, so it is used
      * only when the two are the same size. */
+    const bool hwAsked = g_hwDecoder;
     if (g_hwDecoder && (windowWidth != 800 || windowHeight != 480)) {
-        LOG("hwdecode: the window is %dx%d, not Android Auto's 800x480; using software decode",
+        LOG("hwdecode: the window is %dx%d, not Android Auto's 800x480; not drawing straight to the display",
             windowWidth, windowHeight);
         g_hwDecoder = false;
     }
@@ -2045,6 +2384,10 @@ int main(int argc, char* argv[]) {
         LOG("stream-player terminated cleanly");
         return 0;
     }
+
+    /* hw where NvSS cannot draw to the cockpit (it reports no size on VW,
+     * Skoda and SEAT): the unit's decoder into memory, drawn as software is. */
+    g_nvmWanted = hwAsked;
 
 #ifdef __QNX__
     // Keep libdisplayinit.so resident for the entire application lifetime!
