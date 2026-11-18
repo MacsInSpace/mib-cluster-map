@@ -237,10 +237,10 @@ if [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
         fi
     done
     if [ -f /mnt/app/root/vcaa_turn_text ]; then
-        mount -uw /mnt/app 2>/dev/null && {
+        if mount -uw /mnt/app 2>/dev/null; then
             rm -f /mnt/app/root/vcaa_turn_text
             mount -ur /mnt/app 2>/dev/null || true
-        }
+        fi
     fi
 fi
 echo "Reboot the unit to run GAL without the hook."

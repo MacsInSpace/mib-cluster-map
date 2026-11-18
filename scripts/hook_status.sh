@@ -97,7 +97,7 @@ check()
     shift
     # Each further argument is an alternative: not grep "a\|b", which the
     # unit's grep takes as literal text.
-    for pattern in "$@"; do
+    for pattern in ${1+"$@"}; do
         if grep -q "$pattern" "$LOG"; then
             echo "[PASS] $label"
             return

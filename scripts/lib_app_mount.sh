@@ -58,7 +58,7 @@ carplay_pf_close()
         [ -f "$PF" ] && grep -q "$CARPLAY_PF_MARK" "$PF" || continue
         cp -p "$PF" "$PF.clustermap-new" &&
             grep -v "$CARPLAY_PF_MARK" "$PF" > "$PF.clustermap-new" &&
-            mv "$PF.clustermap-new" "$PF" && echo "Firewall: CarPlay map port closed in $PF"
+            mv "$PF.clustermap-new" "$PF" && echo "Firewall: CarPlay map port closed in $PF" || :
     done
 }
 

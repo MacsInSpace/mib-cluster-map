@@ -1428,7 +1428,7 @@ else
             if [ ! -r "$NAVIGNORE_SRC" ]; then
                 echo "WARNING: the $NAVIGNORE_BUILD NavActiveIgnore build is not in this package; not added." >&2
             elif sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$NAVIGNORE_SRC"; then
-                mount -uw /mnt/app 2>/dev/null && { : > "$NAVIGNORE_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+                if mount -uw /mnt/app 2>/dev/null; then : > "$NAVIGNORE_MARKER"; mount -ur /mnt/app 2>/dev/null || true; fi
             else
                 echo "WARNING: could not add NavActiveIgnore; lsd.sh is unchanged." >&2
                 echo "         Apply it from the toolbox: Customization > Navigation." >&2
@@ -1476,7 +1476,7 @@ else
         if [ "$TBT_OK" -eq 1 ]; then
             echo "Java check: adding VCAndroidAuto.jar beside the map (CLUSTERMAP_KEEP_ARROWS=1)."
             if sh "$CARD_ROOT/lsd_jar.sh" add VCAndroidAuto.jar "$CARD_ROOT/thirdparty/VCAndroidAuto.jar"; then
-                mount -uw /mnt/app 2>/dev/null && { : > /mnt/app/eso/hmi/lsd/.aacluster_tbt_added; mount -ur /mnt/app 2>/dev/null || true; }
+                if mount -uw /mnt/app 2>/dev/null; then : > /mnt/app/eso/hmi/lsd/.aacluster_tbt_added; mount -ur /mnt/app 2>/dev/null || true; fi
             else
                 echo "WARNING: could not add VCAndroidAuto.jar; lsd.sh is unchanged." >&2
             fi
@@ -1546,7 +1546,7 @@ else
         if [ -f "$EXTRA_MARKER" ]; then
             echo "Java check: removing $EXTRA_JAR (not asked for in gal_dualscreen.conf)."
             if sh "$CARD_ROOT/lsd_jar.sh" remove $EXTRA_JAR; then
-                mount -uw /mnt/app 2>/dev/null && { rm -f "$EXTRA_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+                if mount -uw /mnt/app 2>/dev/null; then rm -f "$EXTRA_MARKER"; mount -ur /mnt/app 2>/dev/null || true; fi
             else
                 echo "WARNING: could not remove $EXTRA_JAR; lsd.sh is unchanged." >&2
             fi
@@ -1581,7 +1581,7 @@ else
         else
             echo "Java check: adding $WANT_JAR ($WANT_KEY=1: $WANT_WHAT)."
             if sh "$CARD_ROOT/lsd_jar.sh" add $WANT_JAR "$CARD_ROOT/thirdparty/$WANT_JAR"; then
-                mount -uw /mnt/app 2>/dev/null && { : > "$WANT_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+                if mount -uw /mnt/app 2>/dev/null; then : > "$WANT_MARKER"; mount -ur /mnt/app 2>/dev/null || true; fi
             else
                 echo "WARNING: could not add $WANT_JAR; lsd.sh is unchanged." >&2
             fi
@@ -1606,7 +1606,7 @@ else
         fi
         echo "Turn info: road name on the cockpit: $TURN_TEXT"
     elif [ -f "$TURN_TEXT_FILE" ]; then
-        mount -uw /mnt/app 2>/dev/null && { rm -f "$TURN_TEXT_FILE"; mount -ur /mnt/app 2>/dev/null || true; }
+        if mount -uw /mnt/app 2>/dev/null; then rm -f "$TURN_TEXT_FILE"; mount -ur /mnt/app 2>/dev/null || true; fi
     fi
 fi
 
@@ -1666,7 +1666,7 @@ for WZ_EXTRA in wheelzoom:ClusterMapWheelZoom.jar navasiazoom:ClusterMapNavAsiaZ
     [ -z "$WZ_WHY" ] && [ "$WZ_OLD" = "$WZ_NAME" ] && continue
     if [ -f "$WZ_OLD_MARKER" ] && sh "$CARD_ROOT/lsd_jar.sh" loaded $WZ_OLD_JAR; then
         if sh "$CARD_ROOT/lsd_jar.sh" remove $WZ_OLD_JAR; then
-            mount -uw /mnt/app 2>/dev/null && { rm -f "$WZ_OLD_MARKER" "$WHEELZOOM_REVERSE" "$WHEELZOOM_ID_FILE"; mount -ur /mnt/app 2>/dev/null || true; }
+            if mount -uw /mnt/app 2>/dev/null; then rm -f "$WZ_OLD_MARKER" "$WHEELZOOM_REVERSE" "$WHEELZOOM_ID_FILE"; mount -ur /mnt/app 2>/dev/null || true; fi
         else
             echo "WARNING: could not remove $WZ_OLD_JAR; lsd.sh is unchanged." >&2
         fi

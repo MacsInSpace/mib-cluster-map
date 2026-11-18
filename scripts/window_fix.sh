@@ -40,7 +40,7 @@ if [ -e "$CONF.new" ] || [ -e /mnt/app/eso/hmi/lsd/lsd.sh.jar_new ]; then
 fi
 MOUNTED=0
 if [ ! -w "$CONF" ]; then
-    mount -uw /mnt/app 2>/dev/null && MOUNTED=1
+    if mount -uw /mnt/app 2>/dev/null; then MOUNTED=1; fi
 fi
 frame_write_conf "$CONF" "$W" "$H" "$FULL" "$HD720" "$HD1080"
 RC=$?
