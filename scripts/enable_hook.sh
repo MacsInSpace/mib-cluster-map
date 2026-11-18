@@ -448,9 +448,9 @@ if [ -r "$CARD_ROOT/gal_dualscreen.conf" ]; then
         . "$CARD_ROOT/scripts/lib_keep_settings.sh"
         if [ -n "$PKG_NOW" ] && [ "$PKG_NOW" = "$PKG_LAST" ] && [ -r "$CARD_LAST" ]; then
             keep_unedited "$OWNER_SAVED" "$CONF_COPY.card" "$CARD_LAST" > /tmp/clustermap_owner_prev.conf 2>/dev/null &&
-                KEEP_FROM=saved
+                KEEP_FROM=saved || :
         else
-            cp "$OWNER_SAVED" /tmp/clustermap_owner_prev.conf 2>/dev/null && KEEP_FROM=saved
+            cp "$OWNER_SAVED" /tmp/clustermap_owner_prev.conf 2>/dev/null && KEEP_FROM=saved || :
         fi
     elif [ "$KEEP_SETTINGS" != 0 ] && [ ! -r "$OWNER_SAVED" ] && [ -r "$CONF_COPY" ]; then
         # Installed by a release that saved no owner lines (v1.1.1, beta18 or
@@ -603,7 +603,9 @@ FULL_FRAME=`sed -n 's/^CLUSTERMAP_FULL_FRAME=\([01a-z]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 if [ "$FULL_FRAME" = auto ]; then
     FULL_FRAME=${CAR_FULLFRAME:-0}
-    [ "$FULL_FRAME" = 1 ] && echo "CLUSTERMAP_FULL_FRAME: on, the settled value for $CAR_MAKE ${MAP_W}x${MAP_H} (0 in gal_dualscreen.conf, or Sharper map OFF in the green menu, turns it off)."
+    if [ "$FULL_FRAME" = 1 ]; then
+        echo "CLUSTERMAP_FULL_FRAME: on, the settled value for $CAR_MAKE ${MAP_W}x${MAP_H} (0 in gal_dualscreen.conf, or Sharper map OFF in the green menu, turns it off)."
+    fi
 fi
 [ "$FULL_FRAME" = 1 ] || FULL_FRAME=0
 HD720=`sed -n 's/^CLUSTERMAP_720P=\([01]\)[ 	]*$/\1/p' \
@@ -691,7 +693,9 @@ if [ "$CONF_DECODER" = auto ]; then
     if sed "s/^GAL_PLAYER_DECODER=auto[ 	]*$/GAL_PLAYER_DECODER=$AUTO_DECODER/" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" \
            > "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" &&
        mv "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf"; then
-        [ "$AUTO_DECODER" = hw ] && echo "Decoder: the unit's own video decoder, the tested default on $TRAIN (GAL_PLAYER_DECODER=sw, or the green menu's Hardware decoder OFF, for software)."
+        if [ "$AUTO_DECODER" = hw ]; then
+            echo "Decoder: the unit's own video decoder, the tested default on $TRAIN (GAL_PLAYER_DECODER=sw, or the green menu's Hardware decoder OFF, for software)."
+        fi
     else
         rm -f "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new"
         echo "WARNING: could not fill in the decoder setting; the player uses software." >&2
