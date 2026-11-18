@@ -195,6 +195,8 @@ package() {
   python3 "$ROOT/tools/check_scripts.py" "$D" || { echo "REJECTED: scripts use something units lack"; exit 1; }
   # What the unit's shell does differently from this machine's (docs/Unit-shell.md).
   python3 "$ROOT/tools/unit_shell_lint.py" "$D" || { echo "REJECTED: a script has a shape the unit's shell treats differently"; exit 1; }
+  # Options the unit's own tools list in their help (copies off owners' units, kept privately; skipped without them).
+  python3 "$ROOT/tools/unit_tool_options.py" "$D" || { echo "REJECTED: a script gives a unit tool an option it lacks"; exit 1; }
   sh "$ROOT/tests/unit_shell_lint_test.sh" >/dev/null || { echo "REJECTED: tests/unit_shell_lint_test.sh failed"; exit 1; }
   # Faults that reached a release once must not come back (docs/Development.md, "Settled parts").
   sh "$ROOT/tests/regression_guards.sh" || { echo "REJECTED: a regression guard failed"; exit 1; }

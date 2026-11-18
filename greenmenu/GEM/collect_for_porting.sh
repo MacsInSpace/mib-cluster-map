@@ -66,9 +66,17 @@ if ! take_lib 'the Android Auto receiver' 'libautoreceive*' $RECEIVER_NAMES; the
     say "missing the Android Auto receiver: looked for $RECEIVER_NAMES in the usual folders"
     # Say what the Android Auto program itself asks for, so a unit that names
     # the library differently can still be ported. Joined with the shell, not
-    # with tr: some units have no tr binary (issue #28).
+    # with tr: some units have no tr binary (issue #28). The unit's grep has
+    # no -a or -o (its own help, unit_sim_units/*/bin/usage), so sed puts each
+    # name on a line of its own and keeps only those lines (in a function: a
+    # backslash before a newline is lost inside backquotes).
+    lib_names() {
+        sed 's/lib[A-Za-z0-9_-]*\.so[.0-9]*/\
+&\
+/g' "$1" 2>/dev/null | sed -n '/^lib[A-Za-z0-9_-]*\.so[.0-9]*$/p'
+    }
     needs=
-    for n in `grep -a -o 'lib[A-Za-z0-9_-]*\.so[.0-9]*' /mnt/app/eso/bin/apps/gal 2>/dev/null`; do
+    for n in `lib_names /mnt/app/eso/bin/apps/gal`; do
         case " $needs " in *" $n "*) ;; *) needs="$needs $n" ;; esac
     done
     if [ -n "$needs" ]; then say "gal asks for:$needs"; fi

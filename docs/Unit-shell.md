@@ -145,6 +145,11 @@ Option differences seen on cars:
 
 - `grep "a\|b"` matches nothing: the unit's grep takes `\|` as text. Use two
   greps or `grep -e a -e b`.
+- The unit's grep has no `-o` and no `-a` (its own help, and the probe's
+  `grep_o`). To pull names out of a binary, put each on its own line with
+  `sed` and keep those lines (`GEM/collect_for_porting.sh`, `lib_names`).
+  A backslash before a newline is lost inside backquotes, so such a `sed` goes
+  in a function.
 - The QNX builds of `sed`, `grep`, `awk`, `tail` and `head` are not the GNU or
   BSD ones. The simulator runs GNU tools, so an unusual option is **not**
   proven by it. Stay with what the installer already uses: `sed -n 's/…/p'`,
@@ -167,6 +172,20 @@ difference is fixed in the simulator (`tests/unit_sim/Dockerfile`, e.g. a
 QNX-like `sed`) or becomes a rule here and in `tools/unit_shell_lint.py`.
 Car results are kept in `tests/unit_sim/probes/` (names, sizes and results
 only; no firmware).
+
+## Checking options against the unit's own help
+
+The unit's programs are QNX builds for ARM: they cannot run on a Mac or in
+Docker. Each one carries its own help text (the `QNX_usage` section), which
+lists the options it takes. With copies of the programs from a unit (the
+owner's card keeps them in `run_logs/N/unit_bin`; they are firmware and
+stay private, in `../unit_sim_units/<train>/bin/` with the help pulled out
+into `bin/usage/`), `tools/unit_tool_options.py` checks every option the
+card's scripts give `grep`, `head`, `tail`, `cut`, `wc`, `ls`, `mount`,
+`slay` and the rest against that help. `build_local.sh package` runs it and
+refuses the card if a script uses an option a unit's tool lacks. Without the
+private copies it says so and passes. `sed` and `awk` list no options in
+their help (GNU builds), so they are left to the probe.
 
 ## When an install stops with no message
 
