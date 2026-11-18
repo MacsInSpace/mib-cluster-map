@@ -593,14 +593,29 @@ else
     echo "  install again. If it still is not listed, set the size yourself in"
     echo "  gal_dualscreen.conf, e.g. GAL_PLAYER_WINDOW=1010x376 on SEAT and Skoda."
 fi
-# Android Auto's frame is always 800x480: the phone is asked to leave
-# margins so the rest (the band) has the window's shape, none for an 800x480
-# window, or with CLUSTERMAP_FULL_FRAME=1 a pixel aspect ratio, so it draws
-# on the whole frame (scripts/lib_cluster_frame.sh). The green menu's
-# sharper-map switch changes the same lines later without a new install.
-FULL_FRAME=`sed -n 's/^CLUSTERMAP_FULL_FRAME=\([01]\)[ 	]*$/\1/p' \
+# Standard Android Auto uses 800x480. Optional 720p and 1080p test modes use
+# margins that leave the cockpit window's pixels visible.
+# The settled values for this make and this window, when a make line names
+# the window (VW 1010x376); otherwise those of the first make line stay.
+unit_make_window "$PROFILES" "$TRAIN" "${MAP_W}x${MAP_H}" || :
+# auto (the shipped value): the make line's fullframe word; 0 or 1 as written.
+FULL_FRAME=`sed -n 's/^CLUSTERMAP_FULL_FRAME=\([01a-z]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+if [ "$FULL_FRAME" = auto ]; then
+    FULL_FRAME=${CAR_FULLFRAME:-0}
+    [ "$FULL_FRAME" = 1 ] && echo "CLUSTERMAP_FULL_FRAME: on, the settled value for $CAR_MAKE ${MAP_W}x${MAP_H} (0 in gal_dualscreen.conf, or Sharper map OFF in the green menu, turns it off)."
+fi
 [ "$FULL_FRAME" = 1 ] || FULL_FRAME=0
+HD720=`sed -n 's/^CLUSTERMAP_720P=\([01]\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+HD1080=`sed -n 's/^CLUSTERMAP_1080P=\([01]\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+[ "$HD720" = 1 ] || HD720=0
+[ "$HD1080" = 1 ] || HD1080=0
+if [ "$HD1080" = 1 ] && [ "$HD720" = 1 ]; then
+    echo "Both high-resolution modes were enabled; using 1080p."
+    HD720=0
+fi
 # The owner's choice is saved as it is even where this window cannot use it:
 # when the player finds the real window later, window_fix.sh applies it.
 FULL_FRAME_ASKED=$FULL_FRAME
@@ -608,14 +623,37 @@ if [ "$FULL_FRAME" = 1 ] && ! frame_full_ok $MAP_W $MAP_H; then
     echo "CLUSTERMAP_FULL_FRAME: the ${MAP_W}x${MAP_H} window is not wider than the frame's 5:3, so it gets no full frame; kept on in case the cockpit's window turns out wider."
     FULL_FRAME=0
 fi
-if ! frame_write_conf "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" $MAP_W $MAP_H $FULL_FRAME_ASKED; then
+# 1080p needs the hardware decoder (software manages about 15 pictures a
+# second, #125): hw in the card's file, or auto on a train with hwdecode.
+if [ "$HD1080" = 1 ]; then
+    HD_DECODER=`sed -n 's/^GAL_PLAYER_DECODER=\([a-z]*\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | head -1`
+    if [ "$HD_DECODER" = auto ] && train_has "$PROFILES" "$TRAIN" hwdecode; then HD_DECODER=hw; fi
+    if [ "$HD_DECODER" != hw ]; then
+        echo "CLUSTERMAP_1080P: needs the hardware decoder (GAL_PLAYER_DECODER=hw); using the standard frame."
+        HD1080=0
+    fi
+fi
+if [ "$HD1080" = 1 ] && ! frame_hd_ok "$MAP_W" "$MAP_H" 1920 1080; then
+    echo "CLUSTERMAP_1080P: helps only on a window larger than 800x480 that fits in 1920x1080, not ${MAP_W}x${MAP_H}; using the standard frame."
+    HD1080=0
+fi
+if [ "$HD720" = 1 ] && ! frame_hd_ok "$MAP_W" "$MAP_H" 1280 720; then
+    echo "CLUSTERMAP_720P: helps only on a window larger than 800x480 that fits in 1280x720, not ${MAP_W}x${MAP_H}; using the standard frame."
+    HD720=0
+fi
+if ! frame_write_conf "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" \
+        "$MAP_W" "$MAP_H" "$FULL_FRAME_ASKED" "$HD720" "$HD1080"; then
     if [ "$FULL_FRAME" = 1 ]; then
         echo "WARNING: could not edit the settings copy; CLUSTERMAP_FULL_FRAME ignored, using margins."
     fi
     FULL_FRAME=0
-    frame_geometry $MAP_W $MAP_H 0
+    HD720=0
+    HD1080=0
+    frame_geometry "$MAP_W" "$MAP_H" 0 0 0
 fi
-if [ "$FULL_FRAME" = 1 ]; then
+if [ "$FRAME_MODE" = 1080p ] || [ "$FRAME_MODE" = 720p ]; then
+    echo "Android Auto: ${FRAME_W}x${FRAME_H} with ${MARGIN_W}x${MARGIN_H} margins, leaving the ${MAP_W}x${MAP_H} cockpit window to show 1:1 (test mode)."
+elif [ "$FULL_FRAME" = 1 ]; then
     echo "Android Auto: whole 800x480 frame, pixel aspect ${PIXEL_ASPECT_E4}/10000, stretched to the window (CLUSTERMAP_FULL_FRAME; car-tested only on AMDFX60's Skoda Superb)."
 elif [ "$MARGIN_W" -gt 0 ] || [ "$MARGIN_H" -gt 0 ]; then
     echo "Android Auto: 800x480 with ${MARGIN_W}x${MARGIN_H} margins, scaled to fill the window."
@@ -682,6 +720,35 @@ case "$CONF_DPI" in
     *)    EFFECTIVE_DPI=$CONF_DPI ;;
 esac
 [ "$DPI" -ne 140 ] && EFFECTIVE_DPI=$DPI
+
+# An older cluster renderer (OneB1t's VcMOSTRenderMqb: /navigation/
+# opengl-render-qnx, started at every boot by a "# QNX VNC CLIENT" block in
+# /etc/boot/startup.sh) creates window 3 too and switches the cockpit between
+# 3 and 33 by itself. Every car that showed "loading" or lost the phone's map
+# ran it (#105, #24, #25): the display manager listed window 3 twice. Its
+# program is renamed, so the startup block finds nothing and starts nothing,
+# and stopped; the uninstall puts it back. startup.sh is not touched.
+RENDER_OLD="$APP_MOUNT/navigation/opengl-render-qnx"
+RENDER_OFF="$RENDER_OLD.clustermap-off"
+if [ -f "$RENDER_OLD" ]; then
+    if mv "$RENDER_OLD" "$RENDER_OFF" 2>/dev/null; then
+        slay -f opengl-render-qnx >/dev/null 2>&1 || :
+        echo "Older cluster renderer (VcMOSTRenderMqb, /navigation/opengl-render-qnx): switched off, it takes the same cockpit window. The uninstall puts it back."
+    else
+        echo "WARNING: an older cluster renderer (/navigation/opengl-render-qnx) is installed and could not be switched off. It takes the same cockpit window: the map may show \"loading\" or go back to the car's map. Remove it (its startup.sh block) and install again." >&2
+    fi
+elif pidin ar 2>/dev/null | grep opengl-render-qnx >/dev/null 2>&1; then
+    echo "WARNING: an older cluster renderer (opengl-render-qnx) is running from somewhere else. It takes the same cockpit window: the map may show \"loading\" or go back to the car's map. Remove it and reboot." >&2
+fi
+
+# A gal_dualscreen.conf in the root of a card is read by the hook before the
+# installed one (for quick tests), so an old copy left there overrides this
+# install whenever that card is in (#24: wrong map size only with the card in).
+for ROOT_CONF in /fs/sda0/gal_dualscreen.conf /fs/sdb0/gal_dualscreen.conf; do
+    if [ -f "$ROOT_CONF" ]; then
+        echo "WARNING: $ROOT_CONF is read instead of the installed settings while that card is in. Delete it unless you put it there on purpose." >&2
+    fi
+done
 
 # Install stream-player to /mnt/app/navigation
 # Through a new file and a rename: copying over the old player fails while it
@@ -1213,10 +1280,12 @@ echo "  preload target: $PRELOAD_SO_ALIAS"
 echo "    on the internal /mnt/app partition, not the SD card -- avoids the"
 echo "    SD-card mount-timing race at GAL's boot-time launch."
 echo "  output mode: $OUTPUT (video forwarded to stream-player)"
-if [ "$FULL_FRAME" = 1 ]; then
-    echo "  cluster: Android Auto 800x480 @ 30 fps (full frame, pixel aspect ${PIXEL_ASPECT_E4}/10000), DPI $EFFECTIVE_DPI, ${MAP_W}x${MAP_H} window"
+if [ "$FRAME_MODE" = 1080p ] || [ "$FRAME_MODE" = 720p ]; then
+    echo "  cluster: Android Auto ${FRAME_W}x${FRAME_H} @ 30 fps (margins ${MARGIN_W}x${MARGIN_H}, 1:1 test), DPI $EFFECTIVE_DPI, ${MAP_W}x${MAP_H} window"
+elif [ "$FULL_FRAME" = 1 ]; then
+    echo "  cluster: Android Auto ${FRAME_W}x${FRAME_H} @ 30 fps (full frame, pixel aspect ${PIXEL_ASPECT_E4}/10000), DPI $EFFECTIVE_DPI, ${MAP_W}x${MAP_H} window"
 else
-    echo "  cluster: Android Auto 800x480 @ 30 fps (margins ${MARGIN_W}x${MARGIN_H}), DPI $EFFECTIVE_DPI, ${MAP_W}x${MAP_H} window"
+    echo "  cluster: Android Auto ${FRAME_W}x${FRAME_H} @ 30 fps (margins ${MARGIN_W}x${MARGIN_H}), DPI $EFFECTIVE_DPI, ${MAP_W}x${MAP_H} window"
 fi
 if [ "$CARPLAY_OK" -eq 1 ]; then echo "  CarPlay map: installed, ${MAP_W}x${MAP_H}"; else echo "  CarPlay map: no ($CARPLAY_WHY)"; fi
 echo "  debug logs: $DEBUG"

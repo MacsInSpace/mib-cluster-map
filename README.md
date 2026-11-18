@@ -73,6 +73,7 @@ tested on that car:
 | SEAT | 1010×376 | 140 | `105,127,127,127` |
 | Skoda | 1010×376 | 125 | `40,127,127,127` |
 | VW | 800×480 | 138 | `52,82,127,127` |
+| VW (Tiguan) | 1010×376 | 115, full frame | `102,52,127,127` |
 | Any other | | 125 | `40,40,127,127` |
 
 When owners of another car settle on values that work, they are added to
@@ -91,6 +92,21 @@ something hides behind the dials.
 `update_result.txt` says which values were used and where they came from.
 Starting points from other owners are in the
 [Install guide](docs/Install.md#settings-owners-have-settled-on).
+
+Optional `CLUSTERMAP_720P=1` and `CLUSTERMAP_1080P=1` settings test Android
+Auto streams at 1280×720 and 1920×1080, cropped to the cockpit window. The
+car-tested Audi 1080p example for a 1440×455 window is:
+
+```ini
+CLUSTERMAP_1080P=1
+GAL_PLAYER_DECODER=hw
+GAL_PLAYER_NVSS_OUTPUT=1
+GAL_SECONDARY_DPI=160
+GAL_SECONDARY_INSETS=45,85,75,75
+```
+
+Hardware decode/output 1 is Audi-only: Skoda reports output 1 as `0x0`. See
+the [install guide](docs/Install.md) for test-mode details.
 
 The update writes what it did to `ClusterMap/update_result.txt` on the card.
 It also adds a **ClusterMap** screen to the green engineering menu (hold MENU >
@@ -126,12 +142,12 @@ no translation at all. The same in nine languages:
 
 | Head unit | Firmware train starts | Today |
 |---|---|---|
-| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367), both road-tested, and `P4512` (Golf R; Passat B8, #47). US `P3662` installs as tested. `P4174` (Passat R wagon, #49) and `P4521_1` (Golf Alltrack) tested. `P3657` (Golf GTE, MU1077, #100): the CarPlay map works; Android Auto installs since v1.2.6 but has not been tried with an Android phone, reports welcome. Others wanted |
+| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_` | **Map** on `P4521` and `K4525` (software 1367), both road-tested, and `P4512` (Golf R; Passat B8, #47). US `P3662` installs as tested. `P4174` (Passat R wagon, #49) and `P4521_1` (Golf Alltrack) tested. `P3657` (Golf GTE, MU1077, #100): the CarPlay map works with Google Maps, Apple Maps and Waze, with the iPhone's route hidden from the car (on by itself there since v1.2.7); Android Auto installs since v1.2.6 but has not been tried with an Android phone, reports welcome. `P4512_2` music info works (#24). Tiguans on `P4521` with the larger 1010×376 cockpit (#95, #137) show the map; set `CLUSTERMAP_FULL_FRAME=1` (or **Sharper map ON** in the green menu) so it fills the width. Others wanted |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | **Map** on `P4708` and `P4709` (1010×376 cluster window). **Arrows** on both |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | **Map** on `P4526` (#15) and `P4523` (#56), car-confirmed. Others wanted |
-| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | **Map** on `K3342` (MU1427), Passat B8, found and road-tested by owners (#39, #28), and `P3301` (#33); beta18 on K3342 confirmed in #64 and #65; wired CarPlay works on K3342 MU1427 (#62, #111; since v1.2.6 without a trial line). `K3332` (Golf 7, MU1187) works since v1.2.3 (#45). Set `CLUSTERMAP_ADD_NAVIGNORE=1` to keep the map during an Android Auto route; with an iPhone leave it at 0, because CarPlay stops connecting while NavActiveIgnore is loaded on these units (#62, #106, #111). For CarPlay the installer hides the iPhone's route from the car instead (`CLUSTERMAP_CARPLAY_HIDE_NAV`, on by itself on these units since v1.2.6), which keeps the map on a route (#111). **`S2125`: update to `K3342` first** (see below); on S2125 itself NavActiveIgnore stopped Android Auto, so the map goes when a route starts |
+| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | **Map** on `K3342` (MU1427), Passat B8, found and road-tested by owners (#39, #28), and `P3301` (#33); beta18 on K3342 confirmed in #64 and #65; wired CarPlay works on K3342 MU1427 (#62, #111; since v1.2.6 without a trial line, confirmed again on a clean v1.2.6 install), and #118 reports everything working there. `K3332` (Golf 7, MU1187) works since v1.2.3 (#45). Set `CLUSTERMAP_ADD_NAVIGNORE=1` to keep the map during an Android Auto route; with an iPhone leave it at 0, because CarPlay stops connecting while NavActiveIgnore is loaded on these units (#62, #106, #111). For CarPlay the installer hides the iPhone's route from the car instead (`CLUSTERMAP_CARPLAY_HIDE_NAV`, on by itself on these units since v1.2.6), which keeps the map on a route (#111). **`S2125`: update to `K3342` first** (see below); on S2125 itself NavActiveIgnore stopped Android Auto, so the map goes when a route starts |
 | VW Discover Pro, Japan | `MHI2_JP_VW48x_` | **Trial** on `P0953`, which has the same Android Auto program as `P4708` and needs no trial line (#37), being tested |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | **Map** on the A4 B9 `K3346` (#14; 1440×455 cockpit window, context 72, both set by the installer; shown in the map view and the Audi's own cockpit view) and the Q5 FY `K3346` (#96, v1.2.1; an Audi NavActiveIgnore M.I.B. put there is left in place). A3/S3 8V `AU37x_P5089` (#51), `P5153` (#63) and `P4203` (#81, v1.2.4) work. A7 C7.5 `AU57x_K3663`: Android Auto and CarPlay on the cockpit (context 73, set by the installer; its CarPlay library, 694088 bytes, is accepted without a trial line since v1.2.1). The US A7 C7.5 `MHI2_US_AU57x_K3341` works with Android Auto too (same window and context; the map stays on a route with the Audi NavActiveIgnore, which the installer adds; CarPlay not tried). The A6 C7.5 has the same firmware, and Android Auto works there too (#68; a 2016 facelift out of the box on v1.2.1). With the Audi NavActiveIgnore, a CarPlay route (Waze) stays on the A7's cockpit. On the A7, the steering-wheel roller zooms the CarPlay map ([CarPlay](docs/CarPlay.md#steering-wheel-zoom-audi-a6a7-c75)); the installer adds the Audi build of NavActiveIgnore there (M.I.B.'s; the toolbox's VW build does not fit this unit). An RS3 is still to be tried. The pre-facelift A6 C7 `AU57x_P3236` is not supported yet: its Android Auto program matches no profile, and its files are wanted (#122, #127). The update needs developer mode (see Install) |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU` | **Map** on the A4 B9 `K3346` (#14; 1440×455 cockpit window, context 72, both set by the installer; shown in the map view and the Audi's own cockpit view) and the Q5 FY `K3346` (#96, v1.2.1; an Audi NavActiveIgnore M.I.B. put there is left in place). A3/S3 8V `AU37x_P5089` (#51), `P5153` (#63) and `P4203` (#81, v1.2.4) work. A7 C7.5 `AU57x_K3663`: Android Auto and CarPlay on the cockpit (context 73, set by the installer; its CarPlay library, 694088 bytes, is accepted without a trial line since v1.2.1). The US A7 C7.5 `MHI2_US_AU57x_K3341` works with Android Auto too (same window and context; the map stays on a route with the Audi NavActiveIgnore, which the installer adds; CarPlay not tried). The A6 C7.5 has the same firmware, and Android Auto works there too (#68; a 2016 facelift out of the box on v1.2.1; #114 and another A7 C7.5 `K3663_1`, #140, on v1.2.6). With the Audi NavActiveIgnore, a CarPlay route (Waze) stays on the A7's cockpit. On the A7, the steering-wheel roller zooms the CarPlay map ([CarPlay](docs/CarPlay.md#steering-wheel-zoom-audi-a6a7-c75)); the installer adds the Audi build of NavActiveIgnore there (M.I.B.'s; the toolbox's VW build does not fit this unit). An RS3 is still to be tried. The pre-facelift A6 C7 `AU57x_P3236` is not supported yet: a trial line from its files is being tried (#127, #122). `AU57x_P3634` (A6 C7, #142) is not supported yet either: its files are wanted. The update needs developer mode (see Install) |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies |
 
@@ -178,10 +194,12 @@ of these:
   adapters never ask the car for the cockpit picture
   ([CarPlay](docs/CarPlay.md#wireless-adapters)). Some Android Auto adapters
   stop working when the car offers a second display: with a SmartBox-D824 the
-  centre screen stays black (#101). For those, use a cable, or set
-  `GAL_DUALSCREEN_ENABLE=0` and install again to have Android Auto as before
-  without the cockpit map. AAWireless TWO and a Motorola MA1 are reported
-  working.
+  centre screen stayed black (#101). What fixed it there: in Android Auto's
+  developer settings on the phone, allow only the 800x480 video resolution;
+  then the adapter worked with both screens. Otherwise use a cable, or switch
+  the cockpit map off (green menu, `ClusterMapOptions` > **Cluster map OFF**)
+  to have Android Auto as before. AAWireless (including TWO) and a Motorola
+  MA1 are reported working.
 - **The car's own overlays.** Lines the cockpit draws over its map, such as
   the street name bar on an Audi A6/A7, stay there (#126). Raise the bottom
   inset so the app keeps that strip clear.
@@ -217,7 +235,7 @@ phone is unplugged and plugged in again.
 |---|---|
 | Android Auto map, installer and uninstaller over SSH | Tested on cars (Golf `P4521`, SEAT `P4708`) |
 | Software update and green menu routes | Tested on cars (Golf `P4521`, Golf R `P4512`) |
-| Hardware video decoding (`GAL_PLAYER_DECODER=hw`; the default on `P4521`, off elsewhere) | Works on a Golf (`P4521`): 30 pictures a second at about a third of the processor time, also through a wireless adapter. Other cars: run **Hardware decoder check** in `ClusterMapSupport` and report what it says |
+| Hardware video decoding (`GAL_PLAYER_DECODER=hw`; the default on `P4521`, off elsewhere) | Works on a Golf (`P4521`): 30 pictures a second at about a third of the processor time, also through a wireless adapter. Other cars: run **Hardware decoder check** in `ClusterMapSupport` and report what it says. Audi A3 8V 1080p (`CLUSTERMAP_1080P=1`) car-tested with the draw-to-display method (`GAL_PLAYER_NVSS_OUTPUT=1`, #125) |
 | CarPlay map | Shown on a car (Golf R, iPhone over USB) after a firewall fix; layout between the dials under test |
 | Long drives, reverse camera, waking from sleep | Road-tested on `K4525`; otherwise little testing |
 | Autorun install without the service menu (`Swdlautorun.txt`, on by default) | Tested on a car (Golf `P4521`); Audi untested |

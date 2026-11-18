@@ -25,7 +25,11 @@ phone ──USB──► gal (stock Android Auto program)
    recognise, it does nothing.
 2. **The player** (`player/opengl_gpu.cc`) decodes the video, either with the
    unit's NvSS hardware decoder (`libnvss_video.so`, the one `gal` uses for
-   the centre screen) or FFmpeg in software drawn with `glDrawTextureNV`. At
+   the centre screen) or FFmpeg in software drawn with `glDrawTextureNV`.
+   Standard 800×480 remains the default; optional 1280×720 and 1920×1080
+   modes crop margins to the cockpit window, using nearest luma sampling for
+   exact 1:1 pixels. NvSS output 1 is Audi-only (Skoda reports `0x0`); the
+   Audi 1080p configuration is documented in [Install](Install.md). At
    the first keyframe it switches the cluster to its window
    (`dmdt dc 70 3`, `dmdt sc 4 70`); at the end it gives the stock map back
    (`dmdt dc 70 33`).
