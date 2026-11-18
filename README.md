@@ -155,6 +155,18 @@ addresses.
 - **AMDFX60** ([Skoda fork](https://github.com/AMDFX60/mib-cluster-map)):
   the sharper-map full-frame mode, the fix for insets above 127 and the
   player priority setting, car-tested on his Superb and merged back here.
+- **kashavsehra** (Kash): the Audi A3/S3 8V from first request to one of the
+  best-running cars (#51): its profile, the manual crop (#85) and the
+  720p/1080p modes with the hardware display path (#125), plus research
+  and help for other owners across dozens of threads.
+- **uvera**: the Audi A6/A7 C7.5 install fix, the CarPlay steering-wheel
+  zoom and the Audi NavActiveIgnore (#91), and the Chinese `K1006_2` (#93).
+- **pepsonEL**: the Skoda `P4526` (#15), its music info (#69) and logs and
+  photos from every release since.
+- **totocastellano-cmd**: the VW `K4525` Tiguan road tests and settings (#27,
+  #20) and the wireless adapter findings (#12).
+- **bravo2409** and **tuttiefruttie**: the long CarPlay test runs on the
+  cockpit (#19) that shaped its layout, insets and track info.
 - **kkrvch** ([mib-std2-kombibridge](https://github.com/kkrvch/mib-std2-kombibridge)):
   the Android Auto 1.7 navigation decoder for MIB2 Standard. Its message
   layout and manoeuvre table are ported into `src/nav_translate.c`, with the
