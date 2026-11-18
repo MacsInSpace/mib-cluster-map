@@ -58,6 +58,10 @@ fi
         done
     done
 } > $OUT/tool_versions.txt 2>&1
+# The same checks the simulator runs (tests/unit_sim/probe_compare.sh).
+if [ -r "$HERE/scripts/unit_probe.sh" ]; then
+    sh "$HERE/scripts/unit_probe.sh" > $OUT/tool_probe.txt 2>&1 || :
+fi
 # The cockpit display (window 33) only appears in 'gs' while the cockpit is in
 # map view. Say so in the file, so a capture taken in another view is not read
 # as a unit that cannot show a map. Audi uses context 72 (profiles.conf).

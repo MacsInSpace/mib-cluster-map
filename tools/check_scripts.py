@@ -43,6 +43,9 @@ def code(line):
 def check(path):
     problems = []
     guarded = set()
+    # A probe that tests these on purpose, each in a child shell (unit_probe.sh).
+    if "unit_shell_lint: skip" in path.read_text(errors="replace")[:300]:
+        return problems
     for n, raw in enumerate(path.read_text(errors="replace").splitlines(), 1):
         if raw.lstrip().startswith("#"):
             continue

@@ -16,6 +16,7 @@ E3  "$@" or "$*" with no arguments is an error under "set -u".
 E4  syntax the unit's shell does not have.
 E5  echo with a backslash sequence: the unit's echo expands \\n \\t \\c \\\\,
     ksh93's does not.
+E6  ". file || ...": a missing file ends the script anyway.
 """
 import pathlib
 import re
@@ -154,6 +155,8 @@ def and_list(stmt):
 def lint(path):
     text = path.read_text(errors="replace")
     problems = []
+    if "unit_shell_lint: skip" in text[:300]:
+        return []
     errexit = bool(re.search(r"^\s*set -[a-z]*e", text, re.M))
     nounset = bool(re.search(r"^\s*set -[a-z]*u", text, re.M))
     braces = []          # 'f' function body, 'g' group, 'a' group that ends an && list
@@ -262,6 +265,8 @@ def lint(path):
                          (r"&>", "&> redirect"), (r"\$\(\s*case\b[^()]*\bin\s+[^(\s][^()]*\)", "$(case x in a) ...) needs (a)")):
             if re.search(pat, raw) and not re.search(r"\b(sed|grep|awk|expr)\b.*" + pat, raw):
                 problems.append((n, "E4", "the unit's shell has no %s" % why, raw.strip()))
+        if re.search(r"(?:^|[;&(]|\bthen\b|\bdo\b|\belse\b)\s*\.\s+\S+[^|]*\|\|", raw):
+            problems.append((n, "E6", "'. file || ...' does not catch a missing file: the script ends; test [ -r file ] first", raw.strip()))
         m = re.search(r"(?:^|[;&|(]|\bthen\b|\bdo\b|\belse\b)\s*echo\s+(.*)$", raw)
         if m and re.search(r"\\[ntcbafv0\\]", re.sub(r"\$\w+|\$\{[^}]*\}", "", m.group(1).split("|")[0])):
             problems.append((n, "E5", "echo expands this backslash sequence on the unit", raw.strip()))

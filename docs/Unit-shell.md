@@ -104,6 +104,10 @@ message:
   command, so `... | tail -1` and `... | sed ...` are safe ends, and
   `|| :` inside or after always is. (Car: `head` on a missing file.)
 - a function whose last command is a false test, called on a line of its own.
+- `. file || :` when `file` is missing: `.` is a special builtin and its
+  failure ends the script whatever follows. Test with `[ -r file ]` first.
+  (Same shell.)
+- `$((0x10))`: "bad number". Hex only through `awk`.
 - `wc -c < "$F"` with `$F` empty: the shell prints "cannot open" itself, past
   any `2>/dev/null`.
 
@@ -130,6 +134,23 @@ Option differences seen on cars:
   proven by it. Stay with what the installer already uses: `sed -n 's/…/p'`,
   `sed -e`, `grep -q`, `grep -v`, `grep -c`, `tail -1`, `head -1`,
   `wc -c`, `awk '{ … }'`.
+
+## Checking a unit against the simulator
+
+Save logs runs `scripts/unit_probe.sh` on the unit: about 250 one-line
+checks of the shell, `sed`, `grep`, `awk`, `expr`, `head`/`tail`, file
+commands and which programs exist, each in its own child shell. It changes
+nothing and takes a few seconds. Its result is `run_logs/N/tool_probe.txt`.
+
+```sh
+tests/unit_sim/probe_compare.sh run_logs/3/tool_probe.txt MHI2_ER_VWG13_P4521_2
+```
+
+runs the same file in the simulator and lists every check that differs. Each
+difference is fixed in the simulator (`tests/unit_sim/Dockerfile`, e.g. a
+QNX-like `sed`) or becomes a rule here and in `tools/unit_shell_lint.py`.
+Car results are kept in `tests/unit_sim/probes/` (names, sizes and results
+only; no firmware).
 
 ## When an install stops with no message
 
