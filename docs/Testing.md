@@ -67,7 +67,10 @@ is. Without unit files the test says so and is skipped.
 
 ### What it does not prove
 
-- QNX's own `sed`, `grep`, `awk`: the container has GNU tools.
+- QNX's own `sed`, `grep`, `awk`: the container has GNU tools. Save logs
+  records what a unit really does (`tool_probe.txt`), and
+  `tests/unit_sim/probe_compare.sh` lists every difference from the
+  simulator (docs/Unit-shell.md), so this gap closes one car at a time.
 - Anything the hook or the player does: no program of the package runs,
   only its scripts.
 - Mount timing, a read-only card, a full partition.
