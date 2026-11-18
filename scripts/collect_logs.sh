@@ -39,6 +39,25 @@ if [ -r "$HERE/scripts/lib_unit.sh" ]; then
     unit_gal_check "$HERE"
     { echo "missing:$UNIT_MISSING"; echo "absent:$UNIT_ABSENT"; echo "$PROBE_OUT"; } > $OUT/unit_check.txt 2>&1
 fi
+# Which builds of the shell and text tools this unit has (docs/Unit-shell.md:
+# the simulator runs other builds of sed, grep and awk). There is no common
+# version flag: GNU answers --version, the original awk -V or --version, and
+# QNX's own tools may answer none, so every one is tried, with no input, and
+# whatever comes back is kept. The size and path tell builds apart when
+# nothing answers.
+{
+    echo "shell: ${KSH_VERSION:-no KSH_VERSION} (\$0=$0)"
+    for t in sh ksh sed grep awk expr tail head wc find; do
+        echo "--- $t"
+        P=`command -v $t 2>/dev/null` || P=
+        if [ -z "$P" ]; then echo "not found"; continue; fi
+        ls -lL "$P" 2>&1
+        for flag in --version -V -v; do
+            echo "\$ $t $flag"
+            $t $flag < /dev/null 2>&1 | head -3
+        done
+    done
+} > $OUT/tool_versions.txt 2>&1
 # The cockpit display (window 33) only appears in 'gs' while the cockpit is in
 # map view. Say so in the file, so a capture taken in another view is not read
 # as a unit that cannot show a map. Audi uses context 72 (profiles.conf).
