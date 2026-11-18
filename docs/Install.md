@@ -292,6 +292,8 @@ on `auto` follows it without editing anything.
 | Audi A6 C7.5 facelift (`K3663`), *auto* | 125 | `40,40,127,127` | nkady, #68 (v1.2.1, out of the box) |
 | VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
 | VW 12.3 in Passat B8 2019 (`K4525`), ETA card showing, with `GAL_SECONDARY_UI_THEME=0` | 138 | `56,73,127,127` | danielszyszko-ui, #41 |
+| VW Golf (`P4521`), ETA card showing, Google Maps and Waze, *auto* for VW | 138 | `52,82,127,127` | tvarszegi1, #8, road-tested |
+| VW Passat B8 2018 (`P4512_1`), small and large dials, *auto* for VW | 138 | `52,82,127,127` | slechtaadam-byte, #47 |
 
 Car-tested Audi 1080p example (1920×1080 stream, 1440×455 cockpit window):
 
@@ -305,8 +307,6 @@ GAL_SECONDARY_INSETS=45,85,75,75
 
 `GAL_PLAYER_DECODER=hw` with `GAL_PLAYER_NVSS_OUTPUT=1` is Audi-only; Skoda
 reports output 1 as `0x0`.
-| VW Golf (`P4521`), ETA card showing, Google Maps and Waze, *auto* for VW | 138 | `52,82,127,127` | tvarszegi1, #8, road-tested |
-| VW Passat B8 2018 (`P4512_1`), small and large dials, *auto* for VW | 138 | `52,82,127,127` | slechtaadam-byte, #47 |
 
 Lower DPI makes the map and its text smaller, so more of the map shows; below
 about DPI 140 Google Maps changes from two overlay cards to one in the middle.

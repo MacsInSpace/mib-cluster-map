@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Read the FAQ first
+    url: https://github.com/MacsInSpace/mib-cluster-map/blob/main/docs/FAQ.md
+    about: Is my car supported, how to update, where settings are, the map going on a route, how to send logs.
+  - name: Ask a question
+    url: https://github.com/MacsInSpace/mib-cluster-map/discussions/categories/q-a
+    about: How-to questions go to Discussions > Q&A. Issues are for problems, with update_result.txt and Save logs attached.
