@@ -18,6 +18,7 @@ docker run --rm --platform linux/amd64 -v "$ROOT/scripts":/s:ro $IMG sh /s/unit_
 grep -q '^probe_end|' "$CAR" || echo "NOTE: the car's probe did not finish; compared up to where it stopped."
 mkdir -p "$HERE/probes"; cp "$CAR" "$HERE/probes/$TRAIN.txt"
 awk -F'|' '
+    !/\|/ { next }
     FNR == NR { sim[$1] = $0; next }
     $1 in sim { if (sim[$1] != $0) { n++; printf "%s\n   car: %s\n   sim: %s\n", $1, substr($0, length($1) + 2), substr(sim[$1], length($1) + 2) }; delete sim[$1]; next }
     { n++; printf "%s\n   car: %s\n   sim: (not run)\n", $1, substr($0, length($1) + 2) }
