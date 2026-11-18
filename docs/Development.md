@@ -105,10 +105,13 @@ log lines that change no behaviour.
 And every such change:
 
 - names the report it answers in the commit;
-- is benched under `set -eu` in ksh and dash on an empty unit directory when
-  it touches the installer;
-- passes `tests/regression_guards.sh`, `tests/profile_check_test.sh` and
-  `tools/check_scripts.py` (the build refuses to pack a card otherwise);
+- passes `./build_local.sh simtest` when it touches any script the unit runs:
+  the install in the unit's own shell version, on every train we hold files
+  for (docs/Testing.md). A bench in dash, ksh93 or bash does not count: they
+  pass what the unit's shell stops on (docs/Unit-shell.md);
+- passes `tests/regression_guards.sh`, `tests/profile_check_test.sh`,
+  `tools/check_scripts.py` and `tools/unit_shell_lint.py` (the build refuses
+  to pack a card otherwise);
 - says in the release notes whether it has run on a car;
 - adds a guard to `tests/regression_guards.sh` when it fixes a fault that
   reached a release.
@@ -124,6 +127,8 @@ default.
 | v1.2.2 | broken picture | NEON routines read unaligned data, which this processor set-up faults on | `tools/neon_audit.py` |
 | up to v1.2.4 | green menu "script not found" after an install from USB or SD slot 2 (#109) | `/fs/sda0` baked into paths | guard 2, `tests/sda0.allow` |
 | up to v1.2.5 | `GAL_DUALSCREEN_ENABLE=0` did nothing (#101) | the installer wrote a fixed `=1` into gal's start-up, and the start-up value beats the settings file. Since v1.2.7 the settings file decides this one key in the hook as well, so the menu's Cluster map OFF/ON counts | guard 1 |
+| test builds of v1.2.7 (not released) | install stopped after "Cluster map window" | a block ended in `[ test ] && echo`, which only the unit's shell stops on under `set -e`; the fourth time | `tools/unit_shell_lint.py`, `tests/unit_sim` |
+| test builds of v1.2.7 (not released) | a new arrows jar never reached the unit (#24) | the installer copied a jar only when none was loaded | `tests/unit_sim` step 3; `tests/lsd_jar_test.sh` |
 | a pull request, caught in review | picture crop on for every car (#85) | a one-car change made the default | guard 4; the opt-in rule |
 
 The pattern in the last three: a value or a path that was right on the test
@@ -265,6 +270,8 @@ cd ../mib-cluster-map
 FFmpeg 6.1.5 is downloaded, checked and built on first use.
 
 ## Testing on a car
+
+Run everything in docs/Testing.md first.
 
 Change one thing per run, and record the firmware, the package build
 (`SHA256SUMS.txt`), the settings file, the hook and player logs, and the phone

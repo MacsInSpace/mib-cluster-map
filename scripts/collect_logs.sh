@@ -90,7 +90,7 @@ CORE=`ls -t $CORE_DIR/*dio_manager* 2>/dev/null | sed -n 1p`
 if [ -n "$CORE" ] && [ -f "$CORE" ]; then
     CORE_SIZE=`wc -c < "$CORE" | sed 's/ //g'`
     if [ "${CORE_SIZE:-0}" -gt 0 ] && [ "$CORE_SIZE" -le 8388608 ]; then
-        cp "$CORE" $OUT/carplay/ 2>/dev/null && echo "copied: $CORE ($CORE_SIZE bytes)" >> $OUT/core_listing.txt
+        if cp "$CORE" $OUT/carplay/ 2>/dev/null; then echo "copied: $CORE ($CORE_SIZE bytes)" >> $OUT/core_listing.txt; fi
     else
         echo "not copied (over 8 MB): $CORE ($CORE_SIZE bytes)" >> $OUT/core_listing.txt
     fi

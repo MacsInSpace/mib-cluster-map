@@ -192,6 +192,9 @@ package() {
   cp "$ROOT/LICENSE" "$D/LICENSE"
   # The unit's shell needs LF line endings and plain ASCII in everything it runs.
   python3 "$ROOT/tools/check_scripts.py" "$D" || { echo "REJECTED: scripts use something units lack"; exit 1; }
+  # What the unit's shell does differently from this machine's (docs/Unit-shell.md).
+  python3 "$ROOT/tools/unit_shell_lint.py" "$D" || { echo "REJECTED: a script has a shape the unit's shell treats differently"; exit 1; }
+  sh "$ROOT/tests/unit_shell_lint_test.sh" >/dev/null || { echo "REJECTED: tests/unit_shell_lint_test.sh failed"; exit 1; }
   # Faults that reached a release once must not come back (docs/Development.md, "Settled parts").
   sh "$ROOT/tests/regression_guards.sh" || { echo "REJECTED: a regression guard failed"; exit 1; }
   sh "$ROOT/tests/profile_check_test.sh" >/dev/null || { echo "REJECTED: tests/profile_check_test.sh failed"; exit 1; }
@@ -217,5 +220,6 @@ case "$WHAT" in
   java) build_java ;;
   all) build_hook; build_player; build_java; package ;;
   package) package ;;
-  *) echo "usage: $0 [all|hook|player|java|package]"; exit 2 ;;
+  simtest) sh "$ROOT/tests/unit_sim/run.sh" "$ROOT/dist/sdcard" ;;
+  *) echo "usage: $0 [all|hook|player|java|package|simtest]"; exit 2 ;;
 esac

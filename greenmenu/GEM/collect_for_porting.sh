@@ -71,7 +71,7 @@ if ! take_lib 'the Android Auto receiver' 'libautoreceive*' $RECEIVER_NAMES; the
     for n in `grep -a -o 'lib[A-Za-z0-9_-]*\.so[.0-9]*' /mnt/app/eso/bin/apps/gal 2>/dev/null`; do
         case " $needs " in *" $n "*) ;; *) needs="$needs $n" ;; esac
     done
-    [ -n "$needs" ] && say "gal asks for:$needs"
+    if [ -n "$needs" ]; then say "gal asks for:$needs"; fi
 fi
 # The CarPlay library, for a CarPlay port. Its absence is not a problem for
 # the Android Auto map, so it is only noted.
