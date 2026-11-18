@@ -159,6 +159,13 @@ package() {
   # The Audi build, for AU57x (thirdparty/navactiveignore-audi/README.md).
   cp "$ROOT"/thirdparty/navactiveignore-audi/NavActiveIgnore.jar "$D/thirdparty/NavActiveIgnore_Audi.jar" && \
      cp "$ROOT"/thirdparty/navactiveignore-audi/LICENSE "$D/thirdparty/NavActiveIgnore_Audi.LICENSE"
+  # The Audi Android Auto build, for AU37x (thirdparty/mib2-android-auto-audi/README.md).
+  # CarPlay versions (chefranov):
+  cp "$ROOT"/thirdparty/mib2-android-auto-audi/coverart_hook.jar "$ROOT"/thirdparty/mib2-android-auto-audi/rgd_hook.jar "$D/thirdparty/" && \
+     cp "$ROOT"/thirdparty/mib2-android-auto-audi/dpad_hook.jar "$ROOT"/thirdparty/mib2-android-auto-audi/pdc_hook.jar "$D/thirdparty/" && \
+  # Android Auto versions (built from java/androidadio/):
+  cp "$ROOT"/thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar "$ROOT"/thirdparty/mib2-android-auto-audi/AArgd_hook.jar "$D/thirdparty/" && \
+     cp "$ROOT"/thirdparty/mib2-android-auto-audi/README.md "$D/thirdparty/VCAndroidAuto_Audi.LICENSE"
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" \
      "$ROOT/scripts/lib_unit.sh" "$ROOT/scripts/window_fix.sh" \
      "$ROOT/scripts/lib_cluster_frame.sh" "$ROOT/scripts/full_frame.sh" "$ROOT/scripts/menu_switch.sh" \

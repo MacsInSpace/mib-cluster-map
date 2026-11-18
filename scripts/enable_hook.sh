@@ -1610,6 +1610,162 @@ else
     fi
 fi
 
+# ---- Audi MIB2 AU37x: cover art and route guidance on the cluster --------
+# chefranov's mhi2-au37x-carplay jars, patched Audi stock classes for the
+# AU37x platform (Audi A3 8V, MHI2_ER_AU37x_P5089). Not the VW/SEAT
+# VCAndroidAuto jars (those replace de/vw/mib/* classes Audi does not have).
+# coverart_hook.jar: track name + cover art on the media screen / cluster.
+# rgd_hook.jar: turn arrow + distance + road name on the cluster (turns
+# build: also carries cover art). Never load both together.
+# The installer adds them from thirdparty/mib2-android-auto-audi/ and marks
+# them with .aacluster_audi_cover_added / .aacluster_audi_turns_added.
+AUDI_INFO_OK=0
+if train_has "$PROFILES" "$TRAIN" info; then AUDI_INFO_OK=1; fi
+if [ "$AUDI_INFO_OK" -eq 1 ]; then
+    AUDI_COVER_ASKED=`sed -n 's/^CLUSTERMAP_AUDI_COVER=\([01]\)[ 	]*$/\1/p' "$CONF_FILE" 2>/dev/null | tail -1`
+    AUDI_TURNS_ASKED=`sed -n 's/^CLUSTERMAP_AUDI_TURNS=\([01]\)[ 	]*$/\1/p' "$CONF_FILE" 2>/dev/null | tail -1`
+    AUDI_COVER_JAR=coverart_hook.jar
+    AUDI_TURNS_JAR=rgd_hook.jar
+    AUDI_COVER_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_cover_added
+    AUDI_TURNS_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_audi_turns_added
+    # Never load both together: rgd_hook.jar already carries cover art.
+    if [ "$AUDI_TURNS_ASKED" = 1 ] && [ "$AUDI_COVER_ASKED" = 1 ]; then
+        echo "WARNING: CLUSTERMAP_AUDI_COVER=1 ignored: CLUSTERMAP_AUDI_TURNS=1" >&2
+        echo "         (rgd_hook.jar already includes cover art)." >&2
+        AUDI_COVER_ASKED=0
+    fi
+    # Remove jars not asked for.
+    for AUDI_JAR in "$AUDI_COVER_JAR" "$AUDI_TURNS_JAR"; do
+        case "$AUDI_JAR" in
+            "$AUDI_COVER_JAR") AUDI_MARKER=$AUDI_COVER_MARKER ;;
+            *) AUDI_MARKER=$AUDI_TURNS_MARKER ;;
+        esac
+        if [ "$AUDI_JAR" = "$AUDI_COVER_JAR" ] && [ "$AUDI_COVER_ASKED" = 1 ]; then continue; fi
+        if [ "$AUDI_JAR" = "$AUDI_TURNS_JAR" ] && [ "$AUDI_TURNS_ASKED" = 1 ]; then continue; fi
+        if sh "$CARD_ROOT/lsd_jar.sh" loaded $AUDI_JAR; then
+            if [ -f "$AUDI_MARKER" ]; then
+                echo "Java check: removing $AUDI_JAR (not asked for in gal_dualscreen.conf)."
+                if sh "$CARD_ROOT/lsd_jar.sh" remove $AUDI_JAR; then
+                    mount -uw /mnt/app 2>/dev/null && { rm -f "$AUDI_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+                else
+                    echo "WARNING: could not remove $AUDI_JAR; lsd.sh is unchanged." >&2
+                fi
+            else
+                echo "WARNING: $AUDI_JAR is loaded and this installer did not add it." >&2
+            fi
+        fi
+    done
+    # Add/update the asked-for jars.
+    for AUDI_JAR in "$AUDI_COVER_JAR" "$AUDI_TURNS_JAR"; do
+        case "$AUDI_JAR" in
+            "$AUDI_COVER_JAR")
+                [ "$AUDI_COVER_ASKED" = 1 ] || continue
+                AUDI_MARKER=$AUDI_COVER_MARKER
+                AUDI_WHAT="cover art and track info on the media screen"
+                ;;
+            "$AUDI_TURNS_JAR")
+                [ "$AUDI_TURNS_ASKED" = 1 ] || continue
+                AUDI_MARKER=$AUDI_TURNS_MARKER
+                AUDI_WHAT="turn arrows, distance and road name on the cluster (with cover art)"
+                ;;
+        esac
+        if sh "$CARD_ROOT/lsd_jar.sh" loaded $AUDI_JAR; then
+            echo "Java check: $AUDI_JAR is loaded ($AUDI_WHAT)."
+            sh "$CARD_ROOT/lsd_jar.sh" add $AUDI_JAR "$CARD_ROOT/thirdparty/$AUDI_JAR" ||
+                echo "WARNING: could not update $AUDI_JAR; the loaded copy stays." >&2
+        else
+            echo "Java check: adding $AUDI_JAR ($AUDI_WHAT)."
+            if sh "$CARD_ROOT/lsd_jar.sh" add $AUDI_JAR "$CARD_ROOT/thirdparty/$AUDI_JAR"; then
+                mount -uw /mnt/app 2>/dev/null && { : > "$AUDI_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+            else
+                echo "WARNING: could not add $AUDI_JAR; lsd.sh is unchanged." >&2
+            fi
+        fi
+    done
+fi
+
+# ---- Audi MIB2 AU37x: Android Auto cover art and route guidance --------
+# AAcoverart_hook.jar / AArgd_hook.jar: built from java/androidadio/, patch
+# the same Audi stock classes as the CarPlay versions but read data from
+# Android Auto's DSIAndroidAuto2 callbacks instead of CarPlay's RGI system.
+# CarPlay and Android Auto jars patch the same classes (AppConnectorTerminalMode,
+# ClusterService) so they are mutually exclusive -- never load both.
+AA_INFO_OK=0
+if train_has "$PROFILES" "$TRAIN" info; then AA_INFO_OK=1; fi
+if [ "$AA_INFO_OK" -eq 1 ]; then
+    AA_COVER_ASKED=`sed -n 's/^CLUSTERMAP_AA_COVER=\([01]\)[ 	]*$/\1/p' "$CONF_FILE" 2>/dev/null | tail -1`
+    AA_TURNS_ASKED=`sed -n 's/^CLUSTERMAP_AA_TURNS=\([01]\)[ 	]*$/\1/p' "$CONF_FILE" 2>/dev/null | tail -1`
+    AA_COVER_JAR=AAcoverart_hook.jar
+    AA_TURNS_JAR=AArgd_hook.jar
+    AA_COVER_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_aa_cover_added
+    AA_TURNS_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_aa_turns_added
+    # Never load both CarPlay and Android Auto together.
+    if [ "$AA_TURNS_ASKED" = 1 ] && [ "$AUDI_TURNS_ASKED" = 1 ]; then
+        echo "WARNING: CLUSTERMAP_AA_TURNS=1 ignored: CLUSTERMAP_AUDI_TURNS=1" >&2
+        echo "         (CarPlay and Android Auto turn jars patch the same classes)." >&2
+        AA_TURNS_ASKED=0
+    fi
+    if [ "$AA_COVER_ASKED" = 1 ] && [ "$AUDI_COVER_ASKED" = 1 ]; then
+        echo "WARNING: CLUSTERMAP_AA_COVER=1 ignored: CLUSTERMAP_AUDI_COVER=1" >&2
+        echo "         (CarPlay and Android Auto cover jars patch the same classes)." >&2
+        AA_COVER_ASKED=0
+    fi
+    # Never load both together: AArgd_hook.jar already carries cover art.
+    if [ "$AA_TURNS_ASKED" = 1 ] && [ "$AA_COVER_ASKED" = 1 ]; then
+        echo "WARNING: CLUSTERMAP_AA_COVER=1 ignored: CLUSTERMAP_AA_TURNS=1" >&2
+        echo "         (AArgd_hook.jar already includes cover art)." >&2
+        AA_COVER_ASKED=0
+    fi
+    # Remove jars not asked for.
+    for AA_JAR in "$AA_COVER_JAR" "$AA_TURNS_JAR"; do
+        case "$AA_JAR" in
+            "$AA_COVER_JAR") AA_MARKER=$AA_COVER_MARKER ;;
+            *) AA_MARKER=$AA_TURNS_MARKER ;;
+        esac
+        if [ "$AA_JAR" = "$AA_COVER_JAR" ] && [ "$AA_COVER_ASKED" = 1 ]; then continue; fi
+        if [ "$AA_JAR" = "$AA_TURNS_JAR" ] && [ "$AA_TURNS_ASKED" = 1 ]; then continue; fi
+        if sh "$CARD_ROOT/lsd_jar.sh" loaded $AA_JAR; then
+            if [ -f "$AA_MARKER" ]; then
+                echo "Java check: removing $AA_JAR (not asked for in gal_dualscreen.conf)."
+                if sh "$CARD_ROOT/lsd_jar.sh" remove $AA_JAR; then
+                    mount -uw /mnt/app 2>/dev/null && { rm -f "$AA_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+                else
+                    echo "WARNING: could not remove $AA_JAR; lsd.sh is unchanged." >&2
+                fi
+            else
+                echo "WARNING: $AA_JAR is loaded and this installer did not add it." >&2
+            fi
+        fi
+    done
+    # Add/update the asked-for jars.
+    for AA_JAR in "$AA_COVER_JAR" "$AA_TURNS_JAR"; do
+        case "$AA_JAR" in
+            "$AA_COVER_JAR")
+                [ "$AA_COVER_ASKED" = 1 ] || continue
+                AA_MARKER=$AA_COVER_MARKER
+                AA_WHAT="Android Auto cover art and track info on the media screen"
+                ;;
+            "$AA_TURNS_JAR")
+                [ "$AA_TURNS_ASKED" = 1 ] || continue
+                AA_MARKER=$AA_TURNS_MARKER
+                AA_WHAT="Android Auto turn arrows, distance and road name on the cluster (with cover art)"
+                ;;
+        esac
+        if sh "$CARD_ROOT/lsd_jar.sh" loaded $AA_JAR; then
+            echo "Java check: $AA_JAR is loaded ($AA_WHAT)."
+            sh "$CARD_ROOT/lsd_jar.sh" add $AA_JAR "$CARD_ROOT/thirdparty/$AA_JAR" ||
+                echo "WARNING: could not update $AA_JAR; the loaded copy stays." >&2
+        else
+            echo "Java check: adding $AA_JAR ($AA_WHAT)."
+            if sh "$CARD_ROOT/lsd_jar.sh" add $AA_JAR "$CARD_ROOT/thirdparty/$AA_JAR"; then
+                mount -uw /mnt/app 2>/dev/null && { : > "$AA_MARKER"; mount -ur /mnt/app 2>/dev/null || true; }
+            else
+                echo "WARNING: could not add $AA_JAR; lsd.sh is unchanged." >&2
+            fi
+        fi
+    done
+fi
+
 # ---- CarPlay map: the steering-wheel roller zooms it (AU57x cockpit) --------
 # ClusterMapWheelZoom.jar replaces one small class of the stock navigation
 # (the cockpit map's zoom timer), so a roller step goes to the CarPlay map

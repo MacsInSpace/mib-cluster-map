@@ -220,7 +220,7 @@ if [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
     # CLUSTERMAP_TURN_INFO), and so does the CarPlay map's steering-wheel
     # zoom (ClusterMapWheelZoom.jar, ClusterMapNavAsiaZoom.jar on K1006_2),
     # but only the ones the installer added.
-    for EXTRA in music:VCAndroidAutoMusic.jar turns:VCAndroidAutoTurns.jar wheelzoom:ClusterMapWheelZoom.jar navasiazoom:ClusterMapNavAsiaZoom.jar; do
+    for EXTRA in music:VCAndroidAutoMusic.jar turns:VCAndroidAutoTurns.jar wheelzoom:ClusterMapWheelZoom.jar navasiazoom:ClusterMapNavAsiaZoom.jar cover:coverart_hook.jar audi_turns:rgd_hook.jar aacover:AAcoverart_hook.jar aaturns:AArgd_hook.jar; do
         EXTRA_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_${EXTRA%%:*}_added
         EXTRA_JAR=${EXTRA#*:}
         if [ ! -f "$EXTRA_MARKER" ]; then
