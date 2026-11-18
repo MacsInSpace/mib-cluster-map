@@ -19,8 +19,9 @@ BUILD_ID=${RELEASE_VERSION:-$(git -C "$ROOT" describe --always --dirty 2>/dev/nu
 # Desktop's inspect call has failed transiently here while the image was present,
 # so fall back to the image list before giving up.
 need_image() {
-  docker image inspect "$IMG" >/dev/null 2>&1 && return 0
-  docker image ls --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -qx "$IMG" && return 0
+  # Saved to, or loaded from, the shared image folder (tools/docker_image.sh),
+  # so another Mac account does not rebuild it.
+  sh "$ROOT/tools/docker_image.sh" "$IMG" && return 0
   echo "ERROR: docker image $IMG not found; build it first (qnx-run.sh build 8.5)"; exit 1
 }
 run() { docker run --rm --platform=linux/amd64 -v "$ROOT":/work -w /work -e BUILD_ID="$BUILD_ID" "$IMG" bash -c "$1"; }

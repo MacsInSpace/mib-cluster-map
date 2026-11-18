@@ -12,7 +12,7 @@ set -eu
 HERE=$(cd "$(dirname "$0")" && pwd); ROOT=$(cd "$HERE/../.." && pwd)
 CAR=$1; TRAIN=${2:-car}
 IMG=mib-unit-sim:3
-docker image inspect $IMG >/dev/null 2>&1 || docker build -q --platform linux/amd64 -t $IMG "$HERE" >/dev/null
+sh "$ROOT/tools/docker_image.sh" $IMG "$HERE"
 SIM=$ROOT/build/unit_sim/probe_sim.txt; mkdir -p "$(dirname "$SIM")"
 docker run --rm --platform linux/amd64 -v "$ROOT/scripts":/s:ro $IMG sh /s/unit_probe.sh > "$SIM" 2>&1
 grep -q '^probe_end|' "$CAR" || echo "NOTE: the car's probe did not finish; compared up to where it stopped."

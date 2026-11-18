@@ -18,7 +18,7 @@ UNITS=${UNIT_SIM_UNITS:-$ROOT/../unit_sim_units}
 IMG=mib-unit-sim:3
 [ -d "$UNITS" ] || { echo "unit_sim: no unit files at $UNITS (set UNIT_SIM_UNITS); skipped"; exit 77; }
 command -v docker >/dev/null || { echo "unit_sim: docker not found; skipped"; exit 77; }
-docker image inspect $IMG >/dev/null 2>&1 || docker build -q --platform linux/amd64 -t $IMG "$HERE" >/dev/null
+sh "$ROOT/tools/docker_image.sh" $IMG "$HERE"
 OUT=${UNIT_SIM_OUT:-$ROOT/build/unit_sim}; mkdir -p "$OUT/sim"
 cp "$HERE/make_unit.sh" "$HERE/scenarios.sh" "$OUT/sim/"
 # profile_check for the image's own processor

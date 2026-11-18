@@ -87,3 +87,13 @@ needed for the picture.
       just made.
 - [ ] After the car: read `update_result.txt` **before** judging what the car
       did. A failed install leaves the previous build running.
+
+### Docker images on a Mac with several accounts
+
+Docker Desktop keeps images per account, so `tools/docker_image.sh` keeps a
+copy of each image (the simulator `mib-unit-sim`, the QNX toolchain) as a
+`.tar.gz` in `../docker-images` next to the repo, or `$MIB_IMAGE_CACHE`. The
+first run on an account that has the image saves it there; an account without
+it loads it from there in seconds instead of building. When a Dockerfile
+changes, change the image's tag in the scripts, so no account loads an old one.
+Only one account's Docker Desktop should run at a time.
