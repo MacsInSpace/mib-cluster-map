@@ -35,7 +35,9 @@ stub /bin/mount 'exit 0'
 stub /bin/sync 'exit 0'
 stub /bin/slay 'exit 1'
 stub /bin/on 'while [ $# -gt 0 ]; do case "$1" in -p|-P) shift; shift ;; -*) shift ;; *) break ;; esac; done; exec "$@"'
-stub /bin/pidin 'echo "     pid name"; echo "  12345 /eso/bin/apps/gal"; exit 0'
+# The real process list, as pidin ar shows it (pid, program, arguments), so a
+# check that greps it also finds its own grep, as on a unit.
+stub /bin/pidin 'echo "     pid name"; echo "  12345 /mnt/app/eso/bin/apps/gal"; for d in /proc/[0-9]*; do a=`/simtools/tr "\\000" " " < $d/cmdline 2>/dev/null`; [ -z "$a" ] || echo "  ${d#/proc/} $a"; done; exit 0'
 stub /mnt/app/eso/bin/jsonlint 'echo "[jsonlint]: checking file $2  OK, time=6[ms]"; exit 0'
 if [ "$WIN" = none ]; then KOMBI=
 else KOMBI="echo \"	33  	window    	${WIN%x*}  x ${WIN#*x} 	2   		DISPLAYABLE_KOMBI_MAP_VIEW\""

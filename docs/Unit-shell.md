@@ -111,6 +111,14 @@ message:
 - `wc -c < "$F"` with `$F` empty: the shell prints "cannot open" itself, past
   any `2>/dev/null`.
 
+### 8. `/tmp` holds files, not folders
+
+On the units `/tmp` is a link to `/dev/shmem`, QNX's shared memory. A file
+can be written there; `mkdir` fails with "Function not implemented". Use
+`/tmp/clustermap_<name>` files, or a folder on the card. (Car: the v1.2.7
+probe on an Audi A3, a Skoda and a Golf R. Lint rule E7.) The simulator's
+`/tmp` is a normal folder, so it cannot catch this.
+
 ## Commands
 
 A unit has far fewer programs than a desktop, and trains differ.
@@ -124,6 +132,14 @@ A unit has far fewer programs than a desktop, and trains differ.
 `tools/check_scripts.py` refuses a card that uses a command from the first
 two rows without testing for it (`command -v`). `GEM/install.sh` prints
 "Not on this unit:" with what it found missing, in every install log.
+
+The builds, from `tool_versions.txt` of three cars (Golf R/Passat P4512,
+Skoda P4526, Audi A3 P5089; v1.2.7): the same shell everywhere (211607
+bytes); **GNU sed 4.1.5**, **GNU Awk 3.1.5**, `expr`, `wc` and `find` in
+`/mnt/app/armle/usr/bin` (sed in `/bin` on two of them); **QNX's own**
+`grep`, `head` and `tail` (no `--version`). The simulator has GNU sed 4.2.1
+and gawk 3.1.7; its grep, head and tail are GNU, so an option of those three
+is not proven by it.
 
 Option differences seen on cars:
 

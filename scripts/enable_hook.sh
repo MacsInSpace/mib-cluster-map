@@ -741,7 +741,10 @@ if [ -f "$RENDER_OLD" ]; then
     else
         echo "WARNING: an older cluster renderer (/navigation/opengl-render-qnx) is installed and could not be switched off. It takes the same cockpit window: the map may show \"loading\" or go back to the car's map. Remove it (its startup.sh block) and install again." >&2
     fi
-elif pidin ar 2>/dev/null | grep opengl-render-qnx >/dev/null 2>&1; then
+# By the program column only: "pidin ar | grep name" also lists the grep
+# itself, whose arguments hold the name, so it matched on every unit (v1.2.7,
+# A3 and Skoda install logs).
+elif pidin ar 2>/dev/null | awk '$2 ~ /opengl-render-qnx$/ { f = 1 } END { exit !f }'; then
     echo "WARNING: an older cluster renderer (opengl-render-qnx) is running from somewhere else. It takes the same cockpit window: the map may show \"loading\" or go back to the car's map. Remove it and reboot." >&2
 fi
 

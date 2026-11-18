@@ -6,7 +6,12 @@
 # installer that passes there has stopped on real units four times.
 # The commands a unit lacks are removed, so a script that needs them fails.
 FROM debian/eol:squeeze
-RUN apt-get -qq update && apt-get -qq install -y --force-yes gcc make libc6-dev wget >/dev/null
+# Units run GNU sed 4.1.5 and GNU Awk 3.1.5 (tool_versions.txt from three
+# cars, 2026-11-18); squeeze has sed 4.2.1 and gawk 3.1.7, the closest. Its
+# default awk is mawk, which differs, so gawk is made the awk. grep, head and
+# tail on the units are QNX's own and are not copied here.
+RUN apt-get -qq update && apt-get -qq install -y --force-yes gcc make libc6-dev wget gawk >/dev/null \
+ && ln -sf /usr/bin/gawk /etc/alternatives/awk && awk --version | head -1 | grep -q "GNU Awk 3.1"
 RUN cd /tmp && wget -q http://archive.debian.org/debian/pool/main/p/pdksh/pdksh_5.2.14.orig.tar.gz \
  && echo "ab15bcdd50f291edc632bca351b2edce5405d4f2ce3854d3d548d721ab9bbfa6  pdksh_5.2.14.orig.tar.gz" | sha256sum -c - \
  && tar xzf pdksh_5.2.14.orig.tar.gz && cd pdksh-5.2.14 \

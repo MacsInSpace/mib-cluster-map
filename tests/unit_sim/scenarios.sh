@@ -53,6 +53,8 @@ if [ -f /unit/expect_refuse ]; then
     echo "SCENARIOS-DONE"; exit 0
 fi
 expect install CLUSTERMAP_INSTALL_OK
+# No warning about something this unit does not have.
+if grep -q "older cluster renderer" /tmp/install.result; then res install.no_false_warning FAIL "`grep -m1 'older cluster renderer' /tmp/install.result | cut -c1-90`"; else res install.no_false_warning PASS -; fi
 if [ -f $CARD/_Swdlautorun.txt ] && [ ! -f $CARD/Swdlautorun.txt ]; then res install.autorun_off PASS -; else res install.autorun_off FAIL "Swdlautorun.txt still armed"; fi
 snap /tmp/snap1
 

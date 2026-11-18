@@ -19,7 +19,8 @@ if [ -r "$UC" ]; then
 fi
 echo "Hardware decoder libraries:"
 hw_libs
-if [ -f /mnt/app/navigation/opengl-render-qnx ] || pidin ar 2>/dev/null | grep opengl-render-qnx >/dev/null 2>&1; then
+# The program column only: a grep of the whole list finds the grep itself.
+if [ -f /mnt/app/navigation/opengl-render-qnx ] || pidin ar 2>/dev/null | awk '$2 ~ /opengl-render-qnx$/ { f = 1 } END { exit !f }'; then
     echo "WARNING: an older cluster renderer (opengl-render-qnx) is installed or running."
     echo "  It takes the cockpit window the map uses (#105). Install again to switch it off."
 elif [ -f /mnt/app/navigation/opengl-render-qnx.clustermap-off ]; then

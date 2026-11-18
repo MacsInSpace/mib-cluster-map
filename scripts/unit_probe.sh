@@ -4,15 +4,26 @@
 # (tests/unit_sim) can be made to match it: tests/unit_sim/probe_compare.sh
 # runs the same file there and lists every line that differs.
 #
-#   unit_probe.sh > tool_probe.txt
+#   unit_probe.sh [work folder] > tool_probe.txt
 #
 # Each check runs in its own child shell with no input, so none can stop or
-# hang the caller. Writes only under /tmp. Changes nothing on the unit.
+# hang the caller. It works in the folder given (Save logs gives one on the
+# card) and removes it again; it changes nothing on the unit. /tmp cannot be
+# used for this: on the units it is shared memory (/dev/shmem), which holds
+# files but no folders (v1.2.7 probes from three cars stopped there).
 # Line format:  name|exit status|first output lines joined with ~
 PATH=/proc/boot:/bin:/usr/bin:/usr/sbin:/sbin:/mnt/app/armle/bin:/mnt/app/armle/sbin:/mnt/app/armle/usr/bin:/mnt/app/armle/usr/sbin:$PATH
 export PATH
-W=/tmp/clustermap_probe.$$
-rm -rf $W; mkdir -p $W/d/e || exit 0
+# Measured first, outside the work folder: can /tmp hold a folder?
+T=/tmp/clustermap_probe_dir.$$
+if mkdir $T 2>/dev/null; then echo "tmp_mkdir|0|"; rmdir $T; else echo "tmp_mkdir|1|`mkdir $T 2>&1 | sed -e "s|$T|T|g" | head -1`"; fi
+W=${1:-/tmp/clustermap_probe.$$}
+rm -rf $W 2>/dev/null
+if ! mkdir -p $W/d/e 2>/dev/null; then
+    echo "probe_workdir|1|cannot make folders in $W"
+    echo "probe_end|1|"
+    exit 0
+fi
 cd $W || exit 0
 echo "a b c" > f1; echo "x1 y2 z3" >> f1; echo "line three" >> f1
 echo "TAB	here" > ft

@@ -17,6 +17,7 @@ E4  syntax the unit's shell does not have.
 E5  echo with a backslash sequence: the unit's echo expands \\n \\t \\c \\\\,
     ksh93's does not.
 E6  ". file || ...": a missing file ends the script anyway.
+E7  mkdir under /tmp: on the unit /tmp is /dev/shmem, files only.
 """
 import pathlib
 import re
@@ -265,6 +266,8 @@ def lint(path):
                          (r"&>", "&> redirect"), (r"\$\(\s*case\b[^()]*\bin\s+[^(\s][^()]*\)", "$(case x in a) ...) needs (a)")):
             if re.search(pat, raw) and not re.search(r"\b(sed|grep|awk|expr)\b.*" + pat, raw):
                 problems.append((n, "E4", "the unit's shell has no %s" % why, raw.strip()))
+        if re.search(r"\bmkdir\b[^;|&]*(/tmp/|/dev/shmem/)", raw):
+            problems.append((n, "E7", "/tmp on the unit is shared memory and holds no folders: mkdir there fails", raw.strip()))
         if re.search(r"(?:^|[;&(]|\bthen\b|\bdo\b|\belse\b)\s*\.\s+\S+[^|]*\|\|", raw):
             problems.append((n, "E6", "'. file || ...' does not catch a missing file: the script ends; test [ -r file ] first", raw.strip()))
         m = re.search(r"(?:^|[;&|(]|\bthen\b|\bdo\b|\belse\b)\s*echo\s+(.*)$", raw)

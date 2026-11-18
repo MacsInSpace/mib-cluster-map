@@ -15,7 +15,7 @@ set -eu
 HERE=$(cd "$(dirname "$0")" && pwd); ROOT=$(cd "$HERE/../.." && pwd)
 CARD=$(cd "$1" && pwd); shift
 UNITS=${UNIT_SIM_UNITS:-$ROOT/../unit_sim_units}
-IMG=mib-unit-sim:2
+IMG=mib-unit-sim:3
 [ -d "$UNITS" ] || { echo "unit_sim: no unit files at $UNITS (set UNIT_SIM_UNITS); skipped"; exit 77; }
 command -v docker >/dev/null || { echo "unit_sim: docker not found; skipped"; exit 77; }
 docker image inspect $IMG >/dev/null 2>&1 || docker build -q --platform linux/amd64 -t $IMG "$HERE" >/dev/null
