@@ -18,14 +18,34 @@ train_has()
 unit_make()
 {
     CAR_MAKE=; CAR_WINDOW=; CAR_DPI=125; CAR_INSETS=40,40,127,127; CAR_CONTEXT=70
+    CAR_FULLFRAME=0
     # The fields are read into MK_* names: plain DPI here overwrote the
     # installer's own DPI (its --dpi value), which then went into GAL's
     # environment and silently beat the owner's GAL_SECONDARY_DPI.
-    while read -r MK_KEY MK_PAT MK_NAME MK_WIN MK_DPI MK_INS MK_CTX; do
+    while read -r MK_KEY MK_PAT MK_NAME MK_WIN MK_DPI MK_INS MK_CTX MK_MORE; do
         [ "$MK_KEY" = make ] || continue
         case "$2" in
             $MK_PAT) CAR_MAKE=$MK_NAME; CAR_WINDOW=$MK_WIN; CAR_DPI=$MK_DPI
-                  CAR_INSETS=$MK_INS; CAR_CONTEXT=$MK_CTX; return 0 ;;
+                  CAR_INSETS=$MK_INS; CAR_CONTEXT=$MK_CTX
+                  case " $MK_MORE " in *" fullframe "*) CAR_FULLFRAME=1 ;; esac
+                  return 0 ;;
+        esac
+    done < "$1"
+    return 1
+}
+
+# unit_make_window <profiles.conf> <train> <WxH>: as unit_make, from the
+# first "make" line whose pattern matches and whose window is WxH. Returns 1,
+# changing nothing, when there is none.
+unit_make_window()
+{
+    while read -r MK_KEY MK_PAT MK_NAME MK_WIN MK_DPI MK_INS MK_CTX MK_MORE; do
+        [ "$MK_KEY" = make ] && [ "$MK_WIN" = "$3" ] || continue
+        case "$2" in
+            $MK_PAT) CAR_MAKE=$MK_NAME; CAR_WINDOW=$MK_WIN; CAR_DPI=$MK_DPI
+                  CAR_INSETS=$MK_INS; CAR_CONTEXT=$MK_CTX; CAR_FULLFRAME=0
+                  case " $MK_MORE " in *" fullframe "*) CAR_FULLFRAME=1 ;; esac
+                  return 0 ;;
         esac
     done < "$1"
     return 1

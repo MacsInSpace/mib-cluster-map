@@ -19,6 +19,26 @@ if [ -r "$UC" ]; then
 fi
 echo "Hardware decoder libraries:"
 hw_libs
+if [ -f /mnt/app/navigation/opengl-render-qnx ] || pidin ar 2>/dev/null | grep opengl-render-qnx >/dev/null 2>&1; then
+    echo "WARNING: an older cluster renderer (opengl-render-qnx) is installed or running."
+    echo "  It takes the cockpit window the map uses (#105). Install again to switch it off."
+elif [ -f /mnt/app/navigation/opengl-render-qnx.clustermap-off ]; then
+    echo "Older cluster renderer: switched off by the install (the uninstall puts it back)."
+fi
+for f in /fs/sda0/gal_dualscreen.conf /fs/sdb0/gal_dualscreen.conf; do
+    [ -f "$f" ] && echo "WARNING: $f overrides the installed settings while that card is in."
+done
+if [ -r "$UC" ]; then
+    if grep -q '^CLUSTERMAP_1080P=1' "$UC"; then
+        echo "Android Auto picture: 1080p test (1920x1080)"
+    elif grep -q '^CLUSTERMAP_720P=1' "$UC"; then
+        echo "Android Auto picture: 720p test (1280x720)"
+    elif grep -q '^CLUSTERMAP_FULL_FRAME=1' "$UC"; then
+        echo "Android Auto picture: 800x480 full frame"
+    else
+        echo "Android Auto picture: standard 800x480"
+    fi
+fi
 if grep -q 'libcarplay_cluster.so' "$CONFIG" 2>/dev/null; then
     echo "CarPlay map: installed, `sed -n 's/.*"ALTSCREEN111_WIDTH=\([0-9]*\)", "ALTSCREEN111_HEIGHT=\([0-9]*\)".*/\1x\2/p' "$CONFIG"`"
     if [ -r /tmp/mibr-carplay111.state ]; then echo "  CarPlay cluster stream: `cat /tmp/mibr-carplay111.state`"; else echo "  CarPlay cluster stream: none yet (connect an iPhone)"; fi
