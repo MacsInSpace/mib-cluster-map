@@ -43,7 +43,12 @@ case "${1:-}" in
             echo "The cluster map is installed. Uninstall it first; the two cannot run together." >&2; exit 1
         fi
         if sh "$HERE/lsd_jar.sh" loaded $NAME; then
-            echo "$NAME is already loaded; nothing to add."
+            if [ -f "$ADDED" ]; then
+                # Ours: replaced when the card has another build.
+                sh "$HERE/lsd_jar.sh" add $NAME "$HERE/thirdparty/$NAME"
+            else
+                echo "$NAME is already loaded; nothing to add."
+            fi
         else
             sh "$HERE/lsd_jar.sh" add $NAME "$HERE/thirdparty/$NAME"
             mark_added set

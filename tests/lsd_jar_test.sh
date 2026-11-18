@@ -63,6 +63,12 @@ cycle() {
     cp "$lsd" "$T/$name.added"
     run add Test.jar "$T/Test.jar" > "$T/out" 2>&1 || bad "$name: second add failed"
     cmp -s "$lsd" "$T/$name.added" && ok "$name: second add changes nothing" || bad "$name: second add changed lsd.sh"
+    # A newer build of a loaded jar (the installer calls add again, #24).
+    echo "fake jar, newer build" > "$T/Test.jar"
+    run add Test.jar "$T/Test.jar" > "$T/out" 2>&1 || bad "$name: add of a newer build failed: $(cat "$T/out")"
+    cmp -s "$app/eso/hmi/lsd/jars/Test.jar" "$T/Test.jar" && ok "$name: newer build replaces the loaded jar" || bad "$name: loaded jar not replaced"
+    [ -f "$app/eso/hmi/lsd/jars/Test.jar.before_update" ] && ok "$name: previous jar kept as .before_update" || bad "$name: no .before_update"
+    cmp -s "$lsd" "$T/$name.added" && ok "$name: replacing the jar leaves lsd.sh alone" || bad "$name: replacing the jar changed lsd.sh"
     nav_after=no; if run loaded NavActiveIgnore.jar; then nav_after=yes; fi
     [ "$nav_after" = "$nav_before" ] && ok "$name: NavActiveIgnore unaffected (loaded: $nav_after)" || bad "$name: NavActiveIgnore changed from $nav_before to $nav_after"
     run remove Test.jar > "$T/out" 2>&1 || { bad "$name: remove failed: $(cat "$T/out")"; return; }
