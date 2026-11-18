@@ -22,16 +22,21 @@ is the unit's **firmware train**, such as `MHI2_ER_VWG13_P4521` (see the next
 question). You do not have to work it out before trying: the installer checks
 the real firmware itself and installs only what fits, or nothing.
 
-| Head unit | Train starts with | In short |
-|---|---|---|
-| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_`, `MHI2_US_VWG13_` | Map on `P4521`, `K4525`, `P4512`, `P4174`, `P3657`, US `P3662` |
-| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | Map on `K3342`, `K3332`, `P3301`; `S2125`: update to `K3342` first |
-| SEAT with the Harman unit | `MHI2_ER_SEG11_` | Map and arrows on `P4708`, `P4709` |
-| Skoda with the Harman unit | `MHI2_ER_SKG13_` | Map on `P4526`, `P4523` |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU`, `MHI2_US_AU` | Map on A4 B9 / Q5 FY `K3346`, A3/S3 8V `P5089`, `P5153`, `P4203`, A6/A7 C7.5 `K3663`, US A7 `K3341` |
-| VW Discover Pro, Japan | `MHI2_JP_VW48x_` | Trial on `P0953` |
-| Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) |
-| MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies |
+| Head unit | Train starts with | Android Auto map | CarPlay map |
+|---|---|---|---|
+| VW Discover Pro 9.2 in (MIB2.5 High) | `MHI2_ER_VWG13_`, `MHI2_US_VWG13_` | `P4521`, `K4525`, `P4512`, `P4174`, US `P3662` | `P4512`, `K4525`, `P4521`, `P3657` |
+| VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | `K3342`, `K3332`, `P3301` (`S2125`: update to `K3342` first) | `K3342`, `K3332` |
+| SEAT with the Harman unit | `MHI2_ER_SEG11_` | `P4708`, `P4709`, and the arrows on both | `P4709` |
+| Skoda with the Harman unit | `MHI2_ER_SKG13_` | `P4526`, `P4523` | `P4526` |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU`, `MHI2_US_AU` | A4 B9 / Q5 FY `K3346`, A3/S3 8V `P5089`, `P5153`, `P4203`, A6/A7 C7.5 `K3663`, US A7 `K3341` | A6/A7 C7.5 `K3663` |
+| VW Discover Pro, Japan | `MHI2_JP_VW48x_` | Trial on `P0953` | |
+| Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) | |
+| MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies | |
+
+CarPlay needs the iPhone's CarPlay library on the unit to be a build the
+CarPlay map knows; the installer checks it and says so in
+`update_result.txt`. `P3657` has the CarPlay map but Android Auto there is
+untried.
 
 The details per make are below.
 
@@ -92,7 +97,8 @@ The details per make are below.
 <details>
 <summary>Skoda, <code>MHI2_ER_SKG13_</code></summary>
 
-- **`P4526`** (#15) and **`P4523`** (#56): map, car-confirmed.
+- **`P4526`** (#15) and **`P4523`** (#56): map, car-confirmed. The CarPlay
+  map works on `P4526` too, with Waze (#146).
 - Others wanted.
 
 </details>
@@ -117,7 +123,8 @@ The update menu needs developer mode on Audi (see the
   roller zooms the CarPlay map ([CarPlay](CarPlay.md#steering-wheel-zoom-audi-a6a7-c75)).
 - **A6 C7.5** has the same firmware and works too (#68; a 2016 facelift out
   of the box on v1.2.1; #114 and another A7 `K3663_1`, #140, on v1.2.6; an
-  A6 Avant C7.5 `K3663_1` with CarPlay too, #147).
+  A6 Avant C7.5 `K3663_1` with CarPlay too, #147; a 2015 A6 `K3663_1`
+  with CarPlay through an Ottocast wireless adapter, discussion #135).
 - **US A7 C7.5 `MHI2_US_AU57x_K3341`** works with Android Auto (same window
   and context; the map stays on a route with the Audi NavActiveIgnore, which
   the installer adds; CarPlay not tried).
@@ -405,7 +412,8 @@ picture. Not planned.
 
 With the iPhone on a cable: a Golf R and a Passat B8 (`P4512`, #67), a SEAT
 (`P4709`), a Golf (`K4525`), a Tiguan (`P4521`), an Audi A7 C7.5 (`K3663`,
-three cars, #68), an A6 Avant C7.5 (`K3663_1`, #147), a Golf GTE (`P3657`,
+three cars, #68), A6 C7.5s (`K3663_1`, #147; and through an Ottocast
+adapter, discussion #135), a Skoda Superb (`P4526`, #146), a Golf GTE (`P3657`,
 #100), a Golf 7 (`K3332`, #45) and VW Discover Pro 8 in (`K3342` MU1427,
 #62, #111; through an Otto Pico too). It can switch back to the car's own
 map while driving, under investigation (#19, #43). Details in

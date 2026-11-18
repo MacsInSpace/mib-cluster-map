@@ -10,7 +10,7 @@ Harman MIB2 / MIB2.5 High head unit ("Discover Pro").
 |---|---|
 | Android Auto | The Google Maps or Waze map, live. Working on many VW, SEAT, Skoda and Audi units |
 | Android Auto, on firmware without a map profile | Turn-by-turn arrows, distance and track ([adi961's jar](https://github.com/adi961/mib2-android-auto-vc), [our fork](https://github.com/MacsInSpace/mib2-android-auto-vc)), on SEAT `P4708`/`P4709` and others |
-| Apple CarPlay | The Apple Maps or Google Maps map, live, with the iPhone on a cable, on a growing list of cars ([CarPlay](docs/CarPlay.md)) |
+| Apple CarPlay | The Apple Maps, Google Maps or Waze map, live. Working on VW, SEAT, Skoda and Audi units, best with the iPhone on a cable ([CarPlay](docs/CarPlay.md)) |
 
 **Will it work on my car?** You need a Harman MIB2/MIB2.5 High unit and a
 digital cluster; the list of firmware that works is in the FAQ:
