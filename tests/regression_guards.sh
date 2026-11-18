@@ -72,5 +72,28 @@ for f in `sed -n 's|.*"\$PKG/scripts/\([a-z_]*\.sh\)".*|\1|p' greenmenu/GEM/*.sh
     grep -q "scripts/$f" build_local.sh || bad "a menu script calls scripts/$f, which build_local.sh does not pack"
 done
 
+# 6. Under set -e, a block may not end in "[ test ] && command": when the test
+#    is false the block's status is 1, and the unit's ksh (ksh88 behaviour)
+#    then stops the script. v1.2.7-golf5/golf6 stopped the install after the
+#    window message this way (FULL_FRAME=auto resolving to 0). Write an if.
+for f in scripts/*.sh greenmenu/GEM/*.sh lsd_jar.sh; do
+    [ -f "$f" ] || continue
+    grep -q '^[ 	]*set -e' "$f" || continue
+    awk -v f="$f" '
+        function blank(s) { return s ~ /^[ \t]*$/ || s ~ /^[ \t]*#/ }
+        { line[NR] = $0 }
+        END {
+            for (i = 1; i <= NR; i++) {
+                s = line[i]
+                if (s !~ /^[ \t]*\[ .*\] && / || s ~ /\|\|/ || s ~ /\\$/) continue
+                for (j = i + 1; j <= NR && blank(line[j]); j++) ;
+                if (line[j] ~ /^[ \t]*(fi|else|elif|done|;;|esac|\})/)
+                    print f ":" i ": a block ends in \"[ test ] && ...\" (the unit stops under set -e): use if"
+            }
+        }' "$f"
+done > /tmp/.guard6.$$
+if [ -s /tmp/.guard6.$$ ]; then cat /tmp/.guard6.$$ >&2; bad "block ending in [ test ] && ... under set -e"; fi
+rm -f /tmp/.guard6.$$
+
 [ $FAIL = 0 ] && echo "regression guards ok"
 exit $FAIL
