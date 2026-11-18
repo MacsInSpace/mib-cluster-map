@@ -1461,6 +1461,13 @@ else
     esac
     TBT_OK=0
     if train_has "$PROFILES" "$TRAIN" arrows; then TBT_OK=1; fi
+    # Loaded already and added by this package: replaced when the card has
+    # another build (lsd_jar.sh add compares sizes).
+    if [ "$WITH_ARROWS" -eq 1 ] && [ -f /mnt/app/eso/hmi/lsd/.aacluster_tbt_added ] &&
+       sh "$CARD_ROOT/lsd_jar.sh" loaded VCAndroidAuto.jar; then
+        sh "$CARD_ROOT/lsd_jar.sh" add VCAndroidAuto.jar "$CARD_ROOT/thirdparty/VCAndroidAuto.jar" ||
+            echo "WARNING: could not update VCAndroidAuto.jar; the loaded copy stays." >&2
+    fi
     if [ "$WITH_ARROWS" -eq 1 ] && ! sh "$CARD_ROOT/lsd_jar.sh" loaded VCAndroidAuto.jar; then
         if [ "$TBT_OK" -eq 1 ]; then
             echo "Java check: adding VCAndroidAuto.jar beside the map (CLUSTERMAP_KEEP_ARROWS=1)."
@@ -1559,6 +1566,12 @@ else
             echo "         work on firmware $TRAIN." >&2
         elif sh "$CARD_ROOT/lsd_jar.sh" loaded $WANT_JAR; then
             echo "Java check: $WANT_JAR is loaded ($WANT_WHAT)."
+            # Loaded already: replaced when the card has another build
+            # (lsd_jar.sh add compares sizes). Until v1.2.7 it never was, so
+            # cars kept their first copy (#24). Only this package builds jars
+            # by these two names, so no marker is needed to call it ours.
+            sh "$CARD_ROOT/lsd_jar.sh" add $WANT_JAR "$CARD_ROOT/thirdparty/$WANT_JAR" ||
+                echo "WARNING: could not update $WANT_JAR; the loaded copy stays." >&2
         elif [ -n "$FOREIGN_JAR" ]; then
             echo "WARNING: $WANT_KEY=1 ignored: remove $FOREIGN_JAR first." >&2
         else

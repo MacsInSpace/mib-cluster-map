@@ -6,7 +6,7 @@ the maintained fork of
 [adi961/mib2-android-auto-vc](https://github.com/adi961/mib2-android-auto-vc),
 MIT licensed (see `LICENSE` beside this file).
 
-sha256 `f900b4b1f65b10b210fab833d61182c9937d52dca38dfa9275bab1a6bc3d20e1`
+sha256 `e302e1bd16367f1b92a2bb663dcea3532367be0200c95d9e15319630d6948bf4`
 
 It shows Android Auto turn arrows, distance and track information on the
 cluster. It cannot be active together with the cluster map, so the package
@@ -21,8 +21,8 @@ SD" collects, and it tells the cluster when the turn pictogram changes, which
 
 ## VCAndroidAutoMusic.jar
 
-The music-only build of the same fork (commit `32f4756`, `make music`),
-sha256 `a7a19e701b040134b4e00b26a3c995808df3ac26d20f7ad7f5221988e8e94b4e`. It shows the
+The music-only build of the same fork (commit `b7af41d`, `make music`),
+sha256 `86cf24a571490dfc05c5ea2c6c2f00dabbf7db6be664eb7ab4a0043066be6451`. It shows the
 track playing (title, artist, cover) on the cockpit's media screen and
 nothing else. With CarPlay it shows title, artist and album: the stock
 CarPlay code never asks for them, so the jar subscribes to the iPhone's
@@ -35,8 +35,8 @@ not yet car-tested.
 
 ## VCAndroidAutoTurns.jar
 
-The full jar with the cockpit view left alone (commit `32f4756`,
-`make turns`), sha256 `bde2e39321ba3e3efb296129d53db5ac4c44ec8e43996a1802a59100c9a40048`.
+The full jar with the cockpit view left alone (commit `b7af41d`,
+`make turns`), sha256 `ecf387c2d080e422926c684f13477a0bec22f43b0e0941eb8fb3d42f16c0c723`.
 It differs from a full build of the same commit in two classes only: Variant
 and ActiveRgType. The full jar answers ActiveRgType with 0, the cockpit's
 arrow view, whenever Android Auto guides, and on VW that view replaces the
@@ -78,3 +78,12 @@ right way in left-hand traffic (UK, Ireland, Australia): Android measures the
 exit angle in the direction of travel, and clockwise roundabouts had left and
 right swapped (#24). Anticlockwise roundabouts are unchanged. Not yet
 car-tested.
+
+From `b7af41d` the log (with the MIBLogger file set to DEBUG) also records
+each maneuver sent to the cockpit: `maneuver: ...` with its main element and
+direction.
+
+Until v1.2.7 an install never replaced a turns, music or arrows jar that was
+already loaded, so cars kept the copy from their first install (the owner's
+Golf still ran a 6 November build). From v1.2.7 the installer replaces it
+when the card's build differs.
