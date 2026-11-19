@@ -5,6 +5,10 @@ import de.audi.atip.log.LogChannel;
 public class AAJavaBridge {
     private static boolean initialized;
 
+    static {
+        init();
+    }
+
     public static void init() {
         if (initialized) return;
         initialized = true;
