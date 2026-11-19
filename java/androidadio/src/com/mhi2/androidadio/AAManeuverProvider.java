@@ -9,10 +9,16 @@ import org.dsi.ifc.navigation.BapManeuverDescriptor;
 import org.dsi.ifc.navigation.DistanceToNextManeuver;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
+import org.osgi.framework.ServiceEvent;
+import org.osgi.framework.ServiceListener;
 import org.osgi.framework.ServiceReference;
 import org.osgi.framework.Bundle;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
-public class AAManeuverProvider implements DSIAndroidAuto2Listener {
+public class AAManeuverProvider implements DSIAndroidAuto2Listener, ServiceListener {
     private static AAManeuverProvider instance;
     private DSIAndroidAuto2 dsi;
     private LogChannel log;
@@ -21,6 +27,7 @@ public class AAManeuverProvider implements DSIAndroidAuto2Listener {
     private int lastMainElement;
     private int lastDirection;
     private int lastDistance;
+    private boolean dsiRetryScheduled;
 
     public static AAManeuverProvider getInstance() {
         return instance;
@@ -43,11 +50,15 @@ public class AAManeuverProvider implements DSIAndroidAuto2Listener {
         lastDirection = 0;
         lastDistance = 0;
         active = false;
+        dsiRetryScheduled = false;
+        debugLog("AAManeuverProvider.<init> entered");
         clusterService = findClusterService();
         if (clusterService != null) {
             log.log(100000, "cluster service found");
+            debugLog("clusterService found");
         } else {
             log.log(1000000, "cluster service NOT found");
+            debugLog("clusterService NOT found");
         }
         startDSI();
     }
@@ -95,12 +106,20 @@ public class AAManeuverProvider implements DSIAndroidAuto2Listener {
     private BundleContext getBundleContext() {
         try {
             BundleContext bc = AAJavaBridge.getBundleContext();
-            if (bc != null) return bc;
+            if (bc != null) {
+                debugLog("AAManeuverProvider.getBundleContext: from AAJavaBridge");
+                return bc;
+            }
         } catch (Throwable t) {}
         try {
             Bundle b = FrameworkUtil.getBundle(AAManeuverProvider.class);
-            if (b != null) return b.getBundleContext();
+            if (b != null) {
+                BundleContext bc2 = b.getBundleContext();
+                debugLog("AAManeuverProvider.getBundleContext: from FrameworkUtil, bc=" + (bc2 != null ? "non-null" : "null"));
+                return bc2;
+            }
         } catch (Throwable t) {}
+        debugLog("AAManeuverProvider.getBundleContext: returning null");
         return null;
     }
 
@@ -113,12 +132,15 @@ public class AAManeuverProvider implements DSIAndroidAuto2Listener {
                     Object svc = bc.getService(ref);
                     if (svc != null) {
                         bc.ungetService(ref);
+                        debugLog("findClusterService: found via OSGi ClusterService");
                         return (ClusterService) svc;
                     }
                     bc.ungetService(ref);
                 }
             }
-        } catch (Throwable t) {}
+        } catch (Throwable t) {
+            debugLog("findClusterService: OSGi lookup threw " + t);
+        }
         try {
             Class<?> cls = Class.forName("de.audi.tghu.navi.app.cluster.ClusterService");
             java.lang.reflect.Field f = null;
@@ -134,45 +156,108 @@ public class AAManeuverProvider implements DSIAndroidAuto2Listener {
             if (f != null) {
                 f.setAccessible(true);
                 Object inst = f.get(null);
-                if (inst != null && inst instanceof ClusterService) return (ClusterService) inst;
+                if (inst != null && inst instanceof ClusterService) {
+                    debugLog("findClusterService: found via static instance field");
+                    return (ClusterService) inst;
+                }
             }
-        } catch (Throwable t) {}
+        } catch (Throwable t) {
+            debugLog("findClusterService: static field lookup threw " + t);
+        }
+        debugLog("findClusterService: returning null");
         return null;
     }
 
     private void startDSI() {
+        debugLog("AAManeuverProvider.startDSI() entered, active=" + active);
         try {
             BundleContext bc = getBundleContext();
             if (bc == null) {
                 log.log(1000000, "no BundleContext for DSI lookup");
+                debugLog("startDSI: bc is null");
+                registerDsiRetry();
                 return;
             }
             ServiceReference ref = bc.getServiceReference(DSIAndroidAuto2.class.getName());
             if (ref == null) {
                 log.log(1000000, "DSIAndroidAuto2 service not available yet");
+                debugLog("startDSI: DSIAndroidAuto2 service reference is null, registering retry listener");
+                registerDsiRetry();
                 return;
             }
             dsi = (DSIAndroidAuto2) bc.getService(ref);
             bc.ungetService(ref);
             if (dsi != null) {
                 log.log(100000, "DSIAndroidAuto2 service obtained");
+                debugLog("startDSI: DSIAndroidAuto2 service obtained");
                 dsi.setNotification(this);
+                debugLog("startDSI: dsi.setNotification(this) called");
                 try {
                     org.dsi.ifc.androidauto2.ServiceConfiguration config = new org.dsi.ifc.androidauto2.ServiceConfiguration();
                     dsi.startService(config);
                     log.log(100000, "DSIAndroidAuto2 service started");
+                    debugLog("startDSI: dsi.startService(config) called");
+                    active = true;
+                    debugLog("startDSI: active = true");
                 } catch (Throwable t) {
                     log.log(1000000, "DSIAndroidAuto2 startService failed");
+                    debugLog("startDSI: dsi.startService threw " + t);
                 }
-                active = true;
+            } else {
+                debugLog("startDSI: dsi is null after getService");
+                registerDsiRetry();
             }
         } catch (Throwable t) {
             log.log(1000000, "startDSI failed");
+            debugLog("startDSI: threw " + t);
+            registerDsiRetry();
+        }
+    }
+
+    private void registerDsiRetry() {
+        if (dsiRetryScheduled) return;
+        dsiRetryScheduled = true;
+        try {
+            BundleContext bc = getBundleContext();
+            if (bc != null) {
+                bc.addServiceListener(this, "(objectClass=" + DSIAndroidAuto2.class.getName() + ")");
+                debugLog("registered ServiceListener for DSIAndroidAuto2 retry");
+            }
+        } catch (Throwable t) {
+            debugLog("registerDsiRetry: threw " + t);
+        }
+    }
+
+    public void serviceChanged(ServiceEvent event) {
+        try {
+            int type = event.getType();
+            if (type == ServiceEvent.REGISTERED || type == ServiceEvent.MODIFIED) {
+                ServiceReference ref = event.getServiceReference();
+                String[] classes = (String[]) ref.getProperty("objectClass");
+                for (int i = 0; i < classes.length; i++) {
+                    if (DSIAndroidAuto2.class.getName().equals(classes[i])) {
+                        debugLog("serviceChanged: DSIAndroidAuto2 became available, retrying startDSI");
+                        dsiRetryScheduled = false;
+                        try {
+                            BundleContext bc = getBundleContext();
+                            if (bc != null) bc.removeServiceListener(this);
+                        } catch (Throwable t) {}
+                        startDSI();
+                        return;
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            debugLog("serviceChanged: threw " + t);
         }
     }
 
     public void updateNavigationNextTurnEvent(String roadName, int mainElement, int direction, int turnAngle, int turnNumber, int event) {
-        if (!active) return;
+        debugLog("updateNavigationNextTurnEvent called, active=" + active + ", roadName='" + roadName + "' mainElement=" + mainElement + " direction=" + direction);
+        if (!active) {
+            debugLog("updateNavigationNextTurnEvent: not active, returning");
+            return;
+        }
         lastMainElement = mainElement;
         lastDirection = direction;
         lastDistance = 0;
@@ -183,13 +268,19 @@ public class AAManeuverProvider implements DSIAndroidAuto2Listener {
                 clusterService.updateManeuverDescriptor(desc);
             }
             log.log(100000, "maneuver update");
+            debugLog("updateNavigationNextTurnEvent: clusterService.updateManeuverDescriptor called");
         } catch (Throwable t) {
             log.log(1000000, "updateNavigationNextTurnEvent failed");
+            debugLog("updateNavigationNextTurnEvent: threw " + t);
         }
     }
 
     public void updateNavigationNextTurnDistance(int distance, int unit, int remainingDistance) {
-        if (!active) return;
+        debugLog("updateNavigationNextTurnDistance called, active=" + active + ", distance=" + distance);
+        if (!active) {
+            debugLog("updateNavigationNextTurnDistance: not active, returning");
+            return;
+        }
         lastDistance = distance;
         try {
             DistanceToNextManeuver dist = new DistanceToNextManeuver(true, distance, true, 0);
@@ -197,15 +288,25 @@ public class AAManeuverProvider implements DSIAndroidAuto2Listener {
                 clusterService.updateDistanceToNextManeuver(dist);
             }
             log.log(100000, "distance update");
+            debugLog("updateNavigationNextTurnDistance: clusterService.updateDistanceToNextManeuver called");
         } catch (Throwable t) {
             log.log(1000000, "updateNavigationNextTurnDistance failed");
+            debugLog("updateNavigationNextTurnDistance: threw " + t);
         }
     }
 
-    public void videoFocusRequestNotification(int a, int b) {}
-    public void videoAvailable(boolean a, int b) {}
-    public void audioFocusRequestNotification(int a, int b) {}
-    public void audioAvailable(int a, boolean b, int c) {}
+    public void videoFocusRequestNotification(int a, int b) {
+        debugLog("videoFocusRequestNotification called");
+    }
+    public void videoAvailable(boolean a, int b) {
+        debugLog("videoAvailable called");
+    }
+    public void audioFocusRequestNotification(int a, int b) {
+        debugLog("audioFocusRequestNotification called");
+    }
+    public void audioAvailable(int a, boolean b, int c) {
+        debugLog("audioAvailable called");
+    }
     public void voiceSessionNotification(int a, int b) {}
     public void microphoneRequestNotification(int a, int b) {}
     public void navFocusRequestNotification(int a, int b) {}
@@ -220,6 +321,17 @@ public class AAManeuverProvider implements DSIAndroidAuto2Listener {
     public void asyncException(int a, String b, int c) {}
     public void registered(String a, int b) {}
     public void unregistered(String a, int b) {}
+
+    private static void debugLog(String msg) {
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS");
+            String line = sdf.format(new Date()) + " AAManeuverProvider: " + msg;
+            FileWriter fw = new FileWriter("/tmp/aacoverart.log", true);
+            PrintWriter pw = new PrintWriter(fw);
+            pw.println(line);
+            pw.close();
+        } catch (Throwable t) {}
+    }
 
     private static class StubLogChannel extends de.audi.atip.log.LogChannel {
         public StubLogChannel() { super(); }

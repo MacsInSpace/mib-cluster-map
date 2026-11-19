@@ -243,4 +243,18 @@ if [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
         fi
     fi
 fi
+
+# Restore the stock lsd.jar if the installer had patched it.
+LSD_DST=/mnt/app/eso/hmi/lsd/lsd.jar
+LSD_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_lsd_patched
+if [ -f "$LSD_MARKER" ] && [ -r "$LSD_DST.stock" ]; then
+    if mount -uw /mnt/app 2>/dev/null; then
+        cp "$LSD_DST.stock" "$LSD_DST" && echo "Restored stock lsd.jar from $LSD_DST.stock"
+        rm -f "$LSD_MARKER"
+        mount -ur /mnt/app 2>/dev/null || true
+    else
+        echo "WARNING: cannot remount /mnt/app read-write; stock lsd.jar not restored." >&2
+    fi
+fi
+
 echo "Reboot the unit to run GAL without the hook."

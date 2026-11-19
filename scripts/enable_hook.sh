@@ -1649,6 +1649,34 @@ if [ "$AUDI_INFO_OK" -eq 1 ]; then
         AA_COVER_ASKED=0
     fi
 
+    # ---- Audi AU37x: deploy patched lsd.jar (FrameworkAccess constructor
+    # calls AAJavaBridge.setBundleContext + init so the bridge boots on
+    # framework startup). Without this, AAJavaBridge.static {} never runs
+    # and the AA hook jars do nothing. ----
+    LSD_DST=/mnt/app/eso/hmi/lsd/lsd.jar
+    LSD_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_lsd_patched
+    LSD_SRC="$CARD_ROOT/thirdparty/lsd.jar"
+    if [ -r "$LSD_SRC" ]; then
+        if [ ! -f "$LSD_MARKER" ]; then
+            echo "Java check: deploying patched lsd.jar (FrameworkAccess AA bridge init)."
+            if mount -uw /mnt/app 2>/dev/null; then
+                if [ -r "$LSD_DST" ] && [ ! -r "$LSD_DST.stock" ]; then
+                    cp "$LSD_DST" "$LSD_DST.stock" && echo "  backed up stock lsd.jar to $LSD_DST.stock"
+                fi
+                cp "$LSD_SRC" "$LSD_DST" && echo "  patched lsd.jar installed"
+                : > "$LSD_MARKER"
+                mount -ur /mnt/app 2>/dev/null || true
+            else
+                echo "WARNING: cannot remount /mnt/app read-write; patched lsd.jar not deployed." >&2
+            fi
+        else
+            echo "Java check: patched lsd.jar already deployed (marker present)."
+        fi
+    else
+        echo "Java check: patched lsd.jar not in this package; AA bridge will not auto-init." >&2
+        echo "  Copy TRANSFER/lsd.jar (patched by build.sh) to thirdparty/lsd.jar on the card." >&2
+    fi
+
     # Each entry: jar|marker|description|asked
     AUDI_JAR_ENTRIES="
 $AUDI_COVER_JAR|/mnt/app/eso/hmi/lsd/.aacluster_cover_added|CarPlay cover art and track info on the media screen|$AUDI_COVER_ASKED
