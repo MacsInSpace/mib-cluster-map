@@ -81,18 +81,36 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
         forwardAudioAvailable(a, b, c);
     }
 
-    public void voiceSessionNotification(int a, int b) {}
-    public void microphoneRequestNotification(int a, int b) {}
-    public void navFocusRequestNotification(int a, int b) {}
-    public void updateCallState(CallState[] a, int b) {}
-    public void updateTelephonyState(TelephonyState a, int b) {}
-    public void updatePlaybackState(PlaybackInfo a, int b) {}
-    public void updatePlayposition(int a, int b) {}
-    public void setExternalDestination(double a, double b, String c, String d, int e) {}
-    public void bluetoothPairingRequest(String a, int b) {}
-    public void asyncException(int a, String b, int c) {}
-    public void registered(String a, int b) {}
-    public void unregistered(String a, int b) {}
+    public void voiceSessionNotification(int a, int b) {
+        forwardVoiceSessionNotification(a, b);
+    }
+    public void microphoneRequestNotification(int a, int b) {
+        forwardMicrophoneRequestNotification(a, b);
+    }
+    public void navFocusRequestNotification(int a, int b) {
+        forwardNavFocusRequestNotification(a, b);
+    }
+    public void updateCallState(CallState[] a, int b) {
+        forwardUpdateCallState(a, b);
+    }
+    public void updateTelephonyState(TelephonyState a, int b) {
+        forwardUpdateTelephonyState(a, b);
+    }
+    public void updatePlaybackState(PlaybackInfo a, int b) {
+        forwardUpdatePlaybackState(a, b);
+    }
+    public void updatePlayposition(int a, int b) {
+        forwardUpdatePlayposition(a, b);
+    }
+    public void setExternalDestination(double a, double b, String c, String d, int e) {
+        forwardSetExternalDestination(a, b, c, d, e);
+    }
+    public void bluetoothPairingRequest(String a, int b) {
+        forwardBluetoothPairingRequest(a, b);
+    }
+    public void asyncException(int a, String b, int c) {
+        forwardAsyncException(a, b, c);
+    }
 
     private void forwardNowPlayingData(TrackData trackData, int instanceId) {
         for (int i = 0; i < listeners.size(); i++) {
@@ -162,6 +180,96 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
             DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
             if (l != null) {
                 try { l.audioAvailable(a, b, c); } catch (Throwable t) {}
+            }
+        }
+    }
+
+    private void forwardVoiceSessionNotification(int a, int b) {
+        for (int i = 0; i < listeners.size(); i++) {
+            DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
+            if (l != null) {
+                try { l.voiceSessionNotification(a, b); } catch (Throwable t) {}
+            }
+        }
+    }
+
+    private void forwardMicrophoneRequestNotification(int a, int b) {
+        for (int i = 0; i < listeners.size(); i++) {
+            DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
+            if (l != null) {
+                try { l.microphoneRequestNotification(a, b); } catch (Throwable t) {}
+            }
+        }
+    }
+
+    private void forwardNavFocusRequestNotification(int a, int b) {
+        for (int i = 0; i < listeners.size(); i++) {
+            DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
+            if (l != null) {
+                try { l.navFocusRequestNotification(a, b); } catch (Throwable t) {}
+            }
+        }
+    }
+
+    private void forwardUpdateCallState(CallState[] a, int b) {
+        for (int i = 0; i < listeners.size(); i++) {
+            DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
+            if (l != null) {
+                try { l.updateCallState(a, b); } catch (Throwable t) {}
+            }
+        }
+    }
+
+    private void forwardUpdateTelephonyState(TelephonyState a, int b) {
+        for (int i = 0; i < listeners.size(); i++) {
+            DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
+            if (l != null) {
+                try { l.updateTelephonyState(a, b); } catch (Throwable t) {}
+            }
+        }
+    }
+
+    private void forwardUpdatePlaybackState(PlaybackInfo a, int b) {
+        for (int i = 0; i < listeners.size(); i++) {
+            DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
+            if (l != null) {
+                try { l.updatePlaybackState(a, b); } catch (Throwable t) {}
+            }
+        }
+    }
+
+    private void forwardUpdatePlayposition(int a, int b) {
+        for (int i = 0; i < listeners.size(); i++) {
+            DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
+            if (l != null) {
+                try { l.updatePlayposition(a, b); } catch (Throwable t) {}
+            }
+        }
+    }
+
+    private void forwardSetExternalDestination(double a, double b, String c, String d, int e) {
+        for (int i = 0; i < listeners.size(); i++) {
+            DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
+            if (l != null) {
+                try { l.setExternalDestination(a, b, c, d, e); } catch (Throwable t) {}
+            }
+        }
+    }
+
+    private void forwardBluetoothPairingRequest(String a, int b) {
+        for (int i = 0; i < listeners.size(); i++) {
+            DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
+            if (l != null) {
+                try { l.bluetoothPairingRequest(a, b); } catch (Throwable t) {}
+            }
+        }
+    }
+
+    private void forwardAsyncException(int a, String b, int c) {
+        for (int i = 0; i < listeners.size(); i++) {
+            DSIAndroidAuto2Listener l = (DSIAndroidAuto2Listener) listeners.elementAt(i);
+            if (l != null) {
+                try { l.asyncException(a, b, c); } catch (Throwable t) {}
             }
         }
     }

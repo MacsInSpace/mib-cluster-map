@@ -42,23 +42,7 @@ public class AATrackProvider {
         lastCoverUrl = "";
         lastPictureId = 0;
         lastListRef = 0;
-        debugLog("AATrackProvider.<init> entered");
-        mediaConnector = findMediaConnector();
-        pictureManager = findPictureManager();
-        if (mediaConnector != null) {
-            log.log(100000, "media connector found");
-            debugLog("mediaConnector found");
-        } else {
-            log.log(1000000, "media connector NOT found");
-            debugLog("mediaConnector NOT found");
-        }
-        if (pictureManager != null) {
-            log.log(100000, "picture manager found");
-            debugLog("pictureManager found");
-        } else {
-            log.log(1000000, "picture manager NOT found");
-            debugLog("pictureManager NOT found");
-        }
+        debugLog("AATrackProvider.<init> entered (lazy service lookup)");
     }
 
     private LogChannel getLogChannel() {
@@ -218,9 +202,18 @@ public class AATrackProvider {
     }
 
     public void handleNowPlayingData(TrackData trackData, int instanceId) {
-        debugLog("handleNowPlayingData called, trackData=" + (trackData != null ? "non-null" : "null") + ", mediaConnector=" + (mediaConnector != null ? "non-null" : "null"));
-        if (trackData == null || mediaConnector == null) {
-            debugLog("handleNowPlayingData: returning early");
+        debugLog("handleNowPlayingData called, trackData=" + (trackData != null ? "non-null" : "null"));
+        if (trackData == null) {
+            debugLog("handleNowPlayingData: returning early (null trackData)");
+            return;
+        }
+        if (mediaConnector == null) {
+            debugLog("handleNowPlayingData: mediaConnector null, attempting lazy lookup");
+            mediaConnector = findMediaConnector();
+            debugLog("handleNowPlayingData: mediaConnector after lazy lookup=" + (mediaConnector != null ? "non-null" : "null"));
+        }
+        if (mediaConnector == null) {
+            debugLog("handleNowPlayingData: returning early (no media connector)");
             return;
         }
         String title = trackData.getTitle();
@@ -256,16 +249,25 @@ public class AATrackProvider {
     }
 
     public void handleCoverArtUrl(ResourceLocator resourceLocator, int instanceId) {
-        debugLog("handleCoverArtUrl called, pictureManager=" + (pictureManager != null ? "non-null" : "null"));
-        if (pictureManager == null) {
-            debugLog("handleCoverArtUrl: returning early");
+        debugLog("handleCoverArtUrl called, resourceLocator=" + (resourceLocator != null ? "non-null" : "null"));
+        if (resourceLocator == null) {
+            debugLog("handleCoverArtUrl: returning early (null resourceLocator)");
             return;
         }
-        String url = resourceLocator != null ? resourceLocator.getUrl() : null;
+        if (pictureManager == null) {
+            debugLog("handleCoverArtUrl: pictureManager null, attempting lazy lookup");
+            pictureManager = findPictureManager();
+            debugLog("handleCoverArtUrl: pictureManager after lazy lookup=" + (pictureManager != null ? "non-null" : "null"));
+        }
+        if (pictureManager == null) {
+            debugLog("handleCoverArtUrl: returning early (no picture manager)");
+            return;
+        }
+        String url = resourceLocator.getUrl();
         if (url == null) url = "";
         boolean changed = !url.equals(lastCoverUrl);
         lastCoverUrl = url;
-        lastPictureId = resourceLocator != null ? resourceLocator.getId() : 0;
+        lastPictureId = resourceLocator.getId();
         debugLog("handleCoverArtUrl: url='" + url + "' pictureId=" + lastPictureId + " changed=" + changed);
         if (!changed && lastTitle.length() == 0 && lastArtist.length() == 0) {
             debugLog("handleCoverArtUrl: no change and no track info, returning");

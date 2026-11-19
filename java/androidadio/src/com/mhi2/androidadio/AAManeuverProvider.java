@@ -38,32 +38,50 @@ public class AAManeuverProvider {
 
     public static void handleNextTurnEvent(String roadName, int mainElement, int direction, int turnAngle, int turnNumber, int event) {
         debugLog("handleNextTurnEvent called, roadName='" + roadName + "' mainElement=" + mainElement + " direction=" + direction);
-        if (instance != null && instance.clusterService != null) {
-            try {
-                BapManeuverDescriptor[] desc = new BapManeuverDescriptor[1];
-                desc[0] = new BapManeuverDescriptor(mainElement, direction, 0, null);
-                instance.clusterService.updateManeuverDescriptor(desc);
-                debugLog("handleNextTurnEvent: clusterService.updateManeuverDescriptor called");
-            } catch (Throwable t) {
-                debugLog("handleNextTurnEvent: threw " + t);
-            }
-        } else {
-            debugLog("handleNextTurnEvent: no instance or clusterService");
+        if (instance == null) {
+            debugLog("handleNextTurnEvent: no instance");
+            return;
+        }
+        if (instance.clusterService == null) {
+            debugLog("handleNextTurnEvent: clusterService null, attempting lazy lookup");
+            instance.clusterService = instance.findClusterService();
+            debugLog("handleNextTurnEvent: clusterService after lazy lookup=" + (instance.clusterService != null ? "non-null" : "null"));
+        }
+        if (instance.clusterService == null) {
+            debugLog("handleNextTurnEvent: no clusterService");
+            return;
+        }
+        try {
+            BapManeuverDescriptor[] desc = new BapManeuverDescriptor[1];
+            desc[0] = new BapManeuverDescriptor(mainElement, direction, 0, null);
+            instance.clusterService.updateManeuverDescriptor(desc);
+            debugLog("handleNextTurnEvent: clusterService.updateManeuverDescriptor called");
+        } catch (Throwable t) {
+            debugLog("handleNextTurnEvent: threw " + t);
         }
     }
 
     public static void handleNextTurnDistance(int distance, int unit, int remainingDistance) {
         debugLog("handleNextTurnDistance called, distance=" + distance);
-        if (instance != null && instance.clusterService != null) {
-            try {
-                DistanceToNextManeuver dist = new DistanceToNextManeuver(true, distance, true, 0);
-                instance.clusterService.updateDistanceToNextManeuver(dist);
-                debugLog("handleNextTurnDistance: clusterService.updateDistanceToNextManeuver called");
-            } catch (Throwable t) {
-                debugLog("handleNextTurnDistance: threw " + t);
-            }
-        } else {
-            debugLog("handleNextTurnDistance: no instance or clusterService");
+        if (instance == null) {
+            debugLog("handleNextTurnDistance: no instance");
+            return;
+        }
+        if (instance.clusterService == null) {
+            debugLog("handleNextTurnDistance: clusterService null, attempting lazy lookup");
+            instance.clusterService = instance.findClusterService();
+            debugLog("handleNextTurnDistance: clusterService after lazy lookup=" + (instance.clusterService != null ? "non-null" : "null"));
+        }
+        if (instance.clusterService == null) {
+            debugLog("handleNextTurnDistance: no clusterService");
+            return;
+        }
+        try {
+            DistanceToNextManeuver dist = new DistanceToNextManeuver(true, distance, true, 0);
+            instance.clusterService.updateDistanceToNextManeuver(dist);
+            debugLog("handleNextTurnDistance: clusterService.updateDistanceToNextManeuver called");
+        } catch (Throwable t) {
+            debugLog("handleNextTurnDistance: threw " + t);
         }
     }
 
@@ -73,15 +91,7 @@ public class AAManeuverProvider {
         lastMainElement = 0;
         lastDirection = 0;
         lastDistance = 0;
-        debugLog("AAManeuverProvider.<init> entered");
-        clusterService = findClusterService();
-        if (clusterService != null) {
-            log.log(100000, "cluster service found");
-            debugLog("clusterService found");
-        } else {
-            log.log(1000000, "cluster service NOT found");
-            debugLog("clusterService NOT found");
-        }
+        debugLog("AAManeuverProvider.<init> entered (lazy clusterService lookup)");
     }
 
     private LogChannel getLogChannel() {

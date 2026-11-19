@@ -28,12 +28,12 @@ Constant pool entries added:
 Bytecode inserted in FrameworkAccess(BundleContext) constructor after
 `putfield context` (offset 11):
 
-    aload_0                      // load this
-    getfield #80                 // get context field
+    aload_1                      // load BundleContext constructor parameter (local var 1)
     invokestatic AAJavaBridge.setBundleContext:(Lorg/osgi/framework/BundleContext;)V
     invokestatic AAJavaBridge.startDSI:()V
 
-Also sets major version to 46 (already 46 in the stock file).
+Uses aload_1 (0x2b) instead of aload_0;getfield #80 so it does not depend
+on any specific constant pool field index. Only uses 1 stack slot.
 """
 import struct
 import sys
@@ -376,25 +376,22 @@ def patch_framework_access(path, out_path=None):
     print(f"  Constructor code_length: {code_length}")
 
     # We need to insert bytecode after `putfield context` at offset 11 within the code.
-    # putfield is at offset 11, 3 bytes (opcode + 2 index bytes). Next instruction at offset 14.
+    # putfield is at offset 11, 3 bytes (opcode 0xb5 + 2 index bytes). Next instruction at offset 14.
     # Insertion point = constructor_code_start + 14
     insert_point = constructor_code_start + 14
 
-    # Verify: at offset 11 within code, we should see putfield opcode (0xb3)
+    # Verify: at offset 11 within code, we should see putfield opcode (0xb5)
     code_offset_11 = constructor_code_start + 11
-    if data[code_offset_11] != 0xb3:
-        print(f"  WARNING: Expected putfield (0xb3) at code offset 11, found 0x{data[code_offset_11]:02x}", file=sys.stderr)
+    if data[code_offset_11] != 0xb5:
+        print(f"  WARNING: Expected putfield (0xb5) at code offset 11, found 0x{data[code_offset_11]:02x}", file=sys.stderr)
 
     # New bytecode to insert:
-    #   aload_0        = 0x2a (1 byte)
-    #   getfield #80   = 0xb4 + 2-byte index (3 bytes)
-    #   invokestatic sb_mref_idx = 0xb8 + 2-byte index (3 bytes)
-    #   invokestatic startdsi_mref_idx = 0xb8 + 2-byte index (3 bytes)
-    # Total: 10 bytes
+    #   aload_1        = 0x2b (1 byte) - loads BundleContext constructor parameter (local var 1)
+    #   invokestatic sb_mref_idx = 0xb8 + 2-byte index (3 bytes) - calls AAJavaBridge.setBundleContext(bc)
+    #   invokestatic startdsi_mref_idx = 0xb8 + 2-byte index (3 bytes) - calls AAJavaBridge.startDSI()
+    # Total: 7 bytes (uses only 1 stack slot, safe if max_stack >= 1)
     new_code = bytearray()
-    new_code.append(0x2a)  # aload_0
-    new_code.append(0xb4)  # getfield
-    new_code.extend(struct.pack(">H", 80))  # fieldref #80 = context field
+    new_code.append(0x2b)  # aload_1 (BundleContext constructor parameter)
     new_code.append(0xb8)  # invokestatic
     new_code.extend(struct.pack(">H", sb_mref_idx))
     new_code.append(0xb8)  # invokestatic
@@ -405,7 +402,7 @@ def patch_framework_access(path, out_path=None):
     # Insert the new code bytes
     data[insert_point:insert_point] = new_code
 
-    # Update code_length (+10 bytes)
+    # Update code_length (+7 bytes)
     new_code_length = code_length + len(new_code)
     struct.pack_into(">I", data, constructor_code_length_off, new_code_length)
 
