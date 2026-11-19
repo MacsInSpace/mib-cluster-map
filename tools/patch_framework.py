@@ -6,13 +6,12 @@ Patches the FrameworkAccess(BundleContext) constructor to, right after storing
 the BundleContext into the `context` field, call:
 
     AAJavaBridge.setBundleContext(this.context);
-    AAJavaBridge.init();
+    AAJavaBridge.startDSI();
 
 This forces J9 to load AAJavaBridge when FrameworkAccess is constructed during
 Audi framework startup. AAJavaBridge's static initializer creates AATrackProvider
-and AAManeuverProvider, which use AAJavaBridge.getBundleContext() to obtain the
-real BundleContext, look up the DSIAndroidAuto2 OSGi service, call
-setNotification(this) and startService(ServiceConfiguration).
+and AAManeuverProvider. startDSI() tells the providers to look up DSIAndroidAuto2
+and register as listeners.
 
 Constant pool entries added:
   CONSTANT_Utf8: "com/mhi2/androidadio/AAJavaBridge"
@@ -21,10 +20,10 @@ Constant pool entries added:
   CONSTANT_Utf8: "(Lorg/osgi/framework/BundleContext;)V"
   CONSTANT_NameAndType: setBundleContext:(Lorg/osgi/framework/BundleContext;)V
   CONSTANT_Methodref: AAJavaBridge.setBundleContext
-  CONSTANT_Utf8: "init"
+  CONSTANT_Utf8: "startDSI"
   CONSTANT_Utf8: "()V"
-  CONSTANT_NameAndType: init:()V
-  CONSTANT_Methodref: AAJavaBridge.init
+  CONSTANT_NameAndType: startDSI:()V
+  CONSTANT_Methodref: AAJavaBridge.startDSI
 
 Bytecode inserted in FrameworkAccess(BundleContext) constructor after
 `putfield context` (offset 11):
@@ -32,7 +31,7 @@ Bytecode inserted in FrameworkAccess(BundleContext) constructor after
     aload_0                      // load this
     getfield #80                 // get context field
     invokestatic AAJavaBridge.setBundleContext:(Lorg/osgi/framework/BundleContext;)V
-    invokestatic AAJavaBridge.init:()V
+    invokestatic AAJavaBridge.startDSI:()V
 
 Also sets major version to 46 (already 46 in the stock file).
 """
@@ -201,10 +200,10 @@ def patch_framework_access(path, out_path=None):
     # 4. Utf8 "(Lorg/osgi/framework/BundleContext;)V"
     # 5. NameAndType #3:#4
     # 6. Methodref #2:#5 (AAJavaBridge.setBundleContext)
-    # 7. Utf8 "init"
+    # 7. Utf8 "startDSI"
     # 8. Utf8 "()V"
     # 9. NameAndType #7:#8
-    # 10. Methodref #2:#9 (AAJavaBridge.init)
+    # 10. Methodref #2:#9 (AAJavaBridge.startDSI)
 
     new_cp_entries = bytearray()
 
@@ -249,10 +248,10 @@ def patch_framework_access(path, out_path=None):
     new_idx += 1
     new_cp_entries.extend(bytes([10]) + struct.pack(">HH", aa_cls_idx, sb_nt_idx))
 
-    # 7. Utf8 "init"
-    init_name_utf8_idx = new_idx
+    # 7. Utf8 "startDSI"
+    startdsi_name_utf8_idx = new_idx
     new_idx += 1
-    b = b"init"
+    b = b"startDSI"
     new_cp_entries.extend(bytes([1]) + struct.pack(">H", len(b)) + b)
 
     # 8. Utf8 "()V"
@@ -261,15 +260,15 @@ def patch_framework_access(path, out_path=None):
     b = b"()V"
     new_cp_entries.extend(bytes([1]) + struct.pack(">H", len(b)) + b)
 
-    # 9. NameAndType init:()V
-    init_nt_idx = new_idx
+    # 9. NameAndType startDSI:()V
+    startdsi_nt_idx = new_idx
     new_idx += 1
-    new_cp_entries.extend(bytes([12]) + struct.pack(">HH", init_name_utf8_idx, init_desc_utf8_idx))
+    new_cp_entries.extend(bytes([12]) + struct.pack(">HH", startdsi_name_utf8_idx, init_desc_utf8_idx))
 
-    # 10. Methodref AAJavaBridge.init
-    init_mref_idx = new_idx
+    # 10. Methodref AAJavaBridge.startDSI
+    startdsi_mref_idx = new_idx
     new_idx += 1
-    new_cp_entries.extend(bytes([10]) + struct.pack(">HH", aa_cls_idx, init_nt_idx))
+    new_cp_entries.extend(bytes([10]) + struct.pack(">HH", aa_cls_idx, startdsi_nt_idx))
 
     # Update cp_count
     new_cp_count = new_idx
@@ -390,7 +389,7 @@ def patch_framework_access(path, out_path=None):
     #   aload_0        = 0x2a (1 byte)
     #   getfield #80   = 0xb4 + 2-byte index (3 bytes)
     #   invokestatic sb_mref_idx = 0xb8 + 2-byte index (3 bytes)
-    #   invokestatic init_mref_idx = 0xb8 + 2-byte index (3 bytes)
+    #   invokestatic startdsi_mref_idx = 0xb8 + 2-byte index (3 bytes)
     # Total: 10 bytes
     new_code = bytearray()
     new_code.append(0x2a)  # aload_0
@@ -399,7 +398,7 @@ def patch_framework_access(path, out_path=None):
     new_code.append(0xb8)  # invokestatic
     new_code.extend(struct.pack(">H", sb_mref_idx))
     new_code.append(0xb8)  # invokestatic
-    new_code.extend(struct.pack(">H", init_mref_idx))
+    new_code.extend(struct.pack(">H", startdsi_mref_idx))
 
     print(f"  Inserting {len(new_code)} bytes at code offset 14")
 

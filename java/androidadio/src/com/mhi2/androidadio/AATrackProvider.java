@@ -4,12 +4,9 @@ import de.audi.app.combi.bap.app.audio.AppConnectorMedia;
 import de.audi.atip.interapp.combi.bap.audio.data.CombiBAPCurrentStationInfo;
 import de.audi.atip.base.IFrameworkAccess;
 import de.audi.atip.log.LogChannel;
-import org.dsi.ifc.androidauto2.DSIAndroidAuto2;
-import org.dsi.ifc.androidauto2.DSIAndroidAuto2Listener;
-import org.dsi.ifc.androidauto2.TrackData;
-import org.dsi.ifc.androidauto2.PlaybackInfo;
-import org.dsi.ifc.global.ResourceLocator;
 import de.audi.app.combi.bap.app.kombipictures.IPictureManager;
+import org.dsi.ifc.androidauto2.TrackData;
+import org.dsi.ifc.global.ResourceLocator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
 import org.osgi.framework.ServiceReference;
@@ -18,12 +15,10 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Hashtable;
 
-public class AATrackProvider implements DSIAndroidAuto2Listener {
+public class AATrackProvider {
     private static final int SOURCE_TYPE_BT_STREAM = 3;
     private static AATrackProvider instance;
-    private DSIAndroidAuto2 dsi;
     private LogChannel log;
     private AppConnectorMedia mediaConnector;
     private IPictureManager pictureManager;
@@ -33,7 +28,6 @@ public class AATrackProvider implements DSIAndroidAuto2Listener {
     private String lastCoverUrl;
     private int lastPictureId;
     private long lastListRef;
-    private boolean active;
 
     public static AATrackProvider getInstance() {
         return instance;
@@ -48,7 +42,6 @@ public class AATrackProvider implements DSIAndroidAuto2Listener {
         lastCoverUrl = "";
         lastPictureId = 0;
         lastListRef = 0;
-        active = false;
         debugLog("AATrackProvider.<init> entered");
         mediaConnector = findMediaConnector();
         pictureManager = findPictureManager();
@@ -66,7 +59,6 @@ public class AATrackProvider implements DSIAndroidAuto2Listener {
             log.log(1000000, "picture manager NOT found");
             debugLog("pictureManager NOT found");
         }
-        startDSI();
     }
 
     private LogChannel getLogChannel() {
@@ -221,80 +213,14 @@ public class AATrackProvider implements DSIAndroidAuto2Listener {
         return null;
     }
 
-    private void startDSI() {
-        debugLog("AATrackProvider.startDSI() entered, active=" + active);
-        try {
-            BundleContext bc = getBundleContext();
-            if (bc == null) {
-                log.log(1000000, "no BundleContext for DSI lookup");
-                debugLog("startDSI: bc is null");
-                return;
-            }
-            ServiceReference ref = bc.getServiceReference(DSIAndroidAuto2.class.getName());
-            if (ref != null) {
-                dsi = (DSIAndroidAuto2) bc.getService(ref);
-                bc.ungetService(ref);
-                debugLog("startDSI: got DSIAndroidAuto2 via BundleContext.getServiceReference");
-            } else {
-                debugLog("startDSI: BundleContext.getServiceReference returned null, trying IServiceManager...");
-                dsi = findDsiViaIServiceManager(bc);
-            }
-            if (dsi != null) {
-                log.log(100000, "DSIAndroidAuto2 service obtained");
-                debugLog("startDSI: DSIAndroidAuto2 service obtained");
-                dsi.setNotification(this);
-                debugLog("startDSI: dsi.setNotification(this) called");
-                try {
-                    org.dsi.ifc.androidauto2.ServiceConfiguration config = new org.dsi.ifc.androidauto2.ServiceConfiguration();
-                    dsi.startService(config);
-                    log.log(100000, "DSIAndroidAuto2 service started");
-                    debugLog("startDSI: dsi.startService(config) called");
-                    active = true;
-                    debugLog("startDSI: active = true");
-                } catch (Throwable t) {
-                    log.log(1000000, "DSIAndroidAuto2 startService failed");
-                    debugLog("startDSI: dsi.startService threw " + t);
-                }
-            } else {
-                log.log(1000000, "DSIAndroidAuto2 service not available via any method");
-                debugLog("startDSI: DSIAndroidAuto2 service is null, could not register listener");
-            }
-        } catch (Throwable t) {
-            log.log(1000000, "startDSI failed");
-            debugLog("startDSI: threw " + t);
-        }
+    public void startDSI() {
+        debugLog("AATrackProvider.startDSI() entered");
     }
 
-    private DSIAndroidAuto2 findDsiViaIServiceManager(BundleContext bc) {
-        try {
-            ServiceReference ref = bc.getServiceReference(de.audi.app.terminalmode.osgi.IServiceManager.class.getName());
-            if (ref != null) {
-                Object svc = bc.getService(ref);
-                bc.ungetService(ref);
-                if (svc != null) {
-                    java.lang.reflect.Method getRefs = svc.getClass().getMethod("getServiceReferences", Class.class);
-                    Object[] refs = (Object[]) getRefs.invoke(svc, DSIAndroidAuto2.class);
-                    debugLog("startDSI: IServiceManager.getServiceReferences returned " + (refs != null ? refs.length : 0) + " refs");
-                    if (refs != null && refs.length > 0) {
-                        java.lang.reflect.Method getService = svc.getClass().getMethod("getService", Object.class);
-                        Object dsi = getService.invoke(svc, refs[0]);
-                        if (dsi instanceof DSIAndroidAuto2) {
-                            debugLog("startDSI: got DSIAndroidAuto2 via IServiceManager");
-                            return (DSIAndroidAuto2) dsi;
-                        }
-                    }
-                }
-            }
-        } catch (Throwable t) {
-            debugLog("findDsiViaIServiceManager: threw " + t);
-        }
-        return null;
-    }
-
-    public void updateNowPlayingData(TrackData trackData, int instanceId) {
-        debugLog("updateNowPlayingData called, active=" + active + ", trackData=" + (trackData != null ? "non-null" : "null") + ", mediaConnector=" + (mediaConnector != null ? "non-null" : "null"));
-        if (!active || trackData == null || mediaConnector == null) {
-            debugLog("updateNowPlayingData: returning early");
+    public void handleNowPlayingData(TrackData trackData, int instanceId) {
+        debugLog("handleNowPlayingData called, trackData=" + (trackData != null ? "non-null" : "null") + ", mediaConnector=" + (mediaConnector != null ? "non-null" : "null"));
+        if (trackData == null || mediaConnector == null) {
+            debugLog("handleNowPlayingData: returning early");
             return;
         }
         String title = trackData.getTitle();
@@ -303,13 +229,13 @@ public class AATrackProvider implements DSIAndroidAuto2Listener {
         if (title == null) title = "";
         if (artist == null) artist = "";
         if (album == null) album = "";
-        debugLog("updateNowPlayingData: title='" + title + "' artist='" + artist + "' album='" + album + "'");
+        debugLog("handleNowPlayingData: title='" + title + "' artist='" + artist + "' album='" + album + "'");
         boolean changed = !title.equals(lastTitle) || !artist.equals(lastArtist) || !album.equals(lastAlbum);
         lastTitle = title;
         lastArtist = artist;
         lastAlbum = album;
         if (!changed && lastCoverUrl.length() == 0) {
-            debugLog("updateNowPlayingData: no change and no cover url, returning");
+            debugLog("handleNowPlayingData: no change and no cover url, returning");
             return;
         }
         try {
@@ -322,17 +248,17 @@ public class AATrackProvider implements DSIAndroidAuto2Listener {
             lastListRef = info.getListRef();
             mediaConnector.updateCurrentStation(info);
             log.log(100000, "track updated");
-            debugLog("updateNowPlayingData: mediaConnector.updateCurrentStation(info) called, listRef=" + lastListRef);
+            debugLog("handleNowPlayingData: mediaConnector.updateCurrentStation(info) called, listRef=" + lastListRef);
         } catch (Throwable t) {
-            log.log(1000000, "updateNowPlayingData failed");
-            debugLog("updateNowPlayingData: mediaConnector.updateCurrentStation threw " + t);
+            log.log(1000000, "handleNowPlayingData failed");
+            debugLog("handleNowPlayingData: mediaConnector.updateCurrentStation threw " + t);
         }
     }
 
-    public void updateCoverArtUrl(ResourceLocator resourceLocator, int instanceId) {
-        debugLog("updateCoverArtUrl called, active=" + active + ", pictureManager=" + (pictureManager != null ? "non-null" : "null"));
-        if (!active || pictureManager == null) {
-            debugLog("updateCoverArtUrl: returning early");
+    public void handleCoverArtUrl(ResourceLocator resourceLocator, int instanceId) {
+        debugLog("handleCoverArtUrl called, pictureManager=" + (pictureManager != null ? "non-null" : "null"));
+        if (pictureManager == null) {
+            debugLog("handleCoverArtUrl: returning early");
             return;
         }
         String url = resourceLocator != null ? resourceLocator.getUrl() : null;
@@ -340,54 +266,21 @@ public class AATrackProvider implements DSIAndroidAuto2Listener {
         boolean changed = !url.equals(lastCoverUrl);
         lastCoverUrl = url;
         lastPictureId = resourceLocator != null ? resourceLocator.getId() : 0;
-        debugLog("updateCoverArtUrl: url='" + url + "' pictureId=" + lastPictureId + " changed=" + changed);
+        debugLog("handleCoverArtUrl: url='" + url + "' pictureId=" + lastPictureId + " changed=" + changed);
         if (!changed && lastTitle.length() == 0 && lastArtist.length() == 0) {
-            debugLog("updateCoverArtUrl: no change and no track info, returning");
+            debugLog("handleCoverArtUrl: no change and no track info, returning");
             return;
         }
         try {
             long listRef = lastListRef != 0 ? lastListRef : 1;
             pictureManager.responseCoverArt(listRef, SOURCE_TYPE_BT_STREAM, resourceLocator, true);
             log.log(100000, "cover art updated");
-            debugLog("updateCoverArtUrl: pictureManager.responseCoverArt(listRef=" + listRef + ", sourceType=" + SOURCE_TYPE_BT_STREAM + ") called");
+            debugLog("handleCoverArtUrl: pictureManager.responseCoverArt(listRef=" + listRef + ", sourceType=" + SOURCE_TYPE_BT_STREAM + ") called");
         } catch (Throwable t) {
-            log.log(1000000, "updateCoverArtUrl failed");
-            debugLog("updateCoverArtUrl: pictureManager.responseCoverArt threw " + t);
+            log.log(1000000, "handleCoverArtUrl failed");
+            debugLog("handleCoverArtUrl: pictureManager.responseCoverArt threw " + t);
         }
     }
-
-    public void videoFocusRequestNotification(int a, int b) {
-        debugLog("videoFocusRequestNotification called");
-    }
-    public void videoAvailable(boolean a, int b) {
-        debugLog("videoAvailable called");
-    }
-    public void audioFocusRequestNotification(int a, int b) {
-        debugLog("audioFocusRequestNotification called");
-    }
-    public void audioAvailable(int a, boolean b, int c) {
-        debugLog("audioAvailable called");
-    }
-    public void voiceSessionNotification(int a, int b) {}
-    public void microphoneRequestNotification(int a, int b) {}
-    public void navFocusRequestNotification(int a, int b) {}
-    public void updateCallState(org.dsi.ifc.androidauto2.CallState[] a, int b) {}
-    public void updateTelephonyState(org.dsi.ifc.androidauto2.TelephonyState a, int b) {}
-    public void updatePlaybackState(PlaybackInfo a, int b) {}
-    public void updatePlayposition(int a, int b) {}
-    public void updateNavigationNextTurnEvent(String roadName, int mainElement, int direction, int turnAngle, int turnNumber, int event) {
-        debugLog("updateNavigationNextTurnEvent called");
-        AAManeuverProvider.onNextTurnEvent(roadName, mainElement, direction, turnAngle, turnNumber, event);
-    }
-    public void updateNavigationNextTurnDistance(int distance, int unit, int remainingDistance) {
-        debugLog("updateNavigationNextTurnDistance called");
-        AAManeuverProvider.onNextTurnDistance(distance, unit, remainingDistance);
-    }
-    public void setExternalDestination(double a, double b, String c, String d, int e) {}
-    public void bluetoothPairingRequest(String a, int b) {}
-    public void asyncException(int a, String b, int c) {}
-    public void registered(String a, int b) {}
-    public void unregistered(String a, int b) {}
 
     private static void debugLog(String msg) {
         try {

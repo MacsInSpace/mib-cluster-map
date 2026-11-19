@@ -36,34 +36,34 @@ public class AAManeuverProvider {
         return instance != null ? instance.lastDistance : 0;
     }
 
-    public static void onNextTurnEvent(String roadName, int mainElement, int direction, int turnAngle, int turnNumber, int event) {
-        debugLog("AAManeuverProvider.onNextTurnEvent called, roadName='" + roadName + "' mainElement=" + mainElement + " direction=" + direction);
+    public static void handleNextTurnEvent(String roadName, int mainElement, int direction, int turnAngle, int turnNumber, int event) {
+        debugLog("handleNextTurnEvent called, roadName='" + roadName + "' mainElement=" + mainElement + " direction=" + direction);
         if (instance != null && instance.clusterService != null) {
             try {
                 BapManeuverDescriptor[] desc = new BapManeuverDescriptor[1];
                 desc[0] = new BapManeuverDescriptor(mainElement, direction, 0, null);
                 instance.clusterService.updateManeuverDescriptor(desc);
-                debugLog("AAManeuverProvider.onNextTurnEvent: clusterService.updateManeuverDescriptor called");
+                debugLog("handleNextTurnEvent: clusterService.updateManeuverDescriptor called");
             } catch (Throwable t) {
-                debugLog("AAManeuverProvider.onNextTurnEvent: threw " + t);
+                debugLog("handleNextTurnEvent: threw " + t);
             }
         } else {
-            debugLog("AAManeuverProvider.onNextTurnEvent: no instance or clusterService");
+            debugLog("handleNextTurnEvent: no instance or clusterService");
         }
     }
 
-    public static void onNextTurnDistance(int distance, int unit, int remainingDistance) {
-        debugLog("AAManeuverProvider.onNextTurnDistance called, distance=" + distance);
+    public static void handleNextTurnDistance(int distance, int unit, int remainingDistance) {
+        debugLog("handleNextTurnDistance called, distance=" + distance);
         if (instance != null && instance.clusterService != null) {
             try {
                 DistanceToNextManeuver dist = new DistanceToNextManeuver(true, distance, true, 0);
                 instance.clusterService.updateDistanceToNextManeuver(dist);
-                debugLog("AAManeuverProvider.onNextTurnDistance: clusterService.updateDistanceToNextManeuver called");
+                debugLog("handleNextTurnDistance: clusterService.updateDistanceToNextManeuver called");
             } catch (Throwable t) {
-                debugLog("AAManeuverProvider.onNextTurnDistance: threw " + t);
+                debugLog("handleNextTurnDistance: threw " + t);
             }
         } else {
-            debugLog("AAManeuverProvider.onNextTurnDistance: no instance or clusterService");
+            debugLog("handleNextTurnDistance: no instance or clusterService");
         }
     }
 
