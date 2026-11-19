@@ -12,28 +12,40 @@ It also contains Android Auto jars built from source in `java/androidadio/`:
 - `AAcoverart_hook.jar` — Android Auto now-playing cover art / track info
 - `AArgd_hook.jar` — Android Auto turn arrows, distance, road name
 
+## License notice: CarPlay jars NOT included
+
+Chefranov's CarPlay jars (`coverart_hook.jar`, `rgd_hook.jar`, `dpad_hook.jar`,
+`pdc_hook.jar`) are **not included** in this package. Chefranov's license
+(clause 4) prohibits distributing modified versions of his binaries or any
+software derived from reverse engineering them.
+
+To use CarPlay cover art / turn info (`CLUSTERMAP_AUDI_COVER=1` or
+`CLUSTERMAP_AUDI_TURNS=1`), download chefranov's jars from:
+
+  https://github.com/chefranov/mhi2-au37x-carplay
+
+Copy them into `thirdparty/` on the SD card:
+
+  coverart_hook.jar   (for CLUSTERMAP_AUDI_COVER=1)
+  rgd_hook.jar        (for CLUSTERMAP_AUDI_TURNS=1)
+
+Chefranov's license allows free personal use on your vehicle; do not sell
+or distribute modified versions. See his repo for full terms.
+
+Android Auto jars (`AAcoverart_hook.jar`, `AArgd_hook.jar`) are **included**
+and are original code — no chefranov dependency. They work without CarPlay.
+
 ## Jars in this folder
 
-| Jar | What it does | How it works |
-|---|---|---|
-| `coverart_hook.jar` | CarPlay cover art + track data into the media/BAP layer | Patches `AppConnectorTerminalMode` class (CarPlay file-path data) |
-| `rgd_hook.jar` | CarPlay route-guidance display (turn arrow, distance, road name) | Patches `ClusterService` class (CarPlay RGI data) |
-| `dpad_hook.jar` | Steering-wheel D-pad / cursor controller for CarPlay | Patches `CarplayDSILifecycleController` class |
-| `pdc_hook.jar` | Parking-sensor popup beside CarPlay | Patches `ExternalEventsListener`, `ParkingSystemControllerComponentEvo` |
-| `AAcoverart_hook.jar` | Android Auto cover art + track info | OSGi service lookup: `AppConnectorMedia.updateCurrentStation()` + `IPictureManager.responseCoverArt()` (DSIAndroidAuto2 data) |
-| `AArgd_hook.jar` | Android Auto turn arrows + distance + road name | OSGi service lookup: `ClusterService.updateManeuverDescriptor()` / `updateDistanceToNextManeuver()` (DSIAndroidAuto2 data) |
+| Jar | What it does | How it works | Included in zip? |
+|---|---|---|---|
+| `coverart_hook.jar` | CarPlay cover art + track data into the media/BAP layer | Patches `AppConnectorTerminalMode` class (CarPlay file-path data) | No — download from chefranov's repo |
+| `rgd_hook.jar` | CarPlay route-guidance display (turn arrow, distance, road name) | Patches `ClusterService` class (CarPlay RGI data) | No — download from chefranov's repo |
+| `dpad_hook.jar` | Steering-wheel D-pad / cursor controller for CarPlay | Patches `CarplayDSILifecycleController` class | No — download from chefranov's repo |
+| `pdc_hook.jar` | Parking-sensor popup beside CarPlay | Patches `ExternalEventsListener`, `ParkingSystemControllerComponentEvo` | No — download from chefranov's repo |
+| `AAcoverart_hook.jar` | Android Auto cover art + track info | OSGi service lookup: `AppConnectorMedia.updateCurrentStation()` + `IPictureManager.responseCoverArt()` (DSIAndroidAuto2 data) | Yes — original code |
+| `AArgd_hook.jar` | Android Auto turn arrows + distance + road name | OSGi service lookup: `ClusterService.updateManeuverDescriptor()` / `updateDistanceToNextManeuver()` (DSIAndroidAuto2 data) | Yes — original code |
 
-`coverart_hook.jar` / `rgd_hook.jar` are for CarPlay; `AAcoverart_hook.jar` /
-`AArgd_hook.jar` are for Android Auto. CarPlay jars patch Audi stock classes;
-AA jars use OSGi service lookup to call existing services directly. Because
-they work at different levels, CarPlay and Android Auto can be enabled
-simultaneously — set `CLUSTERMAP_AUDI_*` and `CLUSTERMAP_AA_*` options
-independently in `config/gal_dualscreen.conf`.
-
-Within each pair, the turns jar already carries cover art, so cover is
-redundant when turns is enabled.
-
-## Build
 
 Android Auto jars are built from `java/androidadio/` with `build.sh` — compiles
 Java source with `javac --release 8` against `TRANSFER/lsd.jar`, then strips
@@ -61,15 +73,19 @@ data.
 
 1. `build_local.sh` copies all jars to the SD card's `thirdparty/` folder as
    part of the main ClusterMap package — no separate install needed:
+   - Android Auto: `AAcoverart_hook.jar`, `AArgd_hook.jar` (included)
    - CarPlay: `coverart_hook.jar`, `rgd_hook.jar`, `dpad_hook.jar`, `pdc_hook.jar`
-   - Android Auto: `AAcoverart_hook.jar`, `AArgd_hook.jar`
+     — NOT included in the zip. Download from chefranov's repo and copy manually
+     into `thirdparty/` if you want CarPlay support. See `CARPLAY_JARS_NOTICE.txt`.
 2. `config/profiles.conf`: give the `MHI2_ER_AU37x_P5089` train the `info` flag:
    ```
    train MHI2_ER_AU37x_P5089 map info
    ```
 3. `config/gal_dualscreen.conf`: set any combination of:
    - CarPlay: `CLUSTERMAP_AUDI_COVER=1` / `CLUSTERMAP_AUDI_TURNS=1`
+     (requires chefranov's jars in `thirdparty/`)
    - Android Auto: `CLUSTERMAP_AA_COVER=1` / `CLUSTERMAP_AA_TURNS=1`
+     (jars included — works out of the box)
    CarPlay and Android Auto can both be enabled at the same time.
 4. `scripts/enable_hook.sh`: installs/removes jars based on the four config
    options. `scripts/disable_hook.sh`: removes all jars on uninstall.
