@@ -104,6 +104,28 @@ cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log
    /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status /tmp/clustermap-wheelzoom.log $OUT/carplay/ 2>/dev/null
 grep -n -e dio_manager -e libcarplay -e ALTSCREEN111 /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/carplay/config_lines.txt 2>&1
 grep -n carplay0 /mnt/system/etc/pf*.conf > $OUT/carplay/firewall_lines.txt 2>&1
+# ---- Android Auto cover art / turn debugging ----
+# Whether the patched lsd.jar (FrameworkAccess constructor calling
+# AAJavaBridge.setBundleContext + init) is actually deployed, and whether the
+# AA hook jars are present in lsd/jars (AU37x lsd.sh loads every jar there).
+mkdir -p $OUT/aa
+echo "--- lsd.jar" > $OUT/aa/lsd_jar_check.txt 2>&1
+ls -l /mnt/app/eso/hmi/lsd/lsd.jar >> $OUT/aa/lsd_jar_check.txt 2>&1
+echo "--- lsd/jars" >> $OUT/aa/lsd_jar_check.txt 2>&1
+ls -l /mnt/app/eso/hmi/lsd/jars /mnt/app/eso/hmi/lsd/jars_off >> $OUT/aa/lsd_jar_check.txt 2>&1
+echo "--- lsd.sh auto-load check" >> $OUT/aa/lsd_jar_check.txt 2>&1
+grep -n 'find.*jars\|Xbootclasspath\|^\$J9\|lsd.jxe' /mnt/app/eso/hmi/lsd/lsd.sh >> $OUT/aa/lsd_jar_check.txt 2>&1
+# AA marker files (written by enable_hook.sh when it adds each jar)
+for m in .aacluster_aa_cover_added .aacluster_aa_turns_added .aacluster_cover_added .aacluster_audi_turns_added .aacluster_navignore_added; do
+    if [ -f "/mnt/app/eso/hmi/lsd/$m" ]; then echo "$m: present"; else echo "$m: absent"; fi
+done > $OUT/aa/aa_markers.txt 2>&1
+# sloginfo filtered for AA-related log channels (AATrackProvider, AAManeuverProvider,
+# AAJavaBridge, AppConnectorMedia, IPictureManager, DSIAndroidAuto2, ClusterService)
+sloginfo 2>/dev/null | grep -i -e 'aatrackprovider' -e 'aamaneuverprovider' -e 'aajavabridge' -e 'dsiauto' -e 'appconnector' -e 'picturmanager' -e 'clusterservice' -e 'androidauto' > $OUT/aa/sloginfo_aa.txt 2>&1 || :
+# AA settings from gal_dualscreen.conf
+grep -n -e 'CLUSTERMAP_AA_COVER' -e 'CLUSTERMAP_AA_TURNS' -e 'CLUSTERMAP_AUDI_COVER' -e 'CLUSTERMAP_AUDI_TURNS' /eso/lib/gal_dualscreen/gal_dualscreen.conf > $OUT/aa/aa_conf.txt 2>&1 || :
+# VCAndroidAuto.log (already copied above, also keep here)
+cp /tmp/VCAndroidAuto.log $OUT/aa/ 2>/dev/null || :
 # Crash archives the unit's dumper keeps (pidin: dumper -d /mnt/ota/system/core).
 # List them all, and copy the newest one of dio_manager (the CarPlay program)
 # when it is small: #111, where CarPlay stops at start-up with NavActiveIgnore.

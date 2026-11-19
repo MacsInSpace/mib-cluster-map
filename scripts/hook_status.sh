@@ -220,3 +220,24 @@ echo "This checklist reflects what the hook's own log claims about itself. Every
 echo "line can pass with the cockpit showing its own map or nothing, for example"
 echo "when the window is the wrong size. Only the cockpit itself shows whether it"
 echo "worked, and that the main screen is unaffected."
+
+# ---- Android Auto cover art / turn status ----
+echo
+echo "Android Auto (AA) cover art / turns on the cluster"
+echo "============================================================"
+echo "AA settings (from /eso/lib/gal_dualscreen/gal_dualscreen.conf):"
+grep -n -e 'CLUSTERMAP_AA_COVER' -e 'CLUSTERMAP_AA_TURNS' -e 'CLUSTERMAP_AUDI_COVER' -e 'CLUSTERMAP_AUDI_TURNS' /eso/lib/gal_dualscreen/gal_dualscreen.conf 2>/dev/null || echo "  (none found)"
+echo
+echo "AA marker files (in /mnt/app/eso/hmi/lsd/):"
+for m in .aacluster_aa_cover_added .aacluster_aa_turns_added .aacluster_cover_added .aacluster_audi_turns_added; do
+    if [ -f "/mnt/app/eso/hmi/lsd/$m" ]; then echo "  [PRESENT] $m"; else echo "  [absent]  $m"; fi
+done
+echo
+echo "AA hook jars in /mnt/app/eso/hmi/lsd/jars/:"
+ls -l /mnt/app/eso/hmi/lsd/jars/AAcoverart_hook.jar /mnt/app/eso/hmi/lsd/jars/AArgd_hook.jar 2>/dev/null || echo "  (not found)"
+echo
+echo "lsd.jar auto-loads jars (AU37x):"
+grep -q 'find.*jars' /mnt/app/eso/hmi/lsd/lsd.sh 2>/dev/null && echo "  yes (find \$BASE_DIR/lsd/jars)" || echo "  no (check lsd.sh manually)"
+echo
+echo "AA sloginfo (filtered):"
+sloginfo 2>/dev/null | grep -i -e 'aatrackprovider' -e 'aamaneuverprovider' -e 'aajavabridge' -e 'dsiauto' -e 'appconnector' -e 'picturmanager' -e 'clusterservice' | tail -20 || echo "  (no AA log lines found)"
