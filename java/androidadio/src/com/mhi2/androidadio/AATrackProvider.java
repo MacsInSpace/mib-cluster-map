@@ -13,8 +13,6 @@ import de.audi.app.combi.bap.app.kombipictures.IPictureManager;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
 import org.osgi.framework.ServiceReference;
-import org.osgi.framework.ServiceEvent;
-import org.osgi.framework.ServiceListener;
 import org.osgi.framework.Bundle;
 import java.io.FileWriter;
 import java.io.PrintWriter;
@@ -22,7 +20,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Hashtable;
 
-public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener {
+public class AATrackProvider implements DSIAndroidAuto2Listener {
     private static final int SOURCE_TYPE_BT_STREAM = 3;
     private static AATrackProvider instance;
     private DSIAndroidAuto2 dsi;
@@ -36,7 +34,6 @@ public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener
     private int lastPictureId;
     private long lastListRef;
     private boolean active;
-    private boolean dsiRetryScheduled;
 
     public static AATrackProvider getInstance() {
         return instance;
@@ -52,7 +49,6 @@ public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener
         lastPictureId = 0;
         lastListRef = 0;
         active = false;
-        dsiRetryScheduled = false;
         debugLog("AATrackProvider.<init> entered");
         mediaConnector = findMediaConnector();
         pictureManager = findPictureManager();
@@ -88,11 +84,13 @@ public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener
                     bc.ungetService(ref);
                 }
             }
-        } catch (Throwable t) {}
+        } catch (Throwable t) {
+            debugLog("getLogChannel: OSGi IFrameworkAccess lookup threw " + t);
+        }
         try {
-            Class<?> cls = Class.forName("de.audi.atip.base.IFrameworkAccess");
+            Class cls = Class.forName("de.audi.atip.base.IFrameworkAccess");
             java.lang.reflect.Field f = null;
-            Class<?> c = cls;
+            Class c = cls;
             while (c != null) {
                 try {
                     f = c.getDeclaredField("instance");
@@ -109,7 +107,9 @@ public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener
                     return (LogChannel) m.invoke(fa, "AATrackProvider");
                 }
             }
-        } catch (Throwable t) {}
+        } catch (Throwable t) {
+            debugLog("getLogChannel: static instance lookup threw " + t);
+        }
         return new StubLogChannel();
     }
 
@@ -152,7 +152,7 @@ public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener
             debugLog("findMediaConnector: OSGi lookup threw " + t);
         }
         try {
-            Class<?> cls = Class.forName("de.audi.app.combi.bap.app.audio.CombiModuleAudio");
+            Class cls = Class.forName("de.audi.app.combi.bap.app.audio.CombiModuleAudio");
             java.lang.reflect.Method m = cls.getMethod("getMediaService");
             Object mod = findCombiModuleAudio(cls);
             if (mod != null) {
@@ -169,9 +169,9 @@ public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener
         return null;
     }
 
-    private Object findCombiModuleAudio(Class<?> cls) throws Exception {
+    private Object findCombiModuleAudio(Class cls) throws Exception {
         java.lang.reflect.Field f = null;
-        Class<?> c = cls;
+        Class c = cls;
         while (c != null) {
             try {
                 f = c.getDeclaredField("instance");
@@ -228,18 +228,17 @@ public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener
             if (bc == null) {
                 log.log(1000000, "no BundleContext for DSI lookup");
                 debugLog("startDSI: bc is null");
-                registerDsiRetry();
                 return;
             }
             ServiceReference ref = bc.getServiceReference(DSIAndroidAuto2.class.getName());
-            if (ref == null) {
-                log.log(1000000, "DSIAndroidAuto2 service not available yet");
-                debugLog("startDSI: DSIAndroidAuto2 service reference is null, registering retry listener");
-                registerDsiRetry();
-                return;
+            if (ref != null) {
+                dsi = (DSIAndroidAuto2) bc.getService(ref);
+                bc.ungetService(ref);
+                debugLog("startDSI: got DSIAndroidAuto2 via BundleContext.getServiceReference");
+            } else {
+                debugLog("startDSI: BundleContext.getServiceReference returned null, trying IServiceManager...");
+                dsi = findDsiViaIServiceManager(bc);
             }
-            dsi = (DSIAndroidAuto2) bc.getService(ref);
-            bc.ungetService(ref);
             if (dsi != null) {
                 log.log(100000, "DSIAndroidAuto2 service obtained");
                 debugLog("startDSI: DSIAndroidAuto2 service obtained");
@@ -257,58 +256,45 @@ public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener
                     debugLog("startDSI: dsi.startService threw " + t);
                 }
             } else {
-                debugLog("startDSI: dsi is null after getService");
-                registerDsiRetry();
+                log.log(1000000, "DSIAndroidAuto2 service not available via any method");
+                debugLog("startDSI: DSIAndroidAuto2 service is null, could not register listener");
             }
         } catch (Throwable t) {
             log.log(1000000, "startDSI failed");
             debugLog("startDSI: threw " + t);
-            registerDsiRetry();
         }
     }
 
-    private void registerDsiRetry() {
-        if (dsiRetryScheduled) return;
-        dsiRetryScheduled = true;
+    private DSIAndroidAuto2 findDsiViaIServiceManager(BundleContext bc) {
         try {
-            BundleContext bc = getBundleContext();
-            if (bc != null) {
-                bc.addServiceListener(this, "(objectClass=" + DSIAndroidAuto2.class.getName() + ")");
-                debugLog("registered ServiceListener for DSIAndroidAuto2 retry");
-            }
-        } catch (Throwable t) {
-            debugLog("registerDsiRetry: threw " + t);
-        }
-    }
-
-    public void serviceChanged(ServiceEvent event) {
-        try {
-            int type = event.getType();
-            if (type == ServiceEvent.REGISTERED || type == ServiceEvent.MODIFIED) {
-                ServiceReference ref = event.getServiceReference();
-                String[] classes = (String[]) ref.getProperty("objectClass");
-                for (int i = 0; i < classes.length; i++) {
-                    if (DSIAndroidAuto2.class.getName().equals(classes[i])) {
-                        debugLog("serviceChanged: DSIAndroidAuto2 became available, retrying startDSI");
-                        dsiRetryScheduled = false;
-                        try {
-                            BundleContext bc = getBundleContext();
-                            if (bc != null) bc.removeServiceListener(this);
-                        } catch (Throwable t) {}
-                        startDSI();
-                        return;
+            ServiceReference ref = bc.getServiceReference(de.audi.app.terminalmode.osgi.IServiceManager.class.getName());
+            if (ref != null) {
+                Object svc = bc.getService(ref);
+                bc.ungetService(ref);
+                if (svc != null) {
+                    java.lang.reflect.Method getRefs = svc.getClass().getMethod("getServiceReferences", Class.class);
+                    Object[] refs = (Object[]) getRefs.invoke(svc, DSIAndroidAuto2.class);
+                    debugLog("startDSI: IServiceManager.getServiceReferences returned " + (refs != null ? refs.length : 0) + " refs");
+                    if (refs != null && refs.length > 0) {
+                        java.lang.reflect.Method getService = svc.getClass().getMethod("getService", Object.class);
+                        Object dsi = getService.invoke(svc, refs[0]);
+                        if (dsi instanceof DSIAndroidAuto2) {
+                            debugLog("startDSI: got DSIAndroidAuto2 via IServiceManager");
+                            return (DSIAndroidAuto2) dsi;
+                        }
                     }
                 }
             }
         } catch (Throwable t) {
-            debugLog("serviceChanged: threw " + t);
+            debugLog("findDsiViaIServiceManager: threw " + t);
         }
+        return null;
     }
 
     public void updateNowPlayingData(TrackData trackData, int instanceId) {
         debugLog("updateNowPlayingData called, active=" + active + ", trackData=" + (trackData != null ? "non-null" : "null") + ", mediaConnector=" + (mediaConnector != null ? "non-null" : "null"));
         if (!active || trackData == null || mediaConnector == null) {
-            debugLog("updateNowPlayingData: returning early (active=" + active + ", trackData=" + (trackData == null ? "null" : "present") + ", mediaConnector=" + (mediaConnector == null ? "null" : "present") + ")");
+            debugLog("updateNowPlayingData: returning early");
             return;
         }
         String title = trackData.getTitle();
@@ -346,7 +332,7 @@ public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener
     public void updateCoverArtUrl(ResourceLocator resourceLocator, int instanceId) {
         debugLog("updateCoverArtUrl called, active=" + active + ", pictureManager=" + (pictureManager != null ? "non-null" : "null"));
         if (!active || pictureManager == null) {
-            debugLog("updateCoverArtUrl: returning early (active=" + active + ", pictureManager=" + (pictureManager == null ? "null" : "present") + ")");
+            debugLog("updateCoverArtUrl: returning early");
             return;
         }
         String url = resourceLocator != null ? resourceLocator.getUrl() : null;
@@ -389,8 +375,14 @@ public class AATrackProvider implements DSIAndroidAuto2Listener, ServiceListener
     public void updateTelephonyState(org.dsi.ifc.androidauto2.TelephonyState a, int b) {}
     public void updatePlaybackState(PlaybackInfo a, int b) {}
     public void updatePlayposition(int a, int b) {}
-    public void updateNavigationNextTurnEvent(String a, int b, int c, int d, int e, int f) {}
-    public void updateNavigationNextTurnDistance(int a, int b, int c) {}
+    public void updateNavigationNextTurnEvent(String roadName, int mainElement, int direction, int turnAngle, int turnNumber, int event) {
+        debugLog("updateNavigationNextTurnEvent called");
+        AAManeuverProvider.onNextTurnEvent(roadName, mainElement, direction, turnAngle, turnNumber, event);
+    }
+    public void updateNavigationNextTurnDistance(int distance, int unit, int remainingDistance) {
+        debugLog("updateNavigationNextTurnDistance called");
+        AAManeuverProvider.onNextTurnDistance(distance, unit, remainingDistance);
+    }
     public void setExternalDestination(double a, double b, String c, String d, int e) {}
     public void bluetoothPairingRequest(String a, int b) {}
     public void asyncException(int a, String b, int c) {}

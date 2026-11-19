@@ -2,15 +2,19 @@ package com.mhi2.androidadio;
 
 import de.audi.atip.log.LogChannel;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import org.dsi.ifc.androidauto2.TrackData;
+import org.dsi.ifc.androidauto2.PlaybackInfo;
+import org.dsi.ifc.global.ResourceLocator;
 import org.osgi.framework.BundleContext;
 
 public class AAJavaBridge {
     private static boolean initialized;
     private static BundleContext bundleContext;
+    private static AATrackProvider trackProvider;
+    private static AAManeuverProvider maneuverProvider;
 
     static {
         init();
@@ -25,6 +29,14 @@ public class AAJavaBridge {
         return bundleContext;
     }
 
+    public static AATrackProvider getTrackProvider() {
+        return trackProvider;
+    }
+
+    public static AAManeuverProvider getManeuverProvider() {
+        return maneuverProvider;
+    }
+
     public static void debugLog(String msg) {
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS");
@@ -36,38 +48,47 @@ public class AAJavaBridge {
         } catch (Throwable t) {}
     }
 
+    public static void onNowPlayingData(TrackData trackData, int instanceId) {
+        debugLog("AAJavaBridge.onNowPlayingData called");
+        if (trackProvider != null) {
+            trackProvider.updateNowPlayingData(trackData, instanceId);
+        }
+    }
+
+    public static void onCoverArtUrl(ResourceLocator resourceLocator, int instanceId) {
+        debugLog("AAJavaBridge.onCoverArtUrl called");
+        if (trackProvider != null) {
+            trackProvider.updateCoverArtUrl(resourceLocator, instanceId);
+        }
+    }
+
+    public static void onNextTurnEvent(String roadName, int mainElement, int direction, int turnAngle, int turnNumber, int event) {
+        debugLog("AAJavaBridge.onNextTurnEvent called");
+        AAManeuverProvider.onNextTurnEvent(roadName, mainElement, direction, turnAngle, turnNumber, event);
+    }
+
+    public static void onNextTurnDistance(int distance, int unit, int remainingDistance) {
+        debugLog("AAJavaBridge.onNextTurnDistance called");
+        AAManeuverProvider.onNextTurnDistance(distance, unit, remainingDistance);
+    }
+
     public static void init() {
         if (initialized) return;
         initialized = true;
-        debugLog("AAJavaBridge.init() started");
-        LogChannel log = null;
+        debugLog("AAJavaBridge.init() started, bundleContext=" + (bundleContext != null ? "set" : "null"));
         try {
-            log = new StubLogChannel();
-        } catch (Throwable t) {}
-        try {
-            new AATrackProvider();
-            logIf(log, "AATrackProvider started");
-            debugLog("AATrackProvider started");
+            trackProvider = new AATrackProvider();
+            debugLog("AATrackProvider created");
         } catch (Throwable t) {
-            logIf(log, "AATrackProvider failed");
-            debugLog("AATrackProvider failed: " + t);
+            debugLog("AATrackProvider creation failed: " + t);
         }
         try {
-            new AAManeuverProvider();
-            logIf(log, "AAManeuverProvider started");
-            debugLog("AAManeuverProvider started");
+            maneuverProvider = new AAManeuverProvider();
+            debugLog("AAManeuverProvider created");
         } catch (Throwable t) {
-            logIf(log, "AAManeuverProvider failed");
-            debugLog("AAManeuverProvider failed: " + t);
+            debugLog("AAManeuverProvider creation failed: " + t);
         }
-        debugLog("AAJavaBridge.init() done, bundleContext=" + (bundleContext != null ? "set" : "null"));
-    }
-
-    private static void logIf(LogChannel log, String msg) {
-        if (log != null) {
-            try { log.log(100000, msg); } catch (Throwable t) {}
-        }
-        System.out.println(msg);
+        debugLog("AAJavaBridge.init() done");
     }
 
     private static class StubLogChannel extends de.audi.atip.log.LogChannel {
