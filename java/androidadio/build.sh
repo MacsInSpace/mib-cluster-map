@@ -91,3 +91,36 @@ echo "Built $OUT/AAAndroidAutoTrack.jar"
 echo "Built $OUT/AAAndroidAutoTurns.jar"
 unzip -l "$OUT/AAAndroidAutoTrack.jar" | grep '\.class$'
 unzip -l "$OUT/AAAndroidAutoTurns.jar" | grep '\.class$'
+
+# Patch FrameworkAccess.class in lsd.jar to load our AA provider on framework startup
+echo ""
+echo "Patching FrameworkAccess.class in lsd.jar..."
+FW_DIR="$T/framework"
+mkdir -p "$FW_DIR/de/audi/atip/base"
+unzip -o -j "$LSD_JAR" de/audi/atip/base/FrameworkAccess.class -d "$FW_DIR/de/audi/atip/base" >/dev/null 2>&1
+python3 "$ROOT/tools/patch_framework.py" \
+    "$FW_DIR/de/audi/atip/base/FrameworkAccess.class" \
+    "$FW_DIR/de/audi/atip/base/FrameworkAccess.class" >/dev/null
+
+# Backup and replace in lsd.jar
+cp "$LSD_JAR" "$LSD_JAR.bak"
+python3 -c "
+import zipfile, sys
+jar_path = sys.argv[1]
+class_path = sys.argv[2]
+with zipfile.ZipFile(jar_path, 'a') as z:
+    z.write(class_path, 'de/audi/atip/base/FrameworkAccess.class')
+print('Patched FrameworkAccess.class written to', jar_path)
+" "$LSD_JAR" "$FW_DIR/de/audi/atip/base/FrameworkAccess.class"
+
+echo ""
+echo "Build complete. Artifacts:"
+echo "  $OUT/AAAndroidAutoTrack.jar"
+echo "  $OUT/AAAndroidAutoTurns.jar"
+echo "  $LSD_JAR (patched FrameworkAccess.class, backup at $LSD_JAR.bak)"
+echo ""
+echo "Next steps:"
+echo "  1. Copy AAAndroidAutoTrack.jar -> thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar"
+echo "  2. Copy AAAndroidAutoTurns.jar  -> thirdparty/mib2-android-auto-audi/AArgd_hook.jar"
+echo "  3. Copy patched lsd.jar to the unit (replaces stock lsd.jar)"
+echo "  4. Install jars via green menu / scripts/enable_hook.sh"

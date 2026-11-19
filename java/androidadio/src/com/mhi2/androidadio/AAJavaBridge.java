@@ -1,12 +1,22 @@
 package com.mhi2.androidadio;
 
 import de.audi.atip.log.LogChannel;
+import org.osgi.framework.BundleContext;
 
 public class AAJavaBridge {
     private static boolean initialized;
+    private static BundleContext bundleContext;
 
     static {
         init();
+    }
+
+    public static void setBundleContext(BundleContext bc) {
+        bundleContext = bc;
+    }
+
+    public static BundleContext getBundleContext() {
+        return bundleContext;
     }
 
     public static void init() {

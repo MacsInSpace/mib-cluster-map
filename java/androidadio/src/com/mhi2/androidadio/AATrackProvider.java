@@ -101,6 +101,10 @@ public class AATrackProvider implements DSIAndroidAuto2Listener {
 
     private BundleContext getBundleContext() {
         try {
+            BundleContext bc = AAJavaBridge.getBundleContext();
+            if (bc != null) return bc;
+        } catch (Throwable t) {}
+        try {
             Bundle b = FrameworkUtil.getBundle(AATrackProvider.class);
             if (b != null) return b.getBundleContext();
         } catch (Throwable t) {}
@@ -193,6 +197,14 @@ public class AATrackProvider implements DSIAndroidAuto2Listener {
             bc.ungetService(ref);
             if (dsi != null) {
                 log.log(100000, "DSIAndroidAuto2 service obtained");
+                dsi.setNotification(this);
+                try {
+                    org.dsi.ifc.androidauto2.ServiceConfiguration config = new org.dsi.ifc.androidauto2.ServiceConfiguration();
+                    dsi.startService(config);
+                    log.log(100000, "DSIAndroidAuto2 service started");
+                } catch (Throwable t) {
+                    log.log(1000000, "DSIAndroidAuto2 startService failed");
+                }
                 active = true;
             }
         } catch (Throwable t) {
