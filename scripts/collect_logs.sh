@@ -126,6 +126,8 @@ sloginfo 2>/dev/null | grep -i -e 'aatrackprovider' -e 'aamaneuverprovider' -e '
 grep -n -e 'CLUSTERMAP_AA_COVER' -e 'CLUSTERMAP_AA_TURNS' -e 'CLUSTERMAP_AUDI_COVER' -e 'CLUSTERMAP_AUDI_TURNS' /eso/lib/gal_dualscreen/gal_dualscreen.conf > $OUT/aa/aa_conf.txt 2>&1 || :
 # VCAndroidAuto.log (already copied above, also keep here)
 cp /tmp/VCAndroidAuto.log $OUT/aa/ 2>/dev/null || :
+# AA JavaBridge debug log (file-based, works despite -DLOG=all=0)
+cp /tmp/aacoverart.log $OUT/aa/ 2>/dev/null || :
 # Crash archives the unit's dumper keeps (pidin: dumper -d /mnt/ota/system/core).
 # List them all, and copy the newest one of dio_manager (the CarPlay program)
 # when it is small: #111, where CarPlay stops at start-up with NavActiveIgnore.
