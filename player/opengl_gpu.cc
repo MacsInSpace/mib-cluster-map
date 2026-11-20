@@ -920,6 +920,14 @@ static void nvss_disable_for_boot(const char*) {}
  */
 static bool g_nvmActive = false;
 static bool g_nvmWanted = false;         /* hw asked and NvSS could not draw to this cockpit */
+/* GAL_PLAYER_HW_HD=1: decode a 720p or 1080p frame into memory too. Off by
+ * default: on a Skoda P4526 at 720p, every time the centre screen took
+ * Android Auto back, gal's own decoder failed (NvSSVideoDecode
+ * BUFFER_NOT_CONSUMED) and the centre screen stayed black (#125, #145; 17 of
+ * 17 restarts in the owner's logs). Not seen at 800x480 (Golf P4521) or with
+ * software decode. The NvSS path above (Audi, drawing straight to the
+ * cockpit) is not affected. */
+static bool g_hwHd = false;
 #ifdef __QNX__
 #define NVM_MAX_PICS 24
 struct NvmPic { void* surface; int refs; };
@@ -2150,6 +2158,9 @@ static void load_player_config() {
             } else if (strcmp(key, "GAL_PLAYER_NEON") == 0) {
                 /* 0: decode without NEON; anything else: NEON where the CPU has it. */
                 g_neonAllowed = atoi(val) != 0;
+            } else if (strcmp(key, "GAL_PLAYER_HW_HD") == 0) {
+                /* 1: the unit's decoder into memory for 720p/1080p frames too. */
+                g_hwHd = atoi(val) == 1;
             } else if (strcmp(key, "GAL_PLAYER_REASSERT") == 0) {
                 /* 1: switch the cockpit to the player again when the unit set it back. */
                 g_reassert = atoi(val) == 1;
@@ -2497,6 +2508,13 @@ int main(int argc, char* argv[]) {
     /* hw where NvSS cannot draw to the cockpit (it reports no size on VW,
      * Skoda and SEAT): the unit's decoder into memory, drawn as software is. */
     g_nvmWanted = hwAsked;
+    if (g_nvmWanted && (g_streamFrameWidth > 800 || g_streamFrameHeight > 480) && !g_hwHd) {
+        /* Only reached when NvSS could not draw to this cockpit (VW, Skoda, SEAT). */
+        g_nvmWanted = false;
+        LOG("hwdecode: %dx%d frame decoded in software; the unit's decoder into memory "
+            "is used up to 800x480 (GAL_PLAYER_HW_HD=1 for HD frames too: it blacked "
+            "out the centre screen on a Skoda, #145)", g_streamFrameWidth, g_streamFrameHeight);
+    }
 
 #ifdef __QNX__
     // Keep libdisplayinit.so resident for the entire application lifetime!

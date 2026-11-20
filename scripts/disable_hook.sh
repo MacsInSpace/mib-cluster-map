@@ -205,6 +205,7 @@ if [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
         # CarPlay Maps VC found this patch at its install and uses it instead
         # of its own copy. The marker stays, so a later uninstall removes it.
         echo "Kept NavActiveIgnore: the CarPlay map needs it too."
+        NAV_KEPT=1
     elif [ -f /mnt/app/eso/hmi/lsd/.aacluster_navignore_added ]; then
         if sh "$CARD_ROOT/lsd_jar.sh" remove NavActiveIgnore.jar; then
             mount -uw /mnt/app 2>/dev/null && {
@@ -215,6 +216,19 @@ if [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
         else
             echo "WARNING: could not remove the NavActiveIgnore line; lsd.sh is unchanged." >&2
         fi
+    fi
+    # The owner's own NavActiveIgnore.jar that an install replaced (on Audi
+    # the toolbox's VW build, swapped for the Audi build, #155): lsd_jar.sh
+    # kept it beside the jar; put it back.
+    NAV_OLD=/mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar.before_update
+    if [ -f "$NAV_OLD" ] && [ "${NAV_KEPT:-0}" -eq 0 ]; then
+        mount -uw /mnt/app 2>/dev/null || :
+        if mv "$NAV_OLD" /mnt/app/eso/hmi/lsd/jars/NavActiveIgnore.jar; then
+            echo "Put back the NavActiveIgnore.jar that was there before the install."
+        else
+            echo "WARNING: could not put back $NAV_OLD." >&2
+        fi
+        mount -ur /mnt/app 2>/dev/null || :
     fi
     # The music and turns jars go with the map (CLUSTERMAP_MUSIC_INFO,
     # CLUSTERMAP_TURN_INFO), and so does the CarPlay map's steering-wheel

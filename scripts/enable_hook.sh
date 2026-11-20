@@ -1397,8 +1397,20 @@ else
         case "$TRAIN" in
             *_AU*)
                 if [ -n "$NAV_WANT" ] && [ "$NAV_HAVE" != "$NAV_WANT" ]; then
-                    echo "WARNING: the loaded NavActiveIgnore.jar (${NAV_HAVE:-unreadable} bytes) is not the Audi" >&2
-                    echo "         build this unit needs ($NAV_WANT bytes, as M.I.B. installs it)." >&2
+                    # The toolbox's VW build patches de.vw.* classes an Audi
+                    # interface does not have, so it does nothing there and
+                    # the cockpit still drops the map at a route (#155). When
+                    # the owner asked for NavActiveIgnore, put the Audi build
+                    # in its place; lsd_jar.sh keeps the old file beside it.
+                    if [ "$NAVIGNORE_ASKED" = 1 ] && [ "$KEEP_NAVIGNORE" -eq 0 ] &&
+                       sh "$CARD_ROOT/lsd_jar.sh" add NavActiveIgnore.jar "$NAVIGNORE_SRC"; then
+                        echo "Java check: NavActiveIgnore.jar (${NAV_HAVE:-unreadable} bytes, the VW build) replaced"
+                        echo "            by the Audi build ($NAV_WANT bytes), as CLUSTERMAP_ADD_NAVIGNORE=1 asks."
+                    else
+                        echo "WARNING: the loaded NavActiveIgnore.jar (${NAV_HAVE:-unreadable} bytes) is not the Audi" >&2
+                        echo "         build this unit needs ($NAV_WANT bytes, as M.I.B. installs it)." >&2
+                        echo "         CLUSTERMAP_ADD_NAVIGNORE=1 on the card puts the Audi build in its place." >&2
+                    fi
                 fi ;;
         esac
     elif sh "$CARD_ROOT/lsd_jar.sh" loaded CarPlayNavigationPatch.jar; then
