@@ -17,6 +17,7 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
     private Vector listeners;
     private IContext context;
     private static boolean discoveryDone;
+    private static Object subscribedDsi;
 
     public AndroidAuto2ListenerDistributor(IContext context) {
         this.context = context;
@@ -163,17 +164,25 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
         try {
             Class dsiCls = Class.forName("org.dsi.ifc.androidauto2.DSIAndroidAuto2");
             if (dsiCls.isInstance(obj)) {
+                // Only subscribe once per DSIAndroidAuto2 instance
+                if (subscribedDsi == obj) {
+                    AAJavaBridge.setDSI(obj);
+                    return;
+                }
+                subscribedDsi = obj;
                 AAJavaBridge.setDSI(obj);
                 try {
+                    Class dsiListenerCls = Class.forName("org.dsi.ifc.base.DSIListener");
                     java.lang.reflect.Method setNotif = dsiCls.getMethod(
-                        "setNotification", new Class[]{int[].class, org.dsi.ifc.androidauto2.DSIAndroidAuto2Listener.class});
+                        "setNotification", new Class[]{int[].class, dsiListenerCls});
                     int[] attrs = new int[]{
                         dsiCls.getField("ATTR_NOWPLAYINGDATA").getInt(null),
                         dsiCls.getField("ATTR_PLAYBACKSTATE").getInt(null),
-                        dsiCls.getField("ATTR_COVERARTURL").getInt(null)
+                        dsiCls.getField("ATTR_COVERARTURL").getInt(null),
+                        dsiCls.getField("ATTR_PLAYPOSITION").getInt(null)
                     };
                     setNotif.invoke(obj, new Object[]{attrs, AndroidAuto2ListenerDistributor.this});
-                    debugLog("DSIAndroidAuto2 discovered, setNotification called with ATTR_COVERARTURL");
+                    debugLog("DSIAndroidAuto2 discovered, setNotification called with ATTR_PLAYPOSITION");
                 } catch (Throwable t) {
                     StringBuffer sbf = new StringBuffer("DSIAndroidAuto2 setNotification failed: ");
                     sbf.append(t);
