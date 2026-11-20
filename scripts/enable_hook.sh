@@ -1541,6 +1541,23 @@ else
         WANT_KEY=CLUSTERMAP_MUSIC_INFO
         WANT_WHAT="track info on the cockpit, no turn data"
     fi
+    # infok3342 (profiles.conf): only the music build made for K3342, whose
+    # stock code is older than the Golf's the other builds come from
+    # (VCAndroidAutoMusic_K3342.jar on the card). On the unit it keeps the
+    # name VCAndroidAutoMusic.jar, so updates and the uninstall are the same.
+    WANT_SRC=$WANT_JAR
+    MUSIC_OWN_BUILD=0
+    if [ -n "$WANT_JAR" ] && train_has "$PROFILES" "$TRAIN" infok3342; then
+        if [ "$WANT_JAR" = VCAndroidAutoTurns.jar ]; then
+            echo "WARNING: CLUSTERMAP_TURN_INFO=1: on firmware $TRAIN only the track info" >&2
+            echo "         is available (the turn-info build is not made for it)." >&2
+            WANT_JAR=VCAndroidAutoMusic.jar
+            WANT_KEY=CLUSTERMAP_TURN_INFO
+            WANT_WHAT="track info on the cockpit, no turn data"
+        fi
+        WANT_SRC=VCAndroidAutoMusic_K3342.jar
+        MUSIC_OWN_BUILD=1
+    fi
     if [ "$FULL_JAR" -eq 1 ] && [ -n "$WANT_JAR" ]; then
         echo "WARNING: $WANT_KEY=1 ignored: VCAndroidAuto.jar is loaded" >&2
         echo "         (CLUSTERMAP_KEEP_ARROWS=1) and carries the same classes." >&2
@@ -1575,6 +1592,7 @@ else
     # The music and turn-info jars also go on where only they were checked.
     INFO_OK=$TBT_OK
     if train_has "$PROFILES" "$TRAIN" info; then INFO_OK=1; fi
+    if [ "$MUSIC_OWN_BUILD" -eq 1 ]; then INFO_OK=1; fi
     if [ -n "$WANT_JAR" ]; then
         case "$WANT_JAR" in
             VCAndroidAutoMusic.jar) WANT_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_music_added ;;
@@ -1589,13 +1607,17 @@ else
             # (lsd_jar.sh add compares sizes). Until v1.2.7 it never was, so
             # cars kept their first copy (#24). Only this package builds jars
             # by these two names, so no marker is needed to call it ours.
-            sh "$CARD_ROOT/lsd_jar.sh" add $WANT_JAR "$CARD_ROOT/thirdparty/$WANT_JAR" ||
+            sh "$CARD_ROOT/lsd_jar.sh" add $WANT_JAR "$CARD_ROOT/thirdparty/$WANT_SRC" ||
                 echo "WARNING: could not update $WANT_JAR; the loaded copy stays." >&2
         elif [ -n "$FOREIGN_JAR" ]; then
             echo "WARNING: $WANT_KEY=1 ignored: remove $FOREIGN_JAR first." >&2
         else
-            echo "Java check: adding $WANT_JAR ($WANT_KEY=1: $WANT_WHAT)."
-            if sh "$CARD_ROOT/lsd_jar.sh" add $WANT_JAR "$CARD_ROOT/thirdparty/$WANT_JAR"; then
+            if [ "$WANT_SRC" != "$WANT_JAR" ]; then
+                echo "Java check: adding $WANT_JAR, the build for this firmware ($WANT_SRC; $WANT_KEY=1: $WANT_WHAT)."
+            else
+                echo "Java check: adding $WANT_JAR ($WANT_KEY=1: $WANT_WHAT)."
+            fi
+            if sh "$CARD_ROOT/lsd_jar.sh" add $WANT_JAR "$CARD_ROOT/thirdparty/$WANT_SRC"; then
                 if mount -uw /mnt/app 2>/dev/null; then : > "$WANT_MARKER"; mount -ur /mnt/app 2>/dev/null || true; fi
             else
                 echo "WARNING: could not add $WANT_JAR; lsd.sh is unchanged." >&2
