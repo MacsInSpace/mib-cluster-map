@@ -105,7 +105,7 @@ unzip -l "$OUT/AAcoverart_hook.jar" | grep '\.class$'
 # Copy to thirdparty and release zip
 cp "$OUT/AAcoverart_hook.jar" "$ROOT/thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar"
 if [ -f "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" ]; then
-    zip -d "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" "ClusterMap/thirdparty/AAcoverart_hook.jar" 2>/dev/null || true
+    zip -d "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" "thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar" 2>/dev/null || true
     zip "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" "thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar" -b /tmp 2>/dev/null || true
     echo "Updated release zip: mib-cluster-map-aa-install-audi-au37x.zip"
 fi

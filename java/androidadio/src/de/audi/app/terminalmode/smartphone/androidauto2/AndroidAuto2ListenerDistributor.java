@@ -121,10 +121,25 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
         Vector visited = new Vector();
         current.addElement(start);
         int depth = 0;
-        while (!current.isEmpty() && depth < 5) {
+        while (!current.isEmpty() && depth < 4) {
             for (int i = 0; i < current.size(); i++) {
                 Object obj = current.elementAt(i);
                 if (obj == null) continue;
+                // Skip primitive wrappers and leaf types to avoid dead ends
+                String objClsName = obj.getClass().getName();
+                if ("java.lang.String".equals(objClsName)) continue;
+                if ("java.lang.Number".equals(objClsName)) continue;
+                if ("java.lang.Boolean".equals(objClsName)) continue;
+                if ("java.lang.Character".equals(objClsName)) continue;
+                if ("java.lang.Class".equals(objClsName)) continue;
+                if (obj.getClass().isPrimitive()) continue;
+                if ("java.lang.Integer".equals(objClsName)) continue;
+                if ("java.lang.Long".equals(objClsName)) continue;
+                if ("java.lang.Double".equals(objClsName)) continue;
+                if ("java.lang.Float".equals(objClsName)) continue;
+                if ("java.lang.Short".equals(objClsName)) continue;
+                if ("java.lang.Byte".equals(objClsName)) continue;
+                if ("java.lang.Void".equals(objClsName)) continue;
                 boolean seen = false;
                 for (int j = 0; j < visited.size(); j++) {
                     if (visited.elementAt(j) == obj) { seen = true; break; }
@@ -134,7 +149,6 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
 
                 checkAndStore(obj);
                 walkFields(obj, next);
-                walkMethods(obj, next);
             }
             current = next;
             next = new Vector();
@@ -232,20 +246,6 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
                     } catch (Throwable t) {}
                 }
                 cls = cls.getSuperclass();
-            }
-        } catch (Throwable t) {}
-    }
-
-    private void walkMethods(Object obj, Vector next) {
-        try {
-            java.lang.reflect.Method[] methods = obj.getClass().getMethods();
-            for (int i = 0; i < methods.length; i++) {
-                try {
-                    if (methods[i].getParameterTypes().length == 0) {
-                        Object val = methods[i].invoke(obj, new Object[0]);
-                        if (val != null) next.addElement(val);
-                    }
-                } catch (Throwable t) {}
             }
         } catch (Throwable t) {}
     }
