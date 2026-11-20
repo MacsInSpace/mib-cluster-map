@@ -73,36 +73,28 @@ done
 # Package into JARs
 rm -f "$OUT/AAcoverart_hook.jar" "$OUT/AAListenerDistributor.jar"
 
-# Boot-safe classes for -Xbootclasspath/p: (loaded by J9 bootstrap loader,
-# no de.audi.* / org.osgi.* direct references, everything via reflection)
-BOOT_CLASSES=(
+# All classes in one jar. AAcoverart_hook.jar goes both on -Xbootclasspath/p:
+# (bootstrap loader priority over lsd.jxe) and is deployed to lsd/jars/ so the
+# AU37x lsd.sh auto-loads it. All classes reference only java.* / org.dsi.ifc.*
+# directly; de.audi.* / org.osgi.* classes are loaded via reflection using the
+# appClassLoader captured from AndroidAuto2ListenerDistributor's constructor.
+ALL_CLASSES=(
     com/mhi2/androidadio/AAJavaBridge.class
     com/mhi2/androidadio/AATrackProvider.class
     com/mhi2/androidadio/AAManeuverProvider.class
-)
-(cd "$T/classes" && jar cf "$OUT/AAcoverart_hook.jar" "${BOOT_CLASSES[@]}")
-
-# Distributor class extends stock DSIAndroidAuto2ListenerDistributor (de.audi.*),
-# so it must NOT be on -Xbootclasspath/p:; it is loaded via lsd/jars/ (normal
-# classloader, can see OSGi classes). Calls AAJavaBridge inside try/catch.
-DIST_CLASSES=(
     de/audi/app/terminalmode/smartphone/androidauto2/AndroidAuto2ListenerDistributor.class
 )
-(cd "$T/classes" && jar cf "$OUT/AAListenerDistributor.jar" "${DIST_CLASSES[@]}")
+(cd "$T/classes" && jar cf "$OUT/AAcoverart_hook.jar" "${ALL_CLASSES[@]}")
 
 echo "Built $OUT/AAcoverart_hook.jar"
-echo "Built $OUT/AAListenerDistributor.jar"
 unzip -l "$OUT/AAcoverart_hook.jar" | grep '\.class$'
-unzip -l "$OUT/AAListenerDistributor.jar" | grep '\.class$'
 
 echo ""
 echo "Build complete. Artifacts:"
-echo "  $OUT/AAcoverart_hook.jar     -> on -Xbootclasspath/p: (bootstrap loader)"
-echo "  $OUT/AAListenerDistributor.jar -> in lsd/jars/ (normal classloader)"
+echo "  $OUT/AAcoverart_hook.jar -> on -Xbootclasspath/p: AND in lsd/jars/"
 echo ""
 echo "Next steps:"
-echo "  1. Copy AAcoverart_hook.jar      -> thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar"
-echo "  2. Copy AAListenerDistributor.jar -> thirdparty/mib2-android-auto-audi/AAListenerDistributor.jar"
-echo "  3. Install jars via green menu / scripts/enable_hook.sh"
-echo "  4. AAcoverart_hook.jar goes on -Xbootclasspath/p: in lsd.sh"
-echo "  5. AAListenerDistributor.jar is added to lsd/jars/ via lsd_jar.sh add"
+echo "  1. Copy AAcoverart_hook.jar -> thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar"
+echo "  2. Install jars via green menu / scripts/enable_hook.sh"
+echo "  3. AAcoverart_hook.jar goes on -Xbootclasspath/p: in lsd.sh"
+echo "  4. AAcoverart_hook.jar is added to lsd/jars/ via lsd_jar.sh add"

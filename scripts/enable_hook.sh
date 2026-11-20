@@ -1686,16 +1686,13 @@ if [ "$AUDI_INFO_OK" -eq 1 ]; then
     fi
 
     # Each entry: jar|marker|description|asked
-    AA_DISTRIBUTOR_JAR=AAListenerDistributor.jar
-    AA_DISTRIBUTOR_ASKED=0
-    if [ "$AA_COVER_ASKED" = 1 ] || [ "$AA_TURNS_ASKED" = 1 ]; then
-        AA_DISTRIBUTOR_ASKED=1
-    fi
+    # AAcoverart_hook.jar contains ALL AA classes (bridge + provider + distributor),
+    # deployed to lsd/jars/ and referenced on -Xbootclasspath/p: for bootstrap
+    # priority over lsd.jxe stock classes.
     AUDI_JAR_ENTRIES="
 $AA_COVER_JAR|/mnt/app/eso/hmi/lsd/.aacluster_aa_cover_added|Android Auto cover art and track info on the media screen|$AA_COVER_ASKED
 $AUDI_COVER_JAR|/mnt/app/eso/hmi/lsd/.aacluster_cover_added|CarPlay cover art and track info on the media screen|$AUDI_COVER_ASKED
 $AUDI_TURNS_JAR|/mnt/app/eso/hmi/lsd/.aacluster_audi_turns_added|CarPlay turn arrows, distance and road name on the cluster|$AUDI_TURNS_ASKED
-$AA_DISTRIBUTOR_JAR|/mnt/app/eso/hmi/lsd/.aacluster_aa_distributor_added|Android Auto listener distributor override for DSI callbacks|$AA_DISTRIBUTOR_ASKED
 "
 
     # Remove jars not asked for.
