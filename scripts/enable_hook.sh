@@ -1541,21 +1541,18 @@ else
         WANT_KEY=CLUSTERMAP_MUSIC_INFO
         WANT_WHAT="track info on the cockpit, no turn data"
     fi
-    # infok3342 (profiles.conf): only the music build made for K3342, whose
-    # stock code is older than the Golf's the other builds come from
-    # (VCAndroidAutoMusic_K3342.jar on the card). On the unit it keeps the
-    # name VCAndroidAutoMusic.jar, so updates and the uninstall are the same.
+    # infok3342 (profiles.conf): the music and turn-info builds made for
+    # K3342, whose stock code is older than the Golf's the other builds come
+    # from (VCAndroidAutoMusic_K3342.jar, VCAndroidAutoTurns_K3342.jar on the
+    # card). On the unit they keep the usual names, so updates and the
+    # uninstall are the same.
     WANT_SRC=$WANT_JAR
     MUSIC_OWN_BUILD=0
     if [ -n "$WANT_JAR" ] && train_has "$PROFILES" "$TRAIN" infok3342; then
-        if [ "$WANT_JAR" = VCAndroidAutoTurns.jar ]; then
-            echo "WARNING: CLUSTERMAP_TURN_INFO=1: on firmware $TRAIN only the track info" >&2
-            echo "         is available (the turn-info build is not made for it)." >&2
-            WANT_JAR=VCAndroidAutoMusic.jar
-            WANT_KEY=CLUSTERMAP_TURN_INFO
-            WANT_WHAT="track info on the cockpit, no turn data"
-        fi
-        WANT_SRC=VCAndroidAutoMusic_K3342.jar
+        case "$WANT_JAR" in
+            VCAndroidAutoTurns.jar) WANT_SRC=VCAndroidAutoTurns_K3342.jar ;;
+            *) WANT_SRC=VCAndroidAutoMusic_K3342.jar ;;
+        esac
         MUSIC_OWN_BUILD=1
     fi
     if [ "$FULL_JAR" -eq 1 ] && [ -n "$WANT_JAR" ]; then

@@ -6,7 +6,8 @@ the maintained fork of
 [adi961/mib2-android-auto-vc](https://github.com/adi961/mib2-android-auto-vc),
 MIT licensed (see `LICENSE` beside this file).
 
-sha256 `e302e1bd16367f1b92a2bb663dcea3532367be0200c95d9e15319630d6948bf4`
+Built from fork commit `cfa9389`, sha256
+`397b52f266c4e99031a7220ad5c68ea482b19b90664c62ef83d95d2c3f976253`
 
 It shows Android Auto turn arrows, distance and track information on the
 cluster. It cannot be active together with the cluster map, so the package
@@ -21,8 +22,8 @@ SD" collects, and it tells the cluster when the turn pictogram changes, which
 
 ## VCAndroidAutoMusic.jar
 
-The music-only build of the same fork (commit `b7af41d`, `make music`),
-sha256 `86cf24a571490dfc05c5ea2c6c2f00dabbf7db6be664eb7ab4a0043066be6451`. It shows the
+The music-only build of the same fork (commit `cfa9389`, `make music`),
+sha256 `28d304ec024b9ab8f758a2db65c98d59271c378a0761f81a98ecb5f8a88e5427`. It shows the
 track playing (title, artist, cover) on the cockpit's media screen and
 nothing else. With CarPlay it shows title, artist and album: the stock
 CarPlay code never asks for them, so the jar subscribes to the iPhone's
@@ -36,8 +37,8 @@ not yet car-tested.
 ## VCAndroidAutoMusic_K3342.jar
 
 The music-only build for K3342 (`MHI2_ER_VWG11_K3342`), from the fork's
-commit `9d1847e` (`make music-k3342`, on e8239c5's sources), sha256
-`a2be805fc3839aa047d641db8e960fe9a270c1152fb87f9d68ab9fe78aa50afd`.
+commit `cfa9389` (`make music-k3342`), sha256
+`9e85f6f8246d1e4afeb4b6e6f2c6434c43f3b483ce36b49a48a2d86f77b4c053`.
 K3342's stock Java is older than the Golf's: no ExBox guidance, no Baidu
 CarLife, two station-info fields renamed, and a different smartphone
 property id. `variants/k3342.sh` adapts the music sources and the jar is
@@ -46,10 +47,22 @@ and field it uses was found. The installer copies it as
 `VCAndroidAutoMusic.jar` on trains marked `infok3342` in profiles.conf.
 Not yet car-tested.
 
+## VCAndroidAutoTurns_K3342.jar
+
+The turn-info build for K3342 (fork commit `cfa9389`, `make turns-k3342`),
+sha256 `508b9aa7144e50f9a88b12a60d155b6da0d66bb59e62763c76ba64b4859d6f3f`.
+The music sources get the same K3342 changes as above; of the six cockpit
+classes, four are the same on K3342 as on the Golf, and `variants/k3342.sh`
+adapts the other two: K3342's guiding-flag property (1920216832) in RGStatus
+and InfoStates, no CarLife listener, and no stage-53 setup acknowledgement in
+ActiveRgType (K3342's own class has none). Compiled against K3342's lsd.jxe.
+The installer copies it as `VCAndroidAutoTurns.jar` with
+`CLUSTERMAP_TURN_INFO=1` on trains marked `infok3342`. Not yet car-tested.
+
 ## VCAndroidAutoTurns.jar
 
-The full jar with the cockpit view left alone (commit `b7af41d`,
-`make turns`), sha256 `ecf387c2d080e422926c684f13477a0bec22f43b0e0941eb8fb3d42f16c0c723`.
+The full jar with the cockpit view left alone (commit `cfa9389`,
+`make turns`), sha256 `aca59bf09647fcb593110f79731e1bf95ca384875c76aa9138fe6fb50a6ca796`.
 It differs from a full build of the same commit in two classes only: Variant
 and ActiveRgType. The full jar answers ActiveRgType with 0, the cockpit's
 arrow view, whenever Android Auto guides, and on VW that view replaces the
@@ -100,3 +113,8 @@ Until v1.2.7 an install never replaced a turns, music or arrows jar that was
 already loaded, so cars kept the copy from their first install (the owner's
 Golf still ran a 6 November build). From v1.2.7 the installer replaces it
 when the card's build differs.
+
+From `bf6464a` (all builds) a new turn from the phone more than 3 s after it
+handed the navigation back counts as the phone guiding again: on #160's car
+the next route brought no new focus request, so turn info stayed off until the
+phone reconnected. Not yet car-tested.
