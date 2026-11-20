@@ -254,13 +254,13 @@ public class AATrackProvider {
             debugLog("handleCoverArtUrl: returning early (null resourceLocator)");
             return;
         }
-        if (pictureManager == null) {
-            debugLog("handleCoverArtUrl: pictureManager null, attempting lazy lookup");
-            pictureManager = findPictureManager();
-            debugLog("handleCoverArtUrl: pictureManager after lazy lookup=" + (pictureManager != null ? "non-null" : "null"));
+        if (mediaConnector == null) {
+            debugLog("handleCoverArtUrl: mediaConnector null, attempting lazy lookup");
+            mediaConnector = findMediaConnector();
+            debugLog("handleCoverArtUrl: mediaConnector after lazy lookup=" + (mediaConnector != null ? "non-null" : "null"));
         }
-        if (pictureManager == null) {
-            debugLog("handleCoverArtUrl: returning early (no picture manager)");
+        if (mediaConnector == null) {
+            debugLog("handleCoverArtUrl: returning early (no media connector)");
             return;
         }
         String url = resourceLocator.getUrl();
@@ -275,12 +275,31 @@ public class AATrackProvider {
         }
         try {
             long listRef = lastListRef != 0 ? lastListRef : 1;
-            pictureManager.responseCoverArt(listRef, SOURCE_TYPE_BT_STREAM, resourceLocator, true);
-            log.log(100000, "cover art updated");
-            debugLog("handleCoverArtUrl: pictureManager.responseCoverArt(listRef=" + listRef + ", sourceType=" + SOURCE_TYPE_BT_STREAM + ") called");
+            CombiBAPCurrentStationInfo info = new CombiBAPCurrentStationInfo();
+            info.setPrimaryInformation(lastTitle, 0, 0);
+            info.setSecondaryInformation(lastArtist, 0);
+            info.setTertiaryInformation(lastAlbum, 0);
+            info.setPicture(lastPictureId, lastCoverUrl);
+            info.setListRef((int) (System.currentTimeMillis() & 0x7FFFFFFF));
+            lastListRef = info.getListRef();
+            mediaConnector.updateCurrentStation(info);
+            log.log(100000, "cover art updated via updateCurrentStation");
+            debugLog("handleCoverArtUrl: mediaConnector.updateCurrentStation(info) called with cover art, listRef=" + lastListRef);
         } catch (Throwable t) {
             log.log(1000000, "handleCoverArtUrl failed");
-            debugLog("handleCoverArtUrl: pictureManager.responseCoverArt threw " + t);
+            debugLog("handleCoverArtUrl: mediaConnector.updateCurrentStation threw " + t);
+            try {
+                if (pictureManager == null) {
+                    pictureManager = findPictureManager();
+                }
+                if (pictureManager != null) {
+                    long fbListRef = lastListRef != 0 ? lastListRef : 1;
+                    pictureManager.responseCoverArt(fbListRef, SOURCE_TYPE_BT_STREAM, resourceLocator, true);
+                    debugLog("handleCoverArtUrl: fallback pictureManager.responseCoverArt called");
+                }
+            } catch (Throwable t2) {
+                debugLog("handleCoverArtUrl: fallback pictureManager.responseCoverArt also threw " + t2);
+            }
         }
     }
 
