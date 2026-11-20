@@ -44,21 +44,18 @@ while IFS= read -r f; do SRCS+=("$f"); done < <(find "$HERE/src" "$HERE/stubs" -
 echo "Compiling with host javac --release 8 against lsd.jar..."
 javac --release 8 -nowarn -encoding UTF-8 -cp "$LSD_JAR" -d "$T/classes" "${SRCS[@]}"
 
-# Classes that need frame stripping (all our classes)
+# Collect ALL compiled .class files (including anonymous inner classes like
+# AATrackProvider$1 from Proxy.newProxyInstance). This guarantees no inner
+# class can ever be omitted from the jar, which previously caused
+# NoClassDefFoundError: com.mhi2.androidadio.AATrackProvider$1 at runtime.
+# Also strip stub classes that reference Audi APIs.
 ALL_CLASSES=()
 while IFS= read -r f; do
-    rel="${f#$HERE/src/}"
-    cls=$(echo "$rel" | sed 's/\.java$/.class/')
+    cls="${f#$T/classes/}"
     ALL_CLASSES+=("$cls")
-done < <(find "$HERE/src" -name '*.java' | sort)
+done < <(find "$T/classes" -name '*.class' | sort)
 
-# Also strip stub classes that reference Audi APIs
 for c in org/osgi/framework/FrameworkUtil.class org/osgi/framework/Bundle.class; do
-    ALL_CLASSES+=("$c")
-done
-
-# Inner classes of AppConnectorMedia (no .java files; compiled by javac)
-for c in 'de/audi/app/combi/bap/app/audio/AppConnectorMedia$1.class' 'de/audi/app/combi/bap/app/audio/AppConnectorMedia$CoverArtProvider.class'; do
     ALL_CLASSES+=("$c")
 done
 
@@ -87,16 +84,6 @@ rm -f "$OUT/AAcoverart_hook.jar" "$OUT/AAListenerDistributor.jar"
 # AU37x lsd.sh auto-loads it. All classes reference only java.* / org.dsi.ifc.*
 # directly; de.audi.* / org.osgi.* classes are loaded via reflection using the
 # appClassLoader captured from AndroidAuto2ListenerDistributor's constructor.
-ALL_CLASSES=(
-    com/mhi2/androidadio/AAJavaBridge.class
-    com/mhi2/androidadio/AATrackProvider.class
-    com/mhi2/androidadio/AAManeuverProvider.class
-    de/audi/app/terminalmode/smartphone/androidauto2/AndroidAuto2ListenerDistributor.class
-    de/audi/app/terminalmode/smartphone/androidauto2/AndroidAuto2EventListener.class
-    de/audi/app/combi/bap/app/audio/AppConnectorMedia.class
-    'de/audi/app/combi/bap/app/audio/AppConnectorMedia$1.class'
-    'de/audi/app/combi/bap/app/audio/AppConnectorMedia$CoverArtProvider.class'
-)
 (cd "$T/classes" && jar cf "$OUT/AAcoverart_hook.jar" "${ALL_CLASSES[@]}")
 
 echo "Built $OUT/AAcoverart_hook.jar"
