@@ -1683,28 +1683,29 @@ if [ "$AUDI_INFO_OK" -eq 1 ]; then
     # AndroidAuto2ListenerDistributor override is loaded instead of the stock one.
     LSD_DIR=/mnt/app/eso/hmi/lsd
     if [ "$AA_COVER_ASKED" = 1 ]; then
-        # Try lsd.sh first (AU57x layout), then runHMI.sh (AU37x layout)
-        for LSD_SH in /mnt/app/eso/hmi/lsd/lsd.sh /mnt/app/eso/hmi/lsd/runHMI.sh /mnt/app/eso/hmi/runHMI.sh; do
-            if [ -r "$LSD_SH" ]; then
-                LSD_DIR=$(dirname "$(dirname "$LSD_SH")")
-                LSD_NEW="$LSD_DIR/lsd.sh.aa_bootcp"
+        # Try runHMI.sh first (AU37x -- it actually invokes j9), then lsd.sh,
+        # then /mnt/app/eso/hmi/runHMI.sh. Only patch a script that contains
+        # a 'j9 ' invocation line; lsd.sh alone is a tiny wrapper.
+        for TARGET_SH in /mnt/app/eso/hmi/lsd/runHMI.sh /mnt/app/eso/hmi/lsd/lsd.sh /mnt/app/eso/hmi/runHMI.sh; do
+            if [ -r "$TARGET_SH" ] && grep -q 'j9 ' "$TARGET_SH" 2>/dev/null; then
+                LSD_NEW="$TARGET_SH.aa_bootcp"
                 if mount -uw /mnt/app 2>/dev/null; then
-                    if ! grep -q 'AAcoverart_hook.jar' "$LSD_SH" 2>/dev/null; then
-                        awk -v cp="BOOTCLASSPATH=\"\$BOOTCLASSPATH -Xbootclasspath/p:$LSD_DIR/jars/AAcoverart_hook.jar\"" '
+                    if ! grep -q 'AAcoverart_hook.jar' "$TARGET_SH" 2>/dev/null; then
+                        awk -v cp="VMOPTIONS=\"\$VMOPTIONS -Xbootclasspath/p:/mnt/app/eso/hmi/lsd/jars/AAcoverart_hook.jar\"" '
                             /j9 / { print cp }
                             { print }
-                        ' "$LSD_SH" > "$LSD_NEW" && \
+                        ' "$TARGET_SH" > "$LSD_NEW" && \
                         [ "`wc -l < "$LSD_NEW"`" -gt 10 ] && \
-                        mv "$LSD_NEW" "$LSD_SH" && \
-                        chmod 755 "$LSD_SH" && \
+                        mv "$LSD_NEW" "$TARGET_SH" && \
+                        chmod 755 "$TARGET_SH" && \
                         sync && \
-                        echo "Java check: added -Xbootclasspath/p: for AAcoverart_hook.jar to $LSD_SH"
+                        echo "Java check: added -Xbootclasspath/p: for AAcoverart_hook.jar to $TARGET_SH"
                     else
-                        echo "Java check: -Xbootclasspath/p: already in $LSD_SH."
+                        echo "Java check: -Xbootclasspath/p: already in $TARGET_SH."
                     fi
                     mount -ur /mnt/app 2>/dev/null || true
                 else
-                    echo "WARNING: cannot remount /mnt/app read-write; bootclasspath priority not set in $LSD_SH." >&2
+                    echo "WARNING: cannot remount /mnt/app read-write; bootclasspath priority not set in $TARGET_SH." >&2
                 fi
                 break
             fi
