@@ -1661,8 +1661,10 @@ if [ "$AUDI_INFO_OK" -eq 1 ]; then
         # Inject once on the $J9 line, not on every line containing 'j9 '.
         for TARGET_SH in /mnt/app/eso/hmi/lsd/runHMI.sh /mnt/app/eso/hmi/lsd/lsd.sh /mnt/app/eso/hmi/runHMI.sh; do
             if [ -r "$TARGET_SH" ] && grep -q '^\$J9 ' "$TARGET_SH" 2>/dev/null; then
-                if mount -uw /mnt/app 2>/dev/null; then
-                    if ! grep -q 'AAcoverart_hook.jar' "$TARGET_SH" 2>/dev/null; then
+            if mount -uw /mnt/app 2>/dev/null; then
+                # Clean up any existing duplicate -Xbootclasspath/p: lines for AAcoverart_hook.jar
+                sed -i '/-Xbootclasspath\/p:.*AAcoverart_hook\.jar/d' "$TARGET_SH" 2>/dev/null || true
+                if ! grep -q 'AAcoverart_hook.jar' "$TARGET_SH" 2>/dev/null; then
                         awk -v cp='VMOPTIONS="$VMOPTIONS -Xbootclasspath/p:/mnt/app/eso/hmi/lsd/jars/AAcoverart_hook.jar"' '
                             /^\$J9 / { print cp }
                             { print }

@@ -143,7 +143,18 @@ public class AATrackProvider {
     }
 
     private Object findMediaConnector() {
-        // First: use CombiModule captured by AppConnectorMedia constructor (bootclasspath override)
+        // First: direct AAJavaBridge references (discovered by AndroidAuto2ListenerDistributor BFS walker)
+        Object tmc = AAJavaBridge.getTerminalModeConnector();
+        if (tmc != null) {
+            debugLog("findMediaConnector: found terminalModeConnector via AAJavaBridge");
+            return tmc;
+        }
+        Object mc = AAJavaBridge.getMediaConnector();
+        if (mc != null) {
+            debugLog("findMediaConnector: found mediaConnector via AAJavaBridge");
+            return mc;
+        }
+        // Second: use CombiModule captured by AppConnectorMedia constructor (bootclasspath override)
         Object combiModule = AAJavaBridge.getCombiModule();
         if (combiModule != null) {
             try {
@@ -261,11 +272,17 @@ public class AATrackProvider {
     }
 
     private Object findPictureManager() {
-        // First: use CombiModule to get IPictureManager directly (no OSGi needed)
+        // First: direct AAJavaBridge reference (discovered by AndroidAuto2ListenerDistributor BFS walker)
+        Object pm = AAJavaBridge.getPictureManager();
+        if (pm != null) {
+            debugLog("findPictureManager: found pictureManager via AAJavaBridge");
+            return pm;
+        }
+        // Second: use CombiModule to get IPictureManager directly (no OSGi needed)
         Object combiModule = AAJavaBridge.getCombiModule();
         if (combiModule != null) {
             try {
-                Object pictureManager = combiModule.getClass().getMethod(
+                pictureManager = combiModule.getClass().getMethod(
                     "getPictureManager", new Class[0]).invoke(combiModule, new Object[0]);
                 if (pictureManager != null) {
                     debugLog("findPictureManager: found via CombiModule.getPictureManager()");
@@ -282,7 +299,7 @@ public class AATrackProvider {
         if (mediaConnector != null) {
             try {
                 Method m = mediaConnector.getClass().getMethod("getPictureManager", new Class[0]);
-                Object pm = m.invoke(mediaConnector, new Object[0]);
+                pm = m.invoke(mediaConnector, new Object[0]);
                 if (pm != null) {
                     debugLog("findPictureManager: found via mediaConnector.getPictureManager()");
                     return pm;
@@ -300,7 +317,7 @@ public class AATrackProvider {
                 Object ref = getSR.invoke(bc, new Object[]{"de.audi.app.combi.bap.app.kombipictures.IPictureManager"});
                 if (ref != null) {
                     Method getService = bc.getClass().getMethod("getService", new Class[]{ref.getClass()});
-                    Object pm = getService.invoke(bc, new Object[]{ref});
+                    pm = getService.invoke(bc, new Object[]{ref});
                     if (pm != null) {
                         Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
                         unget.invoke(bc, new Object[]{ref});
@@ -479,7 +496,7 @@ public class AATrackProvider {
                     debugLog(sbx.toString());
                 }
                 try {
-                    pictureManager = combiModule.getClass().getMethod(
+                pictureManager = combiModule.getClass().getMethod(
                         "getPictureManager", new Class[0]).invoke(combiModule, new Object[0]);
                 } catch (Throwable t) {
                     StringBuffer sbx = new StringBuffer("handleNowPlayingData: getPictureManager threw ");
@@ -514,6 +531,19 @@ public class AATrackProvider {
                     StringBuffer sb5 = new StringBuffer("handleNowPlayingData: IPictureManager.responseStationArt called, listRef=");
                     sb5.append(lastListRef);
                     debugLog(sb5.toString());
+                    try {
+                        Method responseCoverArt = pictureManager.getClass().getMethod(
+                            "responseCoverArt", new Class[]{long.class, int.class, locatorCls, boolean.class});
+                        responseCoverArt.invoke(pictureManager, new Object[]{
+                            new Long(lastListRef), new Integer(SOURCE_TYPE_BT_STREAM), coverLocator, new Boolean(false)});
+                        StringBuffer sb5b = new StringBuffer("handleNowPlayingData: IPictureManager.responseCoverArt called, listRef=");
+                        sb5b.append(lastListRef);
+                        debugLog(sb5b.toString());
+                    } catch (Throwable t) {
+                        StringBuffer sbx = new StringBuffer("handleNowPlayingData: responseCoverArt threw ");
+                        sbx.append(t);
+                        debugLog(sbx.toString());
+                    }
                 } catch (Throwable t) {
                     StringBuffer sbx = new StringBuffer("handleNowPlayingData: responseStationArt threw ");
                     sbx.append(t);
@@ -633,6 +663,19 @@ public class AATrackProvider {
                     StringBuffer sb7 = new StringBuffer("handleCoverArtUrl: IPictureManager.responseStationArt called, listRef=");
                     sb7.append(lastListRef);
                     debugLog(sb7.toString());
+                    try {
+                        Method responseCoverArt = pictureManager2.getClass().getMethod(
+                            "responseCoverArt", new Class[]{long.class, int.class, locatorCls, boolean.class});
+                        responseCoverArt.invoke(pictureManager2, new Object[]{
+                            new Long(lastListRef), new Integer(SOURCE_TYPE_BT_STREAM), coverLocator, new Boolean(false)});
+                        StringBuffer sb7b = new StringBuffer("handleCoverArtUrl: IPictureManager.responseCoverArt called, listRef=");
+                        sb7b.append(lastListRef);
+                        debugLog(sb7b.toString());
+                    } catch (Throwable t) {
+                        StringBuffer sbx = new StringBuffer("handleCoverArtUrl: responseCoverArt threw ");
+                        sbx.append(t);
+                        debugLog(sbx.toString());
+                    }
                 } catch (Throwable t) {
                     StringBuffer sbx = new StringBuffer("handleCoverArtUrl: responseStationArt threw ");
                     sbx.append(t);

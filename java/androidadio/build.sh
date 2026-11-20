@@ -102,12 +102,21 @@ ALL_CLASSES=(
 echo "Built $OUT/AAcoverart_hook.jar"
 unzip -l "$OUT/AAcoverart_hook.jar" | grep '\.class$'
 
+# Copy to thirdparty and release zip
+cp "$OUT/AAcoverart_hook.jar" "$ROOT/thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar"
+if [ -f "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" ]; then
+    zip -d "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" "ClusterMap/thirdparty/AAcoverart_hook.jar" 2>/dev/null || true
+    zip "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" "thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar" -b /tmp 2>/dev/null || true
+    echo "Updated release zip: mib-cluster-map-aa-install-audi-au37x.zip"
+fi
+
 echo ""
 echo "Build complete. Artifacts:"
 echo "  $OUT/AAcoverart_hook.jar -> on -Xbootclasspath/p: AND in lsd/jars/"
+echo "  $ROOT/thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar"
+echo "  $ROOT/mib-cluster-map-aa-install-audi-au37x.zip (updated)"
 echo ""
 echo "Next steps:"
-echo "  1. Copy AAcoverart_hook.jar -> thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar"
-echo "  2. Install jars via green menu / scripts/enable_hook.sh"
-echo "  3. AAcoverart_hook.jar goes on -Xbootclasspath/p: in lsd.sh"
-echo "  4. AAcoverart_hook.jar is added to lsd/jars/ via lsd_jar.sh add"
+echo "  1. Install jars via green menu / scripts/enable_hook.sh"
+echo "  2. AAcoverart_hook.jar goes on -Xbootclasspath/p: in lsd.sh"
+echo "  3. AAcoverart_hook.jar is added to lsd/jars/ via lsd_jar.sh add"

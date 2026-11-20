@@ -18,6 +18,9 @@ public class AAJavaBridge {
     private static ClassLoader appClassLoader;
     private static Object combiModule;
     private static Object dsiAndroidAuto2;
+    private static Object terminalModeConnector;
+    private static Object mediaConnector;
+    private static Object pictureManager;
 
     static {
         init();
@@ -63,6 +66,39 @@ public class AAJavaBridge {
 
     public static Object getDSI() {
         return dsiAndroidAuto2;
+    }
+
+    public static void setTerminalModeConnector(Object connector) {
+        terminalModeConnector = connector;
+        StringBuffer sb = new StringBuffer("AAJavaBridge.setTerminalModeConnector called, connector=");
+        sb.append(connector != null ? "non-null" : "null");
+        debugLog(sb.toString());
+    }
+
+    public static Object getTerminalModeConnector() {
+        return terminalModeConnector;
+    }
+
+    public static void setMediaConnector(Object connector) {
+        mediaConnector = connector;
+        StringBuffer sb = new StringBuffer("AAJavaBridge.setMediaConnector called, connector=");
+        sb.append(connector != null ? "non-null" : "null");
+        debugLog(sb.toString());
+    }
+
+    public static Object getMediaConnector() {
+        return mediaConnector;
+    }
+
+    public static void setPictureManager(Object pm) {
+        pictureManager = pm;
+        StringBuffer sb = new StringBuffer("AAJavaBridge.setPictureManager called, pm=");
+        sb.append(pm != null ? "non-null" : "null");
+        debugLog(sb.toString());
+    }
+
+    public static Object getPictureManager() {
+        return pictureManager;
     }
 
     public static void setBundleContext(Object bc) {
