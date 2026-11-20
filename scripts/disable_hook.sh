@@ -220,7 +220,7 @@ if [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
     # CLUSTERMAP_TURN_INFO), and so does the CarPlay map's steering-wheel
     # zoom (ClusterMapWheelZoom.jar, ClusterMapNavAsiaZoom.jar on K1006_2),
     # but only the ones the installer added.
-    for EXTRA in music:VCAndroidAutoMusic.jar turns:VCAndroidAutoTurns.jar wheelzoom:ClusterMapWheelZoom.jar navasiazoom:ClusterMapNavAsiaZoom.jar cover:coverart_hook.jar audi_turns:rgd_hook.jar aacover:AAcoverart_hook.jar aaturns:AArgd_hook.jar; do
+    for EXTRA in music:VCAndroidAutoMusic.jar turns:VCAndroidAutoTurns.jar wheelzoom:ClusterMapWheelZoom.jar navasiazoom:ClusterMapNavAsiaZoom.jar cover:coverart_hook.jar audi_turns:rgd_hook.jar aacover:AAcoverart_hook.jar aaturns:AArgd_hook.jar aadist:AAListenerDistributor.jar; do
         EXTRA_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_${EXTRA%%:*}_added
         EXTRA_JAR=${EXTRA#*:}
         if [ ! -f "$EXTRA_MARKER" ]; then
@@ -244,16 +244,16 @@ if [ -r "$CARD_ROOT/lsd_jar.sh" ]; then
     fi
 fi
 
-# Restore the stock lsd.jar if the installer had patched it.
+# Clean up any lsd.jar the installer may have placed (AU37x boots from
+# /ifs/lsd.jxe, so a copied lsd.jar under /mnt/app is leftover cruft).
+# Only delete if there is no .stock backup (i.e. we placed it, not the user).
 LSD_DST=/mnt/app/eso/hmi/lsd/lsd.jar
-LSD_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_lsd_patched
-if [ -f "$LSD_MARKER" ] && [ -r "$LSD_DST.stock" ]; then
+if [ -f "$LSD_DST" ] && [ ! -r "$LSD_DST.stock" ]; then
     if mount -uw /mnt/app 2>/dev/null; then
-        cp "$LSD_DST.stock" "$LSD_DST" && echo "Restored stock lsd.jar from $LSD_DST.stock"
-        rm -f "$LSD_MARKER"
+        rm -f "$LSD_DST" && echo "Removed leftover lsd.jar from $LSD_DST"
         mount -ur /mnt/app 2>/dev/null || true
     else
-        echo "WARNING: cannot remount /mnt/app read-write; stock lsd.jar not restored." >&2
+        echo "WARNING: cannot remount /mnt/app read-write; leftover lsd.jar not removed." >&2
     fi
 fi
 

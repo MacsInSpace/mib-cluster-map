@@ -44,7 +44,7 @@ javac --release 8 -nowarn -encoding UTF-8 -cp "$LSD_JAR" -d "$T/classes" "${SRCS
 ALL_CLASSES=()
 while IFS= read -r f; do
     rel="${f#$HERE/src/}"
-    cls=$(echo "$rel" | sed 's/\.java$/.class/;s#/#.#g')
+    cls=$(echo "$rel" | sed 's/\.java$/.class/')
     ALL_CLASSES+=("$cls")
 done < <(find "$HERE/src" -name '*.java' | sort)
 
@@ -71,37 +71,38 @@ for c in "${ALL_CLASSES[@]}"; do
 done
 
 # Package into JARs
-rm -f "$OUT/AAAndroidAutoTrack.jar" "$OUT/AAAndroidAutoTurns.jar"
+rm -f "$OUT/AAcoverart_hook.jar" "$OUT/AAListenerDistributor.jar"
 
-# Track/cover classes (includes stock-package distributor override)
-TRACK_CLASSES=(
-    com/mhi2/androidadio/AATrackProvider.class
+# Boot-safe classes for -Xbootclasspath/p: (loaded by J9 bootstrap loader,
+# no de.audi.* / org.osgi.* direct references, everything via reflection)
+BOOT_CLASSES=(
     com/mhi2/androidadio/AAJavaBridge.class
+    com/mhi2/androidadio/AATrackProvider.class
+    com/mhi2/androidadio/AAManeuverProvider.class
+)
+(cd "$T/classes" && jar cf "$OUT/AAcoverart_hook.jar" "${BOOT_CLASSES[@]}")
+
+# Distributor class extends stock DSIAndroidAuto2ListenerDistributor (de.audi.*),
+# so it must NOT be on -Xbootclasspath/p:; it is loaded via lsd/jars/ (normal
+# classloader, can see OSGi classes). Calls AAJavaBridge inside try/catch.
+DIST_CLASSES=(
     de/audi/app/terminalmode/smartphone/androidauto2/AndroidAuto2ListenerDistributor.class
 )
-(cd "$T/classes" && jar cf "$OUT/AAAndroidAutoTrack.jar" "${TRACK_CLASSES[@]}")
+(cd "$T/classes" && jar cf "$OUT/AAListenerDistributor.jar" "${DIST_CLASSES[@]}")
 
-# Turn/maneuver classes
-TURN_CLASSES=(
-    com/mhi2/androidadio/AAManeuverProvider.class
-    com/mhi2/androidadio/AAJavaBridge.class
-)
-(cd "$T/classes" && jar cf "$OUT/AAAndroidAutoTurns.jar" "${TURN_CLASSES[@]}")
-
-echo "Built $OUT/AAAndroidAutoTrack.jar"
-echo "Built $OUT/AAAndroidAutoTurns.jar"
-unzip -l "$OUT/AAAndroidAutoTrack.jar" | grep '\.class$'
-unzip -l "$OUT/AAAndroidAutoTurns.jar" | grep '\.class$'
+echo "Built $OUT/AAcoverart_hook.jar"
+echo "Built $OUT/AAListenerDistributor.jar"
+unzip -l "$OUT/AAcoverart_hook.jar" | grep '\.class$'
+unzip -l "$OUT/AAListenerDistributor.jar" | grep '\.class$'
 
 echo ""
 echo "Build complete. Artifacts:"
-echo "  $OUT/AAAndroidAutoTrack.jar"
-echo "  $OUT/AAAndroidAutoTurns.jar"
+echo "  $OUT/AAcoverart_hook.jar     -> on -Xbootclasspath/p: (bootstrap loader)"
+echo "  $OUT/AAListenerDistributor.jar -> in lsd/jars/ (normal classloader)"
 echo ""
 echo "Next steps:"
-echo "  1. Copy AAAndroidAutoTrack.jar -> thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar"
-echo "  2. Copy AAAndroidAutoTurns.jar  -> thirdparty/mib2-android-auto-audi/AArgd_hook.jar"
+echo "  1. Copy AAcoverart_hook.jar      -> thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar"
+echo "  2. Copy AAListenerDistributor.jar -> thirdparty/mib2-android-auto-audi/AAListenerDistributor.jar"
 echo "  3. Install jars via green menu / scripts/enable_hook.sh"
-echo "  4. The AndroidAuto2ListenerDistributor override in AAcoverart_hook.jar"
-echo "     self-triggers via its static initializer (calls AAJavaBridge.init())"
-echo "     No patched lsd.jar is required."
+echo "  4. AAcoverart_hook.jar goes on -Xbootclasspath/p: in lsd.sh"
+echo "  5. AAListenerDistributor.jar is added to lsd/jars/ via lsd_jar.sh add"

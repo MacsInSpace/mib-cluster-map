@@ -1649,54 +1649,27 @@ if [ "$AUDI_INFO_OK" -eq 1 ]; then
         AA_COVER_ASKED=0
     fi
 
-    # ---- Audi AU37x: deploy patched lsd.jar (FrameworkAccess constructor
-    # calls AAJavaBridge.setBundleContext + init so the bridge boots on
-    # framework startup). Without this, AAJavaBridge.static {} never runs
-    # and the AA hook jars do nothing. ----
-    LSD_DST=/mnt/app/eso/hmi/lsd/lsd.jar
-    LSD_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_lsd_patched
-    LSD_SRC="$CARD_ROOT/thirdparty/lsd.jar"
-    if [ -r "$LSD_SRC" ]; then
-        if [ ! -f "$LSD_MARKER" ]; then
-            echo "Java check: deploying patched lsd.jar (FrameworkAccess AA bridge init)."
-            if mount -uw /mnt/app 2>/dev/null; then
-                if [ -r "$LSD_DST" ] && [ ! -r "$LSD_DST.stock" ]; then
-                    cp "$LSD_DST" "$LSD_DST.stock" && echo "  backed up stock lsd.jar to $LSD_DST.stock"
-                fi
-                cp "$LSD_SRC" "$LSD_DST" && echo "  patched lsd.jar installed"
-                : > "$LSD_MARKER"
-                mount -ur /mnt/app 2>/dev/null || true
-            else
-                echo "WARNING: cannot remount /mnt/app read-write; patched lsd.jar not deployed." >&2
-            fi
-        else
-            echo "Java check: patched lsd.jar already deployed (marker present)."
-        fi
-    else
-        echo "Java check: no patched lsd.jar in this package (not needed)." >&2
-        echo "  AAJavaBridge self-triggers via AndroidAuto2ListenerDistributor static initializer." >&2
-    fi
-
     # ---- Ensure AA cover jar takes priority over stock lsd.jxe classes ----
     # AU37x lsd.sh loads every jar in lsd/jars/ but lsd.jxe may take priority.
-    # Prepend AAcoverart_hook.jar via -Xbootclasspath/p: so our
-    # AndroidAuto2ListenerDistributor override is loaded instead of the stock one.
-    LSD_DIR=/mnt/app/eso/hmi/lsd
-    if [ "$AA_COVER_ASKED" = 1 ]; then
-        # Try runHMI.sh first (AU37x -- it actually invokes j9), then lsd.sh,
-        # then /mnt/app/eso/hmi/runHMI.sh. Only patch a script that contains
-        # a 'j9 ' invocation line; lsd.sh alone is a tiny wrapper.
+    # AAcoverart_hook.jar holds the boot-safe bridge classes (AAJavaBridge,
+    # AATrackProvider, AAManeuverProvider) and goes on -Xbootclasspath/p: so
+    # J9's bootstrap loader gets them first. AAListenerDistributor.jar holds
+    # AndroidAuto2ListenerDistributor (extends stock de.audi.* class) and is
+    # loaded via lsd/jars/ (normal classloader, can see OSGi classes).
+    # No patched lsd.jar is deployed (AU37x boots from /ifs/lsd.jxe).
+    if [ "$AA_COVER_ASKED" = 1 ] || [ "$AA_TURNS_ASKED" = 1 ]; then
+        # Only patch the script that actually launches j9 ($J9 execution line).
+        # Inject once on the $J9 line, not on every line containing 'j9 '.
         for TARGET_SH in /mnt/app/eso/hmi/lsd/runHMI.sh /mnt/app/eso/hmi/lsd/lsd.sh /mnt/app/eso/hmi/runHMI.sh; do
-            if [ -r "$TARGET_SH" ] && grep -q 'j9 ' "$TARGET_SH" 2>/dev/null; then
-                LSD_NEW="$TARGET_SH.aa_bootcp"
+            if [ -r "$TARGET_SH" ] && grep -q '^\$J9 ' "$TARGET_SH" 2>/dev/null; then
                 if mount -uw /mnt/app 2>/dev/null; then
                     if ! grep -q 'AAcoverart_hook.jar' "$TARGET_SH" 2>/dev/null; then
-                        awk -v cp="VMOPTIONS=\"\$VMOPTIONS -Xbootclasspath/p:/mnt/app/eso/hmi/lsd/jars/AAcoverart_hook.jar\"" '
-                            /j9 / { print cp }
+                        awk -v cp='VMOPTIONS="$VMOPTIONS -Xbootclasspath/p:/mnt/app/eso/hmi/lsd/jars/AAcoverart_hook.jar"' '
+                            /^\$J9 / { print cp }
                             { print }
-                        ' "$TARGET_SH" > "$LSD_NEW" && \
-                        [ "`wc -l < "$LSD_NEW"`" -gt 10 ] && \
-                        mv "$LSD_NEW" "$TARGET_SH" && \
+                        ' "$TARGET_SH" > "$TARGET_SH.aa_bootcp" && \
+                        [ "`wc -l < "$TARGET_SH.aa_bootcp"`" -gt 10 ] && \
+                        mv "$TARGET_SH.aa_bootcp" "$TARGET_SH" && \
                         chmod 755 "$TARGET_SH" && \
                         sync && \
                         echo "Java check: added -Xbootclasspath/p: for AAcoverart_hook.jar to $TARGET_SH"
@@ -1713,11 +1686,15 @@ if [ "$AUDI_INFO_OK" -eq 1 ]; then
     fi
 
     # Each entry: jar|marker|description|asked
+    AA_DISTRIBUTOR_JAR=AAListenerDistributor.jar
+    AA_DISTRIBUTOR_ASKED=0
+    if [ "$AA_COVER_ASKED" = 1 ] || [ "$AA_TURNS_ASKED" = 1 ]; then
+        AA_DISTRIBUTOR_ASKED=1
+    fi
     AUDI_JAR_ENTRIES="
 $AUDI_COVER_JAR|/mnt/app/eso/hmi/lsd/.aacluster_cover_added|CarPlay cover art and track info on the media screen|$AUDI_COVER_ASKED
 $AUDI_TURNS_JAR|/mnt/app/eso/hmi/lsd/.aacluster_audi_turns_added|CarPlay turn arrows, distance and road name on the cluster|$AUDI_TURNS_ASKED
-$AA_COVER_JAR|/mnt/app/eso/hmi/lsd/.aacluster_aa_cover_added|Android Auto cover art and track info on the media screen|$AA_COVER_ASKED
-$AA_TURNS_JAR|/mnt/app/eso/hmi/lsd/.aacluster_aa_turns_added|Android Auto turn arrows, distance and road name on the cluster|$AA_TURNS_ASKED
+$AA_DISTRIBUTOR_JAR|/mnt/app/eso/hmi/lsd/.aacluster_aa_distributor_added|Android Auto listener distributor override for DSI callbacks|$AA_DISTRIBUTOR_ASKED
 "
 
     # Remove jars not asked for.

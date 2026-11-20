@@ -1,23 +1,17 @@
 package com.mhi2.androidadio;
 
-import de.audi.atip.base.IFrameworkAccess;
-import de.audi.atip.log.LogChannel;
-import de.audi.tghu.navi.app.cluster.ClusterService;
-import org.dsi.ifc.navigation.BapManeuverDescriptor;
-import org.dsi.ifc.navigation.DistanceToNextManeuver;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.FrameworkUtil;
-import org.osgi.framework.ServiceReference;
-import org.osgi.framework.Bundle;
 import java.io.FileWriter;
 import java.io.PrintWriter;
+import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import org.dsi.ifc.navigation.BapManeuverDescriptor;
+import org.dsi.ifc.navigation.DistanceToNextManeuver;
 
 public class AAManeuverProvider {
     private static AAManeuverProvider instance;
-    private LogChannel log;
-    private ClusterService clusterService;
+    private Object log;
+    private Object clusterService;
     private int lastMainElement;
     private int lastDirection;
     private int lastDistance;
@@ -29,15 +23,23 @@ public class AAManeuverProvider {
     public static int getLastMainElement() {
         return instance != null ? instance.lastMainElement : 0;
     }
+
     public static int getLastDirection() {
         return instance != null ? instance.lastDirection : 0;
     }
+
     public static int getLastDistance() {
         return instance != null ? instance.lastDistance : 0;
     }
 
     public static void handleNextTurnEvent(String roadName, int mainElement, int direction, int turnAngle, int turnNumber, int event) {
-        debugLog("handleNextTurnEvent called, roadName='" + roadName + "' mainElement=" + mainElement + " direction=" + direction);
+        StringBuffer sb = new StringBuffer("handleNextTurnEvent called, roadName='");
+        sb.append(roadName);
+        sb.append("' mainElement=");
+        sb.append(mainElement);
+        sb.append(" direction=");
+        sb.append(direction);
+        debugLog(sb.toString());
         if (instance == null) {
             debugLog("handleNextTurnEvent: no instance");
             return;
@@ -45,7 +47,9 @@ public class AAManeuverProvider {
         if (instance.clusterService == null) {
             debugLog("handleNextTurnEvent: clusterService null, attempting lazy lookup");
             instance.clusterService = instance.findClusterService();
-            debugLog("handleNextTurnEvent: clusterService after lazy lookup=" + (instance.clusterService != null ? "non-null" : "null"));
+            StringBuffer sb2 = new StringBuffer("handleNextTurnEvent: clusterService after lazy lookup=");
+            sb2.append(instance.clusterService != null ? "non-null" : "null");
+            debugLog(sb2.toString());
         }
         if (instance.clusterService == null) {
             debugLog("handleNextTurnEvent: no clusterService");
@@ -54,15 +58,20 @@ public class AAManeuverProvider {
         try {
             BapManeuverDescriptor[] desc = new BapManeuverDescriptor[1];
             desc[0] = new BapManeuverDescriptor(mainElement, direction, 0, null);
-            instance.clusterService.updateManeuverDescriptor(desc);
+            Method m = instance.clusterService.getClass().getMethod("updateManeuverDescriptor", BapManeuverDescriptor[].class);
+            m.invoke(instance.clusterService, new Object[]{ desc });
             debugLog("handleNextTurnEvent: clusterService.updateManeuverDescriptor called");
         } catch (Throwable t) {
-            debugLog("handleNextTurnEvent: threw " + t);
+            StringBuffer sb3 = new StringBuffer("handleNextTurnEvent: threw ");
+            sb3.append(t);
+            debugLog(sb3.toString());
         }
     }
 
     public static void handleNextTurnDistance(int distance, int unit, int remainingDistance) {
-        debugLog("handleNextTurnDistance called, distance=" + distance);
+        StringBuffer sb = new StringBuffer("handleNextTurnDistance called, distance=");
+        sb.append(distance);
+        debugLog(sb.toString());
         if (instance == null) {
             debugLog("handleNextTurnDistance: no instance");
             return;
@@ -70,7 +79,9 @@ public class AAManeuverProvider {
         if (instance.clusterService == null) {
             debugLog("handleNextTurnDistance: clusterService null, attempting lazy lookup");
             instance.clusterService = instance.findClusterService();
-            debugLog("handleNextTurnDistance: clusterService after lazy lookup=" + (instance.clusterService != null ? "non-null" : "null"));
+            StringBuffer sb2 = new StringBuffer("handleNextTurnDistance: clusterService after lazy lookup=");
+            sb2.append(instance.clusterService != null ? "non-null" : "null");
+            debugLog(sb2.toString());
         }
         if (instance.clusterService == null) {
             debugLog("handleNextTurnDistance: no clusterService");
@@ -78,10 +89,13 @@ public class AAManeuverProvider {
         }
         try {
             DistanceToNextManeuver dist = new DistanceToNextManeuver(true, distance, true, 0);
-            instance.clusterService.updateDistanceToNextManeuver(dist);
+            Method m = instance.clusterService.getClass().getMethod("updateDistanceToNextManeuver", DistanceToNextManeuver.class);
+            m.invoke(instance.clusterService, dist);
             debugLog("handleNextTurnDistance: clusterService.updateDistanceToNextManeuver called");
         } catch (Throwable t) {
-            debugLog("handleNextTurnDistance: threw " + t);
+            StringBuffer sb3 = new StringBuffer("handleNextTurnDistance: threw ");
+            sb3.append(t);
+            debugLog(sb3.toString());
         }
     }
 
@@ -94,26 +108,31 @@ public class AAManeuverProvider {
         debugLog("AAManeuverProvider.<init> entered (lazy clusterService lookup)");
     }
 
-    private LogChannel getLogChannel() {
+    private Object getLogChannel() {
         try {
-            BundleContext bc = AAJavaBridge.getBundleContext();
+            Object bc = AAJavaBridge.getBundleContext();
             if (bc != null) {
-                ServiceReference ref = bc.getServiceReference(IFrameworkAccess.class.getName());
+                Method getSR = bc.getClass().getMethod("getServiceReference", String.class);
+                Object ref = getSR.invoke(bc, "de.audi.atip.base.IFrameworkAccess");
                 if (ref != null) {
-                    Object fa = bc.getService(ref);
+                    Method getService = bc.getClass().getMethod("getService", ref.getClass());
+                    Object fa = getService.invoke(bc, ref);
                     if (fa != null) {
-                        java.lang.reflect.Method m = fa.getClass().getMethod("getLogChannel", String.class);
-                        bc.ungetService(ref);
-                        return (LogChannel) m.invoke(fa, "AAManeuverProvider");
+                        Method getLC = fa.getClass().getMethod("getLogChannel", String.class);
+                        Object lc = getLC.invoke(fa, "AAManeuverProvider");
+                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
+                        unget.invoke(bc, ref);
+                        return lc;
                     }
-                    bc.ungetService(ref);
+                    Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
+                    unget.invoke(bc, ref);
                 }
             }
         } catch (Throwable t) {}
         try {
-            Class cls = Class.forName("de.audi.atip.base.IFrameworkAccess");
+            Class<?> cls = Class.forName("de.audi.atip.base.IFrameworkAccess");
+            Class<?> c = cls;
             java.lang.reflect.Field f = null;
-            Class c = cls;
             while (c != null) {
                 try {
                     f = c.getDeclaredField("instance");
@@ -126,36 +145,42 @@ public class AAManeuverProvider {
                 f.setAccessible(true);
                 Object fa = f.get(null);
                 if (fa != null) {
-                    java.lang.reflect.Method m = fa.getClass().getMethod("getLogChannel", String.class);
-                    return (LogChannel) m.invoke(fa, "AAManeuverProvider");
+                    Method getLC = fa.getClass().getMethod("getLogChannel", String.class);
+                    return getLC.invoke(fa, "AAManeuverProvider");
                 }
             }
         } catch (Throwable t) {}
         return new StubLogChannel();
     }
 
-    private ClusterService findClusterService() {
+    private Object findClusterService() {
         try {
-            BundleContext bc = AAJavaBridge.getBundleContext();
+            Object bc = AAJavaBridge.getBundleContext();
             if (bc != null) {
-                ServiceReference ref = bc.getServiceReference(ClusterService.class.getName());
+                Method getSR = bc.getClass().getMethod("getServiceReference", String.class);
+                Object ref = getSR.invoke(bc, "de.audi.tghu.navi.app.cluster.ClusterService");
                 if (ref != null) {
-                    Object svc = bc.getService(ref);
+                    Method getService = bc.getClass().getMethod("getService", ref.getClass());
+                    Object svc = getService.invoke(bc, ref);
                     if (svc != null) {
-                        bc.ungetService(ref);
+                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
+                        unget.invoke(bc, ref);
                         debugLog("findClusterService: found via OSGi ClusterService");
-                        return (ClusterService) svc;
+                        return svc;
                     }
-                    bc.ungetService(ref);
+                    Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
+                    unget.invoke(bc, ref);
                 }
             }
         } catch (Throwable t) {
-            debugLog("findClusterService: OSGi lookup threw " + t);
+            StringBuffer sb = new StringBuffer("findClusterService: OSGi lookup threw ");
+            sb.append(t);
+            debugLog(sb.toString());
         }
         try {
-            Class cls = Class.forName("de.audi.tghu.navi.app.cluster.ClusterService");
+            Class<?> cls = Class.forName("de.audi.tghu.navi.app.cluster.ClusterService");
+            Class<?> c = cls;
             java.lang.reflect.Field f = null;
-            Class c = cls;
             while (c != null) {
                 try {
                     f = c.getDeclaredField("instance");
@@ -167,33 +192,44 @@ public class AAManeuverProvider {
             if (f != null) {
                 f.setAccessible(true);
                 Object inst = f.get(null);
-                if (inst != null && inst instanceof ClusterService) {
+                if (inst != null && "de.audi.tghu.navi.app.cluster.ClusterService".equals(inst.getClass().getName())) {
                     debugLog("findClusterService: found via static instance field");
-                    return (ClusterService) inst;
+                    return inst;
                 }
             }
         } catch (Throwable t) {
-            debugLog("findClusterService: static field lookup threw " + t);
+            StringBuffer sb = new StringBuffer("findClusterService: static field lookup threw ");
+            sb.append(t);
+            debugLog(sb.toString());
         }
         debugLog("findClusterService: returning null");
         return null;
     }
 
+    private void logCall(int level, String msg) {
+        if (log != null) {
+            try {
+                Method m = log.getClass().getMethod("log", int.class, String.class);
+                m.invoke(log, level, msg);
+            } catch (Throwable t) {}
+        }
+    }
+
     private static void debugLog(String msg) {
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS");
-            String line = sdf.format(new Date()) + " AAManeuverProvider: " + msg;
+            StringBuffer sb = new StringBuffer();
+            sb.append(sdf.format(new Date()));
+            sb.append(" AAManeuverProvider: ");
+            sb.append(msg);
             FileWriter fw = new FileWriter("/tmp/aacoverart.log", true);
             PrintWriter pw = new PrintWriter(fw);
-            pw.println(line);
+            pw.println(sb.toString());
             pw.close();
         } catch (Throwable t) {}
     }
 
-    private static class StubLogChannel extends de.audi.atip.log.LogChannel {
-        public StubLogChannel() { super(); }
-        public void log(int a, java.lang.String b, java.lang.Object c, java.lang.Object d, java.lang.Object e, java.lang.Object f, long g, long h, long i, int j, java.lang.Throwable k) {}
-        public void log(int a, int b, java.lang.Object c, java.lang.Object d, java.lang.Object e, java.lang.Object f, long g, long h, long i, int j, java.lang.Throwable k) {}
-        public boolean log(int a, java.lang.String b) { return false; }
+    private static class StubLogChannel {
+        public StubLogChannel() {}
     }
 }

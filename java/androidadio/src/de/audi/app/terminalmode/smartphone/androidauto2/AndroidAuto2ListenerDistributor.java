@@ -17,10 +17,6 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
     private Vector listeners;
     private IContext context;
 
-    static {
-        AAJavaBridge.init();
-    }
-
     public AndroidAuto2ListenerDistributor(IContext context) {
         this.context = context;
         this.listeners = new Vector();
@@ -43,25 +39,25 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
 
     public void updateNowPlayingData(TrackData trackData, int instanceId) {
         debugLog("updateNowPlayingData received from DSI");
-        AAJavaBridge.onNowPlayingData(trackData, instanceId);
+        try { AAJavaBridge.onNowPlayingData(trackData, instanceId); } catch (Throwable t) {}
         forwardNowPlayingData(trackData, instanceId);
     }
 
     public void updateCoverArtUrl(ResourceLocator resourceLocator, int instanceId) {
         debugLog("updateCoverArtUrl received from DSI");
-        AAJavaBridge.onCoverArtUrl(resourceLocator, instanceId);
+        try { AAJavaBridge.onCoverArtUrl(resourceLocator, instanceId); } catch (Throwable t) {}
         forwardCoverArtUrl(resourceLocator, instanceId);
     }
 
     public void updateNavigationNextTurnEvent(String roadName, int mainElement, int direction, int turnAngle, int turnNumber, int event) {
         debugLog("updateNavigationNextTurnEvent received from DSI");
-        AAJavaBridge.onNextTurnEvent(roadName, mainElement, direction, turnAngle, turnNumber, event);
+        try { AAJavaBridge.onNextTurnEvent(roadName, mainElement, direction, turnAngle, turnNumber, event); } catch (Throwable t) {}
         forwardNextTurnEvent(roadName, mainElement, direction, turnAngle, turnNumber, event);
     }
 
     public void updateNavigationNextTurnDistance(int distance, int unit, int remainingDistance) {
         debugLog("updateNavigationNextTurnDistance received from DSI");
-        AAJavaBridge.onNextTurnDistance(distance, unit, remainingDistance);
+        try { AAJavaBridge.onNextTurnDistance(distance, unit, remainingDistance); } catch (Throwable t) {}
         forwardNextTurnDistance(distance, unit, remainingDistance);
     }
 
@@ -277,10 +273,13 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
     private void debugLog(String msg) {
         try {
             java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("HH:mm:ss.SSS");
-            String line = sdf.format(new java.util.Date()) + " AAListenerDistributor: " + msg;
+            StringBuffer sb = new StringBuffer();
+            sb.append(sdf.format(new java.util.Date()));
+            sb.append(" AAListenerDistributor: ");
+            sb.append(msg);
             java.io.FileWriter fw = new java.io.FileWriter("/tmp/aacoverart.log", true);
             java.io.PrintWriter pw = new java.io.PrintWriter(fw);
-            pw.println(line);
+            pw.println(sb.toString());
             pw.close();
         } catch (Throwable t) {}
     }

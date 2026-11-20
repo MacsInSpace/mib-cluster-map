@@ -1,27 +1,19 @@
 package com.mhi2.androidadio;
 
-import de.audi.app.combi.bap.app.audio.AppConnectorMedia;
-import de.audi.atip.interapp.combi.bap.audio.data.CombiBAPCurrentStationInfo;
-import de.audi.atip.base.IFrameworkAccess;
-import de.audi.atip.log.LogChannel;
-import de.audi.app.combi.bap.app.kombipictures.IPictureManager;
-import org.dsi.ifc.androidauto2.TrackData;
-import org.dsi.ifc.global.ResourceLocator;
-import org.osgi.framework.BundleContext;
-import org.osgi.framework.FrameworkUtil;
-import org.osgi.framework.ServiceReference;
-import org.osgi.framework.Bundle;
 import java.io.FileWriter;
 import java.io.PrintWriter;
+import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import org.dsi.ifc.androidauto2.TrackData;
+import org.dsi.ifc.global.ResourceLocator;
 
 public class AATrackProvider {
     private static final int SOURCE_TYPE_BT_STREAM = 3;
     private static AATrackProvider instance;
-    private LogChannel log;
-    private AppConnectorMedia mediaConnector;
-    private IPictureManager pictureManager;
+    private Object log;
+    private Object mediaConnector;
+    private Object pictureManager;
     private String lastTitle;
     private String lastArtist;
     private String lastAlbum;
@@ -45,28 +37,35 @@ public class AATrackProvider {
         debugLog("AATrackProvider.<init> entered (lazy service lookup)");
     }
 
-    private LogChannel getLogChannel() {
+    private Object getLogChannel() {
         try {
-            BundleContext bc = getBundleContext();
+            Object bc = getBundleContext();
             if (bc != null) {
-                ServiceReference ref = bc.getServiceReference(IFrameworkAccess.class.getName());
+                Method getSR = bc.getClass().getMethod("getServiceReference", String.class);
+                Object ref = getSR.invoke(bc, "de.audi.atip.base.IFrameworkAccess");
                 if (ref != null) {
-                    Object fa = bc.getService(ref);
+                    Method getService = bc.getClass().getMethod("getService", ref.getClass());
+                    Object fa = getService.invoke(bc, ref);
                     if (fa != null) {
-                        java.lang.reflect.Method m = fa.getClass().getMethod("getLogChannel", String.class);
-                        bc.ungetService(ref);
-                        return (LogChannel) m.invoke(fa, "AATrackProvider");
+                        Method getLC = fa.getClass().getMethod("getLogChannel", String.class);
+                        Object lc = getLC.invoke(fa, "AATrackProvider");
+                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
+                        unget.invoke(bc, ref);
+                        return lc;
                     }
-                    bc.ungetService(ref);
+                    Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
+                    unget.invoke(bc, ref);
                 }
             }
         } catch (Throwable t) {
-            debugLog("getLogChannel: OSGi IFrameworkAccess lookup threw " + t);
+            StringBuffer sb = new StringBuffer("getLogChannel: OSGi IFrameworkAccess lookup threw ");
+            sb.append(t);
+            debugLog(sb.toString());
         }
         try {
-            Class cls = Class.forName("de.audi.atip.base.IFrameworkAccess");
+            Class<?> cls = Class.forName("de.audi.atip.base.IFrameworkAccess");
+            Class<?> c = cls;
             java.lang.reflect.Field f = null;
-            Class c = cls;
             while (c != null) {
                 try {
                     f = c.getDeclaredField("instance");
@@ -79,29 +78,36 @@ public class AATrackProvider {
                 f.setAccessible(true);
                 Object fa = f.get(null);
                 if (fa != null) {
-                    java.lang.reflect.Method m = fa.getClass().getMethod("getLogChannel", String.class);
-                    return (LogChannel) m.invoke(fa, "AATrackProvider");
+                    Method getLC = fa.getClass().getMethod("getLogChannel", String.class);
+                    return getLC.invoke(fa, "AATrackProvider");
                 }
             }
         } catch (Throwable t) {
-            debugLog("getLogChannel: static instance lookup threw " + t);
+            StringBuffer sb = new StringBuffer("getLogChannel: static instance lookup threw ");
+            sb.append(t);
+            debugLog(sb.toString());
         }
         return new StubLogChannel();
     }
 
-    private BundleContext getBundleContext() {
+    private Object getBundleContext() {
         try {
-            BundleContext bc = AAJavaBridge.getBundleContext();
+            Object bc = AAJavaBridge.getBundleContext();
             if (bc != null) {
                 debugLog("AATrackProvider.getBundleContext: from AAJavaBridge");
                 return bc;
             }
         } catch (Throwable t) {}
         try {
-            Bundle b = FrameworkUtil.getBundle(AATrackProvider.class);
-            if (b != null) {
-                BundleContext bc2 = b.getBundleContext();
-                debugLog("AATrackProvider.getBundleContext: from FrameworkUtil, bc=" + (bc2 != null ? "non-null" : "null"));
+            Class<?> fuCls = Class.forName("org.osgi.framework.FrameworkUtil");
+            Method getBundle = fuCls.getMethod("getBundle", Class.class);
+            Object bundle = getBundle.invoke(null, AATrackProvider.class);
+            if (bundle != null) {
+                Method getBC = bundle.getClass().getMethod("getBundleContext");
+                Object bc2 = getBC.invoke(bundle);
+                StringBuffer sb = new StringBuffer("AATrackProvider.getBundleContext: from FrameworkUtil, bc=");
+                sb.append(bc2 != null ? "non-null" : "null");
+                debugLog(sb.toString());
                 return bc2;
             }
         } catch (Throwable t) {}
@@ -109,92 +115,115 @@ public class AATrackProvider {
         return null;
     }
 
-    private AppConnectorMedia findMediaConnector() {
+    private Object findMediaConnector() {
         try {
-            BundleContext bc = getBundleContext();
+            Object bc = getBundleContext();
             if (bc != null) {
-                ServiceReference ref = bc.getServiceReference(de.audi.atip.interapp.combi.bap.audio.CombiBAPServiceMedia.class.getName());
+                Method getSR = bc.getClass().getMethod("getServiceReference", String.class);
+                Object ref = getSR.invoke(bc, "de.audi.atip.interapp.combi.bap.audio.CombiBAPServiceMedia");
                 if (ref != null) {
-                    Object svc = bc.getService(ref);
-                    if (svc instanceof AppConnectorMedia) {
-                        bc.ungetService(ref);
+                    Method getService = bc.getClass().getMethod("getService", ref.getClass());
+                    Object svc = getService.invoke(bc, ref);
+                    if (svc != null && "de.audi.app.combi.bap.app.audio.AppConnectorMedia".equals(svc.getClass().getName())) {
+                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
+                        unget.invoke(bc, ref);
                         debugLog("findMediaConnector: found via OSGi CombiBAPServiceMedia");
-                        return (AppConnectorMedia) svc;
+                        return svc;
                     }
-                    bc.ungetService(ref);
+                    if (svc != null) {
+                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
+                        unget.invoke(bc, ref);
+                    }
                 }
             }
         } catch (Throwable t) {
-            debugLog("findMediaConnector: OSGi lookup threw " + t);
+            StringBuffer sb = new StringBuffer("findMediaConnector: OSGi lookup threw ");
+            sb.append(t);
+            debugLog(sb.toString());
         }
         try {
-            Class cls = Class.forName("de.audi.app.combi.bap.app.audio.CombiModuleAudio");
-            java.lang.reflect.Method m = cls.getMethod("getMediaService");
-            Object mod = findCombiModuleAudio(cls);
+            Class<?> cls = Class.forName("de.audi.app.combi.bap.app.audio.CombiModuleAudio");
+            Method getMediaService = cls.getMethod("getMediaService");
+            Object mod = findStaticInstance(cls);
             if (mod != null) {
-                Object svc = m.invoke(mod);
-                if (svc instanceof AppConnectorMedia) {
+                Object svc = getMediaService.invoke(mod);
+                if (svc != null && "de.audi.app.combi.bap.app.audio.AppConnectorMedia".equals(svc.getClass().getName())) {
                     debugLog("findMediaConnector: found via CombiModuleAudio.getMediaService");
-                    return (AppConnectorMedia) svc;
+                    return svc;
                 }
             }
         } catch (Throwable t) {
-            debugLog("findMediaConnector: CombiModuleAudio lookup threw " + t);
+            StringBuffer sb = new StringBuffer("findMediaConnector: CombiModuleAudio lookup threw ");
+            sb.append(t);
+            debugLog(sb.toString());
         }
         debugLog("findMediaConnector: returning null");
         return null;
     }
 
-    private Object findCombiModuleAudio(Class cls) throws Exception {
-        java.lang.reflect.Field f = null;
-        Class c = cls;
+    private Object findStaticInstance(Class<?> cls) throws Exception {
+        Class<?> c = cls;
         while (c != null) {
             try {
-                f = c.getDeclaredField("instance");
-                break;
+                java.lang.reflect.Field f = c.getDeclaredField("instance");
+                f.setAccessible(true);
+                return f.get(null);
             } catch (NoSuchFieldException e) {
                 c = c.getSuperclass();
             }
         }
-        if (f != null) {
-            f.setAccessible(true);
-            return f.get(null);
-        }
         return null;
     }
 
-    private IPictureManager findPictureManager() {
+    private Object findPictureManager() {
         if (mediaConnector != null) {
             try {
-                java.lang.reflect.Method m = mediaConnector.getClass().getMethod("getPictureManager");
+                Method m = mediaConnector.getClass().getMethod("getPictureManager");
                 Object pm = m.invoke(mediaConnector);
-                if (pm instanceof IPictureManager) {
+                if (pm != null) {
                     debugLog("findPictureManager: found via mediaConnector.getPictureManager()");
-                    return (IPictureManager) pm;
+                    return pm;
                 }
             } catch (Throwable t) {
-                debugLog("findPictureManager: mediaConnector.getPictureManager threw " + t);
+                StringBuffer sb = new StringBuffer("findPictureManager: mediaConnector.getPictureManager threw ");
+                sb.append(t);
+                debugLog(sb.toString());
             }
         }
         try {
-            BundleContext bc = getBundleContext();
+            Object bc = getBundleContext();
             if (bc != null) {
-                ServiceReference ref = bc.getServiceReference(IPictureManager.class.getName());
+                Method getSR = bc.getClass().getMethod("getServiceReference", String.class);
+                Object ref = getSR.invoke(bc, "de.audi.app.combi.bap.app.kombipictures.IPictureManager");
                 if (ref != null) {
-                    Object pm = bc.getService(ref);
+                    Method getService = bc.getClass().getMethod("getService", ref.getClass());
+                    Object pm = getService.invoke(bc, ref);
                     if (pm != null) {
-                        bc.ungetService(ref);
+                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
+                        unget.invoke(bc, ref);
                         debugLog("findPictureManager: found via OSGi IPictureManager");
-                        return (IPictureManager) pm;
+                        return pm;
                     }
-                    bc.ungetService(ref);
+                    Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
+                    unget.invoke(bc, ref);
                 }
             }
         } catch (Throwable t) {
-            debugLog("findPictureManager: OSGi lookup threw " + t);
+            StringBuffer sb = new StringBuffer("findPictureManager: OSGi lookup threw ");
+            sb.append(t);
+            debugLog(sb.toString());
         }
         debugLog("findPictureManager: returning null");
         return null;
+    }
+
+    private void logCall(int level, String msg) {
+        if (log != null) {
+            try {
+                Method m = log.getClass().getMethod("log", int.class, String.class);
+                m.invoke(log, level, msg);
+            } catch (Throwable t) {}
+        }
     }
 
     public void startDSI() {
@@ -202,7 +231,9 @@ public class AATrackProvider {
     }
 
     public void handleNowPlayingData(TrackData trackData, int instanceId) {
-        debugLog("handleNowPlayingData called, trackData=" + (trackData != null ? "non-null" : "null"));
+        StringBuffer sb = new StringBuffer("handleNowPlayingData called, trackData=");
+        sb.append(trackData != null ? "non-null" : "null");
+        debugLog(sb.toString());
         if (trackData == null) {
             debugLog("handleNowPlayingData: returning early (null trackData)");
             return;
@@ -210,7 +241,9 @@ public class AATrackProvider {
         if (mediaConnector == null) {
             debugLog("handleNowPlayingData: mediaConnector null, attempting lazy lookup");
             mediaConnector = findMediaConnector();
-            debugLog("handleNowPlayingData: mediaConnector after lazy lookup=" + (mediaConnector != null ? "non-null" : "null"));
+            StringBuffer sb2 = new StringBuffer("handleNowPlayingData: mediaConnector after lazy lookup=");
+            sb2.append(mediaConnector != null ? "non-null" : "null");
+            debugLog(sb2.toString());
         }
         if (mediaConnector == null) {
             debugLog("handleNowPlayingData: returning early (no media connector)");
@@ -222,7 +255,14 @@ public class AATrackProvider {
         if (title == null) title = "";
         if (artist == null) artist = "";
         if (album == null) album = "";
-        debugLog("handleNowPlayingData: title='" + title + "' artist='" + artist + "' album='" + album + "'");
+        StringBuffer sb3 = new StringBuffer("handleNowPlayingData: title='");
+        sb3.append(title);
+        sb3.append("' artist='");
+        sb3.append(artist);
+        sb3.append("' album='");
+        sb3.append(album);
+        sb3.append("'");
+        debugLog(sb3.toString());
         boolean changed = !title.equals(lastTitle) || !artist.equals(lastArtist) || !album.equals(lastAlbum);
         lastTitle = title;
         lastArtist = artist;
@@ -232,24 +272,38 @@ public class AATrackProvider {
             return;
         }
         try {
-            CombiBAPCurrentStationInfo info = new CombiBAPCurrentStationInfo();
-            info.setPrimaryInformation(title, 0, 0);
-            info.setSecondaryInformation(artist, 0);
-            info.setTertiaryInformation(album, 0);
-            info.setPicture(lastPictureId, lastCoverUrl);
-            info.setListRef((int) (System.currentTimeMillis() & 0x7FFFFFFF));
-            lastListRef = info.getListRef();
-            mediaConnector.updateCurrentStation(info);
-            log.log(100000, "track updated");
-            debugLog("handleNowPlayingData: mediaConnector.updateCurrentStation(info) called, listRef=" + lastListRef);
+            Class<?> infoCls = Class.forName("de.audi.atip.interapp.combi.bap.audio.data.CombiBAPCurrentStationInfo");
+            Object info = infoCls.getDeclaredConstructor().newInstance();
+            Method setPrimary = infoCls.getMethod("setPrimaryInformation", String.class, int.class, int.class);
+            setPrimary.invoke(info, title, 0, 0);
+            Method setSecondary = infoCls.getMethod("setSecondaryInformation", String.class, int.class);
+            setSecondary.invoke(info, artist, 0);
+            Method setTertiary = infoCls.getMethod("setTertiaryInformation", String.class, int.class);
+            setTertiary.invoke(info, album, 0);
+            Method setPicture = infoCls.getMethod("setPicture", int.class, String.class);
+            setPicture.invoke(info, lastPictureId, lastCoverUrl);
+            Method setListRef = infoCls.getMethod("setListRef", int.class);
+            setListRef.invoke(info, (int) (System.currentTimeMillis() & 0x7FFFFFFF));
+            Method getListRef = infoCls.getMethod("getListRef");
+            lastListRef = (Integer) getListRef.invoke(info);
+            Method updateCurrentStation = mediaConnector.getClass().getMethod("updateCurrentStation", infoCls);
+            updateCurrentStation.invoke(mediaConnector, info);
+            logCall(100000, "track updated");
+            StringBuffer sb4 = new StringBuffer("handleNowPlayingData: mediaConnector.updateCurrentStation(info) called, listRef=");
+            sb4.append(lastListRef);
+            debugLog(sb4.toString());
         } catch (Throwable t) {
-            log.log(1000000, "handleNowPlayingData failed");
-            debugLog("handleNowPlayingData: mediaConnector.updateCurrentStation threw " + t);
+            logCall(1000000, "handleNowPlayingData failed");
+            StringBuffer sb5 = new StringBuffer("handleNowPlayingData: mediaConnector.updateCurrentStation threw ");
+            sb5.append(t);
+            debugLog(sb5.toString());
         }
     }
 
     public void handleCoverArtUrl(ResourceLocator resourceLocator, int instanceId) {
-        debugLog("handleCoverArtUrl called, resourceLocator=" + (resourceLocator != null ? "non-null" : "null"));
+        StringBuffer sb = new StringBuffer("handleCoverArtUrl called, resourceLocator=");
+        sb.append(resourceLocator != null ? "non-null" : "null");
+        debugLog(sb.toString());
         if (resourceLocator == null) {
             debugLog("handleCoverArtUrl: returning early (null resourceLocator)");
             return;
@@ -257,7 +311,9 @@ public class AATrackProvider {
         if (mediaConnector == null) {
             debugLog("handleCoverArtUrl: mediaConnector null, attempting lazy lookup");
             mediaConnector = findMediaConnector();
-            debugLog("handleCoverArtUrl: mediaConnector after lazy lookup=" + (mediaConnector != null ? "non-null" : "null"));
+            StringBuffer sb2 = new StringBuffer("handleCoverArtUrl: mediaConnector after lazy lookup=");
+            sb2.append(mediaConnector != null ? "non-null" : "null");
+            debugLog(sb2.toString());
         }
         if (mediaConnector == null) {
             debugLog("handleCoverArtUrl: returning early (no media connector)");
@@ -268,37 +324,58 @@ public class AATrackProvider {
         boolean changed = !url.equals(lastCoverUrl);
         lastCoverUrl = url;
         lastPictureId = resourceLocator.getId();
-        debugLog("handleCoverArtUrl: url='" + url + "' pictureId=" + lastPictureId + " changed=" + changed);
+        StringBuffer sb3 = new StringBuffer("handleCoverArtUrl: url='");
+        sb3.append(url);
+        sb3.append("' pictureId=");
+        sb3.append(lastPictureId);
+        sb3.append(" changed=");
+        sb3.append(changed);
+        debugLog(sb3.toString());
         if (!changed && lastTitle.length() == 0 && lastArtist.length() == 0) {
             debugLog("handleCoverArtUrl: no change and no track info, returning");
             return;
         }
         try {
             long listRef = lastListRef != 0 ? lastListRef : 1;
-            CombiBAPCurrentStationInfo info = new CombiBAPCurrentStationInfo();
-            info.setPrimaryInformation(lastTitle, 0, 0);
-            info.setSecondaryInformation(lastArtist, 0);
-            info.setTertiaryInformation(lastAlbum, 0);
-            info.setPicture(lastPictureId, lastCoverUrl);
-            info.setListRef((int) (System.currentTimeMillis() & 0x7FFFFFFF));
-            lastListRef = info.getListRef();
-            mediaConnector.updateCurrentStation(info);
-            log.log(100000, "cover art updated via updateCurrentStation");
-            debugLog("handleCoverArtUrl: mediaConnector.updateCurrentStation(info) called with cover art, listRef=" + lastListRef);
+            Class<?> infoCls = Class.forName("de.audi.atip.interapp.combi.bap.audio.data.CombiBAPCurrentStationInfo");
+            Object info = infoCls.getDeclaredConstructor().newInstance();
+            Method setPrimary = infoCls.getMethod("setPrimaryInformation", String.class, int.class, int.class);
+            setPrimary.invoke(info, lastTitle, 0, 0);
+            Method setSecondary = infoCls.getMethod("setSecondaryInformation", String.class, int.class);
+            setSecondary.invoke(info, lastArtist, 0);
+            Method setTertiary = infoCls.getMethod("setTertiaryInformation", String.class, int.class);
+            setTertiary.invoke(info, lastAlbum, 0);
+            Method setPicture = infoCls.getMethod("setPicture", int.class, String.class);
+            setPicture.invoke(info, lastPictureId, lastCoverUrl);
+            Method setListRef = infoCls.getMethod("setListRef", int.class);
+            setListRef.invoke(info, (int) (System.currentTimeMillis() & 0x7FFFFFFF));
+            Method getListRef = infoCls.getMethod("getListRef");
+            lastListRef = (Integer) getListRef.invoke(info);
+            Method updateCurrentStation = mediaConnector.getClass().getMethod("updateCurrentStation", infoCls);
+            updateCurrentStation.invoke(mediaConnector, info);
+            logCall(100000, "cover art updated via updateCurrentStation");
+            StringBuffer sb4 = new StringBuffer("handleCoverArtUrl: mediaConnector.updateCurrentStation(info) called with cover art, listRef=");
+            sb4.append(lastListRef);
+            debugLog(sb4.toString());
         } catch (Throwable t) {
-            log.log(1000000, "handleCoverArtUrl failed");
-            debugLog("handleCoverArtUrl: mediaConnector.updateCurrentStation threw " + t);
+            logCall(1000000, "handleCoverArtUrl failed");
+            StringBuffer sb5 = new StringBuffer("handleCoverArtUrl: mediaConnector.updateCurrentStation threw ");
+            sb5.append(t);
+            debugLog(sb5.toString());
             try {
                 if (pictureManager == null) {
                     pictureManager = findPictureManager();
                 }
                 if (pictureManager != null) {
                     long fbListRef = lastListRef != 0 ? lastListRef : 1;
-                    pictureManager.responseCoverArt(fbListRef, SOURCE_TYPE_BT_STREAM, resourceLocator, true);
+                    Method m = pictureManager.getClass().getMethod("responseCoverArt", long.class, int.class, ResourceLocator.class, boolean.class);
+                    m.invoke(pictureManager, fbListRef, SOURCE_TYPE_BT_STREAM, resourceLocator, true);
                     debugLog("handleCoverArtUrl: fallback pictureManager.responseCoverArt called");
                 }
             } catch (Throwable t2) {
-                debugLog("handleCoverArtUrl: fallback pictureManager.responseCoverArt also threw " + t2);
+                StringBuffer sb6 = new StringBuffer("handleCoverArtUrl: fallback pictureManager.responseCoverArt also threw ");
+                sb6.append(t2);
+                debugLog(sb6.toString());
             }
         }
     }
@@ -306,18 +383,18 @@ public class AATrackProvider {
     private static void debugLog(String msg) {
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS");
-            String line = sdf.format(new Date()) + " AATrackProvider: " + msg;
+            StringBuffer sb = new StringBuffer();
+            sb.append(sdf.format(new Date()));
+            sb.append(" AATrackProvider: ");
+            sb.append(msg);
             FileWriter fw = new FileWriter("/tmp/aacoverart.log", true);
             PrintWriter pw = new PrintWriter(fw);
-            pw.println(line);
+            pw.println(sb.toString());
             pw.close();
         } catch (Throwable t) {}
     }
 
-    private static class StubLogChannel extends de.audi.atip.log.LogChannel {
-        public StubLogChannel() { super(); }
-        public void log(int a, java.lang.String b, java.lang.Object c, java.lang.Object d, java.lang.Object e, java.lang.Object f, long g, long h, long i, int j, java.lang.Throwable k) {}
-        public void log(int a, int b, java.lang.Object c, java.lang.Object d, java.lang.Object e, java.lang.Object f, long g, long h, long i, int j, java.lang.Throwable k) {}
-        public boolean log(int a, java.lang.String b) { return false; }
+    private static class StubLogChannel {
+        public StubLogChannel() {}
     }
 }
