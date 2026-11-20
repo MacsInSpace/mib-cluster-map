@@ -12,7 +12,7 @@
 #
 # Depends on lsd.jar from your car's MIB2 (placed in TRANSFER/ by you) as the
 # compilation classpath for Audi stock classes.
-set -euo pipefail
+set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OUT=${1:-"$ROOT/build"}
@@ -87,6 +87,8 @@ ALL_CLASSES=(
     com/mhi2/androidadio/AATrackProvider.class
     com/mhi2/androidadio/AAManeuverProvider.class
     de/audi/app/terminalmode/smartphone/androidauto2/AndroidAuto2ListenerDistributor.class
+    de/audi/app/terminalmode/smartphone/androidauto2/AndroidAuto2EventListener.class
+    de/audi/app/combi/bap/app/audio/AppConnectorMedia.class
 )
 (cd "$T/classes" && jar cf "$OUT/AAcoverart_hook.jar" "${ALL_CLASSES[@]}")
 

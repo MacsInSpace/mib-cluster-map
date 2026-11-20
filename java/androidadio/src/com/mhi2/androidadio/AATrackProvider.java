@@ -143,6 +143,36 @@ public class AATrackProvider {
     }
 
     private Object findMediaConnector() {
+        // First: use CombiModule captured by AppConnectorMedia constructor (bootclasspath override)
+        Object combiModule = AAJavaBridge.getCombiModule();
+        if (combiModule != null) {
+            try {
+                Object terminalModeService = combiModule.getClass().getMethod(
+                    "getTerminalModeService", new Class[0]).invoke(combiModule, new Object[0]);
+                if (terminalModeService != null) {
+                    debugLog("findMediaConnector: found AppConnectorTerminalMode via CombiModule.getTerminalModeService()");
+                    return terminalModeService;
+                }
+            } catch (Throwable t) {
+                StringBuffer sb = new StringBuffer("findMediaConnector: getTerminalModeService threw ");
+                sb.append(t);
+                debugLog(sb.toString());
+            }
+            try {
+                Object mediaService = combiModule.getClass().getMethod(
+                    "getMediaService", new Class[0]).invoke(combiModule, new Object[0]);
+                if (mediaService != null && "de.audi.app.combi.bap.app.audio.AppConnectorMedia".equals(mediaService.getClass().getName())) {
+                    debugLog("findMediaConnector: found AppConnectorMedia via CombiModule.getMediaService()");
+                    return mediaService;
+                }
+            } catch (Throwable t) {
+                StringBuffer sb = new StringBuffer("findMediaConnector: getMediaService threw ");
+                sb.append(t);
+                debugLog(sb.toString());
+            }
+        }
+
+        // Then: OSGi lookup (existing code path)
         try {
             Object bc = getBundleContext();
             if (bc != null) {
@@ -231,6 +261,24 @@ public class AATrackProvider {
     }
 
     private Object findPictureManager() {
+        // First: use CombiModule to get IPictureManager directly (no OSGi needed)
+        Object combiModule = AAJavaBridge.getCombiModule();
+        if (combiModule != null) {
+            try {
+                Object pictureManager = combiModule.getClass().getMethod(
+                    "getPictureManager", new Class[0]).invoke(combiModule, new Object[0]);
+                if (pictureManager != null) {
+                    debugLog("findPictureManager: found via CombiModule.getPictureManager()");
+                    return pictureManager;
+                }
+            } catch (Throwable t) {
+                StringBuffer sb = new StringBuffer("findPictureManager: CombiModule.getPictureManager threw ");
+                sb.append(t);
+                debugLog(sb.toString());
+            }
+        }
+
+        // Then: mediaConnector.getPictureManager() (existing code path)
         if (mediaConnector != null) {
             try {
                 Method m = mediaConnector.getClass().getMethod("getPictureManager", new Class[0]);
@@ -416,15 +464,66 @@ public class AATrackProvider {
             setListRef.invoke(info, new Object[]{new Integer((int) (System.currentTimeMillis() & 0x7FFFFFFF))});
             Method getListRef = infoCls.getMethod("getListRef", new Class[0]);
             lastListRef = ((Integer) getListRef.invoke(info, new Object[0])).intValue();
-            Method updateCurrentStation = mediaConnector.getClass().getMethod("updateCurrentStation", new Class[]{infoCls});
-            updateCurrentStation.invoke(mediaConnector, new Object[]{info});
+
+            // Send updateCurrentStation to AppConnectorTerminalMode (active audio app during Android Auto)
+            Object combiModule = AAJavaBridge.getCombiModule();
+            Object terminalModeService = null;
+            Object pictureManager = null;
+            if (combiModule != null) {
+                try {
+                    terminalModeService = combiModule.getClass().getMethod(
+                        "getTerminalModeService", new Class[0]).invoke(combiModule, new Object[0]);
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handleNowPlayingData: getTerminalModeService threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+                try {
+                    pictureManager = combiModule.getClass().getMethod(
+                        "getPictureManager", new Class[0]).invoke(combiModule, new Object[0]);
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handleNowPlayingData: getPictureManager threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+            }
+            if (terminalModeService != null) {
+                try {
+                    Method updateCurrentStation = terminalModeService.getClass().getMethod(
+                        "updateCurrentStation", new Class[]{infoCls});
+                    updateCurrentStation.invoke(terminalModeService, new Object[]{info});
+                    StringBuffer sb4 = new StringBuffer("handleNowPlayingData: AppConnectorTerminalMode.updateCurrentStation(info) called, listRef=");
+                    sb4.append(lastListRef);
+                    debugLog(sb4.toString());
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handleNowPlayingData: terminalModeService.updateCurrentStation threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+            }
+            if (pictureManager != null && lastCoverUrl != null && lastCoverUrl.length() > 0) {
+                try {
+                    // Build ResourceLocator for cover art
+                    Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
+                    Object coverLocator = locatorCls.getDeclaredConstructor(
+                        new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(lastPictureId), lastCoverUrl});
+                    Method responseStationArt = pictureManager.getClass().getMethod(
+                        "responseStationArt", new Class[]{long.class, int.class, locatorCls, boolean.class});
+                    responseStationArt.invoke(pictureManager, new Object[]{
+                        new Long(lastListRef), new Integer(SOURCE_TYPE_BT_STREAM), coverLocator, new Boolean(true)});
+                    StringBuffer sb5 = new StringBuffer("handleNowPlayingData: IPictureManager.responseStationArt called, listRef=");
+                    sb5.append(lastListRef);
+                    debugLog(sb5.toString());
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handleNowPlayingData: responseStationArt threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+            }
             logCall(100000, "track updated");
-            StringBuffer sb4 = new StringBuffer("handleNowPlayingData: mediaConnector.updateCurrentStation(info) called, listRef=");
-            sb4.append(lastListRef);
-            debugLog(sb4.toString());
         } catch (Throwable t) {
             logCall(1000000, "handleNowPlayingData failed");
-            StringBuffer sb5 = new StringBuffer("handleNowPlayingData: mediaConnector.updateCurrentStation threw ");
+            StringBuffer sb5 = new StringBuffer("handleNowPlayingData: threw ");
             sb5.append(t);
             debugLog(sb5.toString());
         }
@@ -485,32 +584,67 @@ public class AATrackProvider {
             setListRef.invoke(info, new Object[]{new Integer((int) (System.currentTimeMillis() & 0x7FFFFFFF))});
             Method getListRef = infoCls.getMethod("getListRef", new Class[0]);
             lastListRef = ((Integer) getListRef.invoke(info, new Object[0])).intValue();
-            Method updateCurrentStation = mediaConnector.getClass().getMethod("updateCurrentStation", new Class[]{infoCls});
-            updateCurrentStation.invoke(mediaConnector, new Object[]{info});
+
+            // Send updateCurrentStation to AppConnectorTerminalMode (active audio app during Android Auto)
+            Object combiModule = AAJavaBridge.getCombiModule();
+            Object terminalModeService = null;
+            Object pictureManager2 = null;
+            if (combiModule != null) {
+                try {
+                    terminalModeService = combiModule.getClass().getMethod(
+                        "getTerminalModeService", new Class[0]).invoke(combiModule, new Object[0]);
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handleCoverArtUrl: getTerminalModeService threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+                try {
+                    pictureManager2 = combiModule.getClass().getMethod(
+                        "getPictureManager", new Class[0]).invoke(combiModule, new Object[0]);
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handleCoverArtUrl: getPictureManager threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+            }
+            if (terminalModeService != null) {
+                try {
+                    Method updateCurrentStation = terminalModeService.getClass().getMethod(
+                        "updateCurrentStation", new Class[]{infoCls});
+                    updateCurrentStation.invoke(terminalModeService, new Object[]{info});
+                    StringBuffer sb6 = new StringBuffer("handleCoverArtUrl: AppConnectorTerminalMode.updateCurrentStation(info) called, listRef=");
+                    sb6.append(lastListRef);
+                    debugLog(sb6.toString());
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handleCoverArtUrl: terminalModeService.updateCurrentStation threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+            }
+            if (pictureManager2 != null && lastCoverUrl != null && lastCoverUrl.length() > 0) {
+                try {
+                    Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
+                    Object coverLocator = locatorCls.getDeclaredConstructor(
+                        new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(lastPictureId), lastCoverUrl});
+                    Method responseStationArt = pictureManager2.getClass().getMethod(
+                        "responseStationArt", new Class[]{long.class, int.class, locatorCls, boolean.class});
+                    responseStationArt.invoke(pictureManager2, new Object[]{
+                        new Long(lastListRef), new Integer(SOURCE_TYPE_BT_STREAM), coverLocator, new Boolean(true)});
+                    StringBuffer sb7 = new StringBuffer("handleCoverArtUrl: IPictureManager.responseStationArt called, listRef=");
+                    sb7.append(lastListRef);
+                    debugLog(sb7.toString());
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handleCoverArtUrl: responseStationArt threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+            }
             logCall(100000, "cover art updated via updateCurrentStation");
-            StringBuffer sb4 = new StringBuffer("handleCoverArtUrl: mediaConnector.updateCurrentStation(info) called with cover art, listRef=");
-            sb4.append(lastListRef);
-            debugLog(sb4.toString());
         } catch (Throwable t) {
             logCall(1000000, "handleCoverArtUrl failed");
-            StringBuffer sb5 = new StringBuffer("handleCoverArtUrl: mediaConnector.updateCurrentStation threw ");
+            StringBuffer sb5 = new StringBuffer("handleCoverArtUrl: threw ");
             sb5.append(t);
             debugLog(sb5.toString());
-            try {
-                if (pictureManager == null) {
-                    pictureManager = findPictureManager();
-                }
-                if (pictureManager != null) {
-                    long fbListRef = lastListRef != 0 ? lastListRef : 1;
-                    Method m = pictureManager.getClass().getMethod("responseCoverArt", new Class[]{long.class, int.class, ResourceLocator.class, boolean.class});
-                    m.invoke(pictureManager, new Object[]{new Long(fbListRef), new Integer(SOURCE_TYPE_BT_STREAM), resourceLocator, new Boolean(true)});
-                    debugLog("handleCoverArtUrl: fallback pictureManager.responseCoverArt called");
-                }
-            } catch (Throwable t2) {
-                StringBuffer sb6 = new StringBuffer("handleCoverArtUrl: fallback pictureManager.responseCoverArt also threw ");
-                sb6.append(t2);
-                debugLog(sb6.toString());
-            }
         }
     }
 

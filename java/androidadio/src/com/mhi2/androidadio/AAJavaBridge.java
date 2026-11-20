@@ -16,6 +16,8 @@ public class AAJavaBridge {
     private static Object maneuverProvider;
     private static Class appClass;
     private static ClassLoader appClassLoader;
+    private static Object combiModule;
+    private static Object dsiAndroidAuto2;
 
     static {
         init();
@@ -39,6 +41,28 @@ public class AAJavaBridge {
 
     public static ClassLoader getAppClassLoader() {
         return appClassLoader;
+    }
+
+    public static void setCombiModule(Object module) {
+        combiModule = module;
+        StringBuffer sb = new StringBuffer("AAJavaBridge.setCombiModule called, module=");
+        sb.append(module != null ? "non-null" : "null");
+        debugLog(sb.toString());
+    }
+
+    public static Object getCombiModule() {
+        return combiModule;
+    }
+
+    public static void setDSI(Object dsi) {
+        dsiAndroidAuto2 = dsi;
+        StringBuffer sb = new StringBuffer("AAJavaBridge.setDSI called, dsi=");
+        sb.append(dsi != null ? "non-null" : "null");
+        debugLog(sb.toString());
+    }
+
+    public static Object getDSI() {
+        return dsiAndroidAuto2;
     }
 
     public static void setBundleContext(Object bc) {

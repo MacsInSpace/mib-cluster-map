@@ -1651,11 +1651,10 @@ if [ "$AUDI_INFO_OK" -eq 1 ]; then
 
     # ---- Ensure AA cover jar takes priority over stock lsd.jxe classes ----
     # AU37x lsd.sh loads every jar in lsd/jars/ but lsd.jxe may take priority.
-    # AAcoverart_hook.jar holds the boot-safe bridge classes (AAJavaBridge,
-    # AATrackProvider, AAManeuverProvider) and goes on -Xbootclasspath/p: so
-    # J9's bootstrap loader gets them first. AAListenerDistributor.jar holds
-    # AndroidAuto2ListenerDistributor (extends stock de.audi.* class) and is
-    # loaded via lsd/jars/ (normal classloader, can see OSGi classes).
+    # AAcoverart_hook.jar holds ALL boot-safe bridge classes (AAJavaBridge,
+    # AATrackProvider, AAManeuverProvider, AndroidAuto2ListenerDistributor,
+    # AndroidAuto2EventListener, AppConnectorMedia) and goes on
+    # -Xbootclasspath/p: so J9's bootstrap loader gets them first.
     # No patched lsd.jar is deployed (AU37x boots from /ifs/lsd.jxe).
     if [ "$AA_COVER_ASKED" = 1 ] || [ "$AA_TURNS_ASKED" = 1 ]; then
         # Only patch the script that actually launches j9 ($J9 execution line).
