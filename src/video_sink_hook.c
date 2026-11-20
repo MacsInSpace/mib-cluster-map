@@ -1939,6 +1939,64 @@ static void *ack_poll_thread(void *arg)
     return NULL;
 }
 
+/*
+ * Centre-screen restarts (GAL_DEBUG_PRIMARY / GAL_PRIMARY_RESTART_PAUSE_MS).
+ * On the Skoda P4526 with a 720p cockpit stream the centre screen sometimes
+ * stays black after a restart (green menu, radio, back to Android Auto): its
+ * decoder refuses the first setup buffer. These count every centre start,
+ * check 5 s later whether its frames came, and tell the player, which can
+ * stop decoding for a moment while the centre decoder starts.
+ */
+static unsigned g_primary_starts;
+static volatile int g_primary_session = -1;
+
+struct primary_check_arg { int session; unsigned start; unsigned long frames; };
+
+static void *primary_check_thread(void *arg)
+{
+    struct primary_check_arg a = *(struct primary_check_arg *)arg;
+    free(arg);
+    sleep(5);
+    if (g_primary_session != a.session) return NULL;
+    gal_hook_logf("event=primary.check start=%u session=%d frames_5s=%lu result=%s",
+                  a.start, a.session, g_primary_frames - a.frames,
+                  g_primary_frames - a.frames > 0ul ? "ok" : "stalled");
+    return NULL;
+}
+
+static void primary_started(int session)
+{
+    char line[64];
+    FILE *f;
+    pthread_t thread;
+    pthread_attr_t attr;
+    struct primary_check_arg *a;
+
+    ++g_primary_starts;
+    g_primary_session = session;
+    gal_hook_logf("event=primary.start start=%u session=%d frames_so_far=%lu pause_ms=%u",
+                  g_primary_starts, session, g_primary_frames,
+                  g_primary_starts > 1u ? gal_hook_restart_pause_ms() : 0u);
+    /* "<start> <session> <pause_ms>", replaced whole so the player never reads half. */
+    snprintf(line, sizeof(line), "%u %d %u\n", g_primary_starts, session,
+             g_primary_starts > 1u ? gal_hook_restart_pause_ms() : 0u);
+    f = fopen("/tmp/clustermap-primary-start.new", "w");
+    if (f != NULL) {
+        fputs(line, f);
+        fclose(f);
+        rename("/tmp/clustermap-primary-start.new", "/tmp/clustermap-primary-start");
+    }
+    a = (struct primary_check_arg *)malloc(sizeof(*a));
+    if (a == NULL) return;
+    a->session = session;
+    a->start = g_primary_starts;
+    a->frames = g_primary_frames;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    if (pthread_create(&thread, &attr, primary_check_thread, a) != 0) free(a);
+    pthread_attr_destroy(&attr);
+}
+
 void _ZN9VideoSink13playbackStartEi(void *sink, int session)
 {
     (void)resolve_symbol("_ZN9VideoSink13playbackStartEi",
@@ -1947,6 +2005,7 @@ void _ZN9VideoSink13playbackStartEi(void *sink, int session)
     gal_hook_logf("event=aap.playback action=start role=%s service=%u session=%d",
                   sink == g_secondary_sink ? "secondary" : "primary",
                   endpoint_service_id(sink), session);
+    if (sink != g_secondary_sink && gal_hook_debug_primary()) primary_started(session);
     if (sink == g_secondary_sink) {
         const gal_secondary_config *cfg = gal_hook_config();
         int mode = gal_hook_output_mode();

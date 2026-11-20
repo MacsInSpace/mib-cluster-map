@@ -133,6 +133,15 @@ unsigned gal_hook_max_unacked(void);
  * the centre screen on a Skoda Superb. Off by default; both sides read it.
  */
 int gal_hook_ack_every_frame(void);
+/*
+ * GAL_DEBUG_PRIMARY=1: log each centre-screen (primary) video start and, 5 s
+ * later, whether its frames came (event=primary.check), and tell the player
+ * through /tmp/clustermap-primary-start. GAL_PRIMARY_RESTART_PAUSE_MS=N
+ * (0..10000, implies the logging): the player stops decoding for N ms when
+ * the centre screen's video restarts. Both off by default (#125, #145).
+ */
+int gal_hook_debug_primary(void);
+unsigned gal_hook_restart_pause_ms(void);
 /* GAL_FOCUS_START=stock lets gal's setup-time mode 1 through; default native. */
 int gal_hook_focus_start_native(void);
 /* GAL_FOCUS_WAIT_KOMBI: the first grant also waits for the Kombi map. */

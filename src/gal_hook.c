@@ -167,6 +167,8 @@ static int g_focus_start_native = 1;
 static int g_focus_wait_kombi;
 static unsigned g_max_unacked = 8u;   /* GAL_SECONDARY_MAX_UNACKED; 4 with GAL_ACK_EVERY_FRAME */
 static int g_ack_every_frame;         /* GAL_ACK_EVERY_FRAME=1 */
+static int g_debug_primary;           /* GAL_DEBUG_PRIMARY=1 */
+static unsigned g_restart_pause_ms;   /* GAL_PRIMARY_RESTART_PAUSE_MS, 0 = off */
 
 int hook_fix_enabled(hook_fix fix)
 {
@@ -177,6 +179,8 @@ int gal_hook_focus_start_native(void) { return g_focus_start_native; }
 int gal_hook_focus_wait_kombi(void) { return g_focus_wait_kombi; }
 unsigned gal_hook_max_unacked(void) { return g_max_unacked; }
 int gal_hook_ack_every_frame(void) { return g_ack_every_frame; }
+int gal_hook_debug_primary(void) { return g_debug_primary || g_restart_pause_ms != 0u; }
+unsigned gal_hook_restart_pause_ms(void) { return g_restart_pause_ms; }
 
 static void hook_vlog(const char *level, const char *format, va_list arguments)
 {
@@ -533,6 +537,13 @@ int gal_hook_init(const gal_secondary_config *config)
     value = getenv("GAL_ACK_EVERY_FRAME");
     g_ack_every_frame = (value != NULL && strcmp(value, "1") == 0);
     if (g_ack_every_frame) g_max_unacked = 4u;
+    /* Centre-screen restarts (the black centre screen on the Skoda, #125). */
+    g_debug_primary = environment_flag("GAL_DEBUG_PRIMARY");
+    value = getenv("GAL_PRIMARY_RESTART_PAUSE_MS");
+    if (value != NULL && *value != '\0') {
+        unsigned long ms = strtoul(value, NULL, 10);
+        if (ms <= 10000ul) g_restart_pause_ms = (unsigned)ms;
+    }
     value = getenv("GAL_SECONDARY_MAX_UNACKED");
     if (value != NULL && *value != '\0') {
         unsigned long n = strtoul(value, NULL, 10);
@@ -698,7 +709,7 @@ int gal_hook_init(const gal_secondary_config *config)
         g_config.viewing_distance, g_config.pixel_aspect_ratio_e4,
         g_config.displayable_id, g_config.vc_display, g_config.context_id,
         g_config.display_id, g_config.service_id == 0u ? "auto" : "fixed");
-    gal_hook_logf("event=fix.config helper_init_guard=%d focus_control=%d focus_start=%s focus_wait_kombi=%d ack_rendered_only=%d no_idr_replay=%d stream_timing=%d player_log=%d orphan_restore=%d output=%s max_unacked=%u ack_every_frame=%d",
+    gal_hook_logf("event=fix.config helper_init_guard=%d focus_control=%d focus_start=%s focus_wait_kombi=%d ack_rendered_only=%d no_idr_replay=%d stream_timing=%d player_log=%d orphan_restore=%d output=%s max_unacked=%u ack_every_frame=%d debug_primary=%d restart_pause_ms=%u",
                   g_fix_on[HOOK_FIX_HELPER_INIT_GUARD],
                   g_fix_on[HOOK_FIX_FOCUS_CONTROL],
                   g_focus_start_native ? "native" : "stock",
@@ -708,7 +719,8 @@ int gal_hook_init(const gal_secondary_config *config)
                   g_fix_on[HOOK_FIX_STREAM_TIMING],
                   g_fix_on[HOOK_FIX_PLAYER_LOG],
                   g_fix_on[HOOK_FIX_ORPHAN_RESTORE],
-                  gal_hook_output_mode_name(), g_max_unacked, g_ack_every_frame);
+                  gal_hook_output_mode_name(), g_max_unacked, g_ack_every_frame,
+                  g_debug_primary, g_restart_pause_ms);
     return 0;
 }
 

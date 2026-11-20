@@ -284,6 +284,9 @@ static int g_marginW = 0, g_marginH = 0;
 static int g_cropTop = 0, g_cropBottom = 0;
 static int g_pixelAspectE4 = 10000;
 static int g_priority = 0;      /* GAL_PLAYER_PRIORITY, 0 = as spawned */
+static int g_priorityCap = 0;   /* GAL_PLAYER_PRIORITY_CAP, 0 = off: lower to this if above */
+static bool g_primaryWatch = false; /* GAL_DEBUG_PRIMARY=1 or GAL_PRIMARY_RESTART_PAUSE_MS set (#125) */
+static bool g_selectAtStart = true; /* GAL_PLAYER_SELECT_AT_START=0: no 'dmdt sc' at the first picture */
 /* GAL_PLAYER_NEON (default 1), and the marker a crash leaves: while it is
  * there (until the next reboot) the player decodes without NEON. */
 static bool g_neonAllowed = true;
@@ -516,6 +519,15 @@ static bool g_switchClosed = false;    /* g_switchLock: shutting down */
 
 static void* display_switch_thread(void* arg) {
     (void)arg;
+    if (!g_selectAtStart) {
+        /* #145: 'sc' also brings the cockpit's map view up between the dials,
+         * whatever view the driver chose. Only put the player in the context. */
+        DmdtRun run = { g_dmdtShow, -1 };
+        uint64_t start = now_us();
+        dmdt_run_thread(&run);
+        LOG("dmdt: player put in the cockpit context, view left to the driver (GAL_PLAYER_SELECT_AT_START=0) t=%llu.%03llu took=%llums ('dmdt %s'=%d)",
+            T_ARGS(now_us()), (unsigned long long)((now_us() - start) / 1000ULL), g_dmdtShow, run.status);
+    } else
     dmdt_pair(g_dmdtShow, g_dmdtSelect, "cluster switched to the player");
     LOG("context: checked once a minute; switching back is %s (GAL_PLAYER_REASSERT)", g_reassert ? "on" : "off");
     g_switchDone = true;
@@ -1443,6 +1455,65 @@ static void remember_param_sets(const uint8_t* p, size_t n) {
     }
 }
 
+/*
+ * Centre-screen restarts (#125, Skoda P4526). With GAL_DEBUG_PRIMARY=1 or
+ * GAL_PRIMARY_RESTART_PAUSE_MS the hook writes "<start> <session> <pause_ms>"
+ * to /tmp/clustermap-primary-start each time the centre screen's video
+ * starts. The decoder thread looks every 50 ms: it logs the start with the
+ * unit's free memory, and stops decoding for pause_ms (sent only for
+ * restarts) so the centre decoder starts with the CPU to itself. The phone
+ * sends at most the ACK window meanwhile, so nothing is dropped.
+ */
+static void* primary_mem_thread(void* arg) {
+    (void)arg;
+#ifdef __QNX__
+    FILE* p = popen("pidin info 2>/dev/null", "r");
+    if (p) {
+        char line[256];
+        while (fgets(line, sizeof(line), p)) {
+            char* m = strstr(line, "FreeMem:");
+            if (m) {
+                char* end = strpbrk(m, " \r\n");
+                if (end) *end = '\0';
+                LOG("primary: unit %s t=%llu.%03llu", m, T_ARGS(now_us()));
+                break;
+            }
+        }
+        pclose(p);
+    }
+#endif
+    return NULL;
+}
+
+static void primary_restart_check() {
+    static uint64_t s_nextUs = 0;
+    static int s_lastStart = -1;
+    if (!g_primaryWatch) return;
+    uint64_t now = now_us();
+    if (now < s_nextUs) return;
+    s_nextUs = now + 50000ULL;
+    FILE* f = fopen("/tmp/clustermap-primary-start", "r");
+    if (!f) return;
+    int start = 0, session = 0;
+    unsigned pauseMs = 0;
+    int got = fscanf(f, "%d %d %u", &start, &session, &pauseMs);
+    fclose(f);
+    if (got != 3 || start == s_lastStart) return;
+    bool first = s_lastStart < 0;
+    s_lastStart = start;
+    if (first) return; /* that start came before this player */
+    LOG("primary: centre screen video started (start %d, session %d), %llu pictures decoded so far t=%llu.%03llu",
+        start, session, (unsigned long long)g_decodedFrameCount, T_ARGS(now));
+    pthread_t t;
+    if (pthread_create(&t, NULL, primary_mem_thread, NULL) == 0) pthread_detach(t);
+    if (pauseMs > 0u && pauseMs <= 10000u) {
+        uint64_t until = now + (uint64_t)pauseMs * 1000ULL;
+        while (g_running && now_us() < until) usleep(20000);
+        LOG("primary: decoding again after a %u ms pause (GAL_PRIMARY_RESTART_PAUSE_MS) t=%llu.%03llu",
+            pauseMs, T_ARGS(now_us()));
+    }
+}
+
 static void* ReaderThreadFunc(void* arg) {
     int sock = (int)(intptr_t)arg;
     uint8_t* tmp = (uint8_t*)malloc(131072);
@@ -1795,6 +1866,7 @@ static void* DecoderThreadFunc(void* arg) {
                     nextReaderLogUs = now + 30000000ULL;
                 }
             } else if (is_socket) {
+                primary_restart_check();
                 bytes_read = recv(sock, inbuf, 131072, 0);
                 if (bytes_read < 0) {
                     if (errno == EINTR) continue;
@@ -2233,6 +2305,15 @@ static void load_player_config() {
             } else if (strcmp(key, "GAL_PLAYER_PRIORITY") == 0) {
                 int p = atoi(val);
                 if (p >= 0 && p <= 20) g_priority = p;
+            } else if (strcmp(key, "GAL_PLAYER_PRIORITY_CAP") == 0) {
+                int p = atoi(val);
+                if (p >= 0 && p <= 20) g_priorityCap = p;
+            } else if (strcmp(key, "GAL_DEBUG_PRIMARY") == 0) {
+                if (atoi(val) == 1) g_primaryWatch = true;
+            } else if (strcmp(key, "GAL_PRIMARY_RESTART_PAUSE_MS") == 0) {
+                if (atoi(val) > 0) g_primaryWatch = true;
+            } else if (strcmp(key, "GAL_PLAYER_SELECT_AT_START") == 0) {
+                g_selectAtStart = atoi(val) != 0;
             }
         }
         fclose(f);
@@ -2402,7 +2483,7 @@ static void ack_settle(bool pictureWaiting) {
  */
 static void apply_player_priority() {
 #ifdef __QNX__
-    if (g_priority <= 0) return;
+    if (g_priority <= 0 && g_priorityCap <= 0) return;
     struct sched_param param;
     int policy = 0;
     if (pthread_getschedparam(pthread_self(), &policy, &param) != 0) {
@@ -2410,6 +2491,19 @@ static void apply_player_priority() {
         return;
     }
     int was = param.sched_priority;
+    /* GAL_PLAYER_PRIORITY_CAP: below gal's own threads (16 on the Skoda), so
+     * the centre screen's decoder and the USB threads go first (#125). */
+    if (g_priorityCap > 0) {
+        if (was <= g_priorityCap) {
+            LOG("priority: %d, already at or below GAL_PLAYER_PRIORITY_CAP=%d", was, g_priorityCap);
+            return;
+        }
+        param.sched_priority = g_priorityCap;
+        int rcCap = pthread_setschedparam(pthread_self(), policy, &param);
+        if (rcCap != 0) LOGE("priority: %d -> %d failed (%d)", was, g_priorityCap, rcCap);
+        else LOG("priority: %d -> %d (GAL_PLAYER_PRIORITY_CAP)", was, g_priorityCap);
+        return;
+    }
     if (was >= g_priority) {
         LOG("priority: %d, already at or above GAL_PLAYER_PRIORITY=%d", was, g_priority);
         return;
