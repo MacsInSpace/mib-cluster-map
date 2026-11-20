@@ -79,12 +79,29 @@ done
 # Package into JARs
 rm -f "$OUT/AAcoverart_hook.jar" "$OUT/AAListenerDistributor.jar"
 
-# All classes in one jar. AAcoverart_hook.jar goes both on -Xbootclasspath/p:
+# Build JAR_CLASSES: exclude stub classes (org/osgi/*, etc.) from the runtime
+# jar on -Xbootclasspath/p:. Stub classes are compile-time only — org.osgi.*
+# classes are loaded via reflection at runtime using the appClassLoader captured
+# from AndroidAuto2ListenerDistributor's constructor. Packaging stubs on
+# -Xbootclasspath/p: causes MMI boot hang (class conflicts with stock lsd.jar/
+# lsd.jxe classes). All runtime classes (com.mhi2.*, de.audi.*) are kept.
+JAR_CLASSES=()
+for c in "${ALL_CLASSES[@]}"; do
+    case "$c" in
+        org/osgi/*) continue ;;
+    esac
+    JAR_CLASSES+=("$c")
+done
+
+# Package into JARs
+rm -f "$OUT/AAcoverart_hook.jar" "$OUT/AAListenerDistributor.jar"
+
+# All runtime classes in one jar. AAcoverart_hook.jar goes both on -Xbootclasspath/p:
 # (bootstrap loader priority over lsd.jxe) and is deployed to lsd/jars/ so the
 # AU37x lsd.sh auto-loads it. All classes reference only java.* / org.dsi.ifc.*
-# directly; de.audi.* / org.osgi.* classes are loaded via reflection using the
-# appClassLoader captured from AndroidAuto2ListenerDistributor's constructor.
-(cd "$T/classes" && jar cf "$OUT/AAcoverart_hook.jar" "${ALL_CLASSES[@]}")
+# directly; org.osgi.* classes are loaded via reflection using the appClassLoader
+# captured from AndroidAuto2ListenerDistributor's constructor.
+(cd "$T/classes" && jar cf "$OUT/AAcoverart_hook.jar" "${JAR_CLASSES[@]}")
 
 echo "Built $OUT/AAcoverart_hook.jar"
 unzip -l "$OUT/AAcoverart_hook.jar" | grep '\.class$'
