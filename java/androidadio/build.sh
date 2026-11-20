@@ -3,8 +3,12 @@
 #
 #   java/androidadio/build.sh [output dir]      default: build/ at the repo root
 #
-# The unit's J9 is a Java 1.2-level VM: jars must be version 46 with no
-# StackMapTable, built with --release 8 then frames stripped.
+# The unit's J9 is a Java 1.4-level VM (IBM J9 J2ME Foundation Profile 1.1):
+# jars must be version 46 with no StackMapTable, no Integer.valueOf /
+# Boolean.valueOf autoboxing. Source is written Java-1.4-safe (explicit
+# new Integer/new Boolean, explicit Class[]/Object[] arrays, indexed for
+# loops); compiled with host javac --release 8 then frames stripped to 46
+# and verified free of valueOf calls via javap.
 #
 # Depends on lsd.jar from your car's MIB2 (placed in TRANSFER/ by you) as the
 # compilation classpath for Audi stock classes.
@@ -66,7 +70,7 @@ for c in "${ALL_CLASSES[@]}"; do
     [ -f "$f" ] || continue
     v=$(javap -v "$f" | sed -n 's/^ *major version: //p')
     [ "$v" = 46 ] || { echo "ERROR: $c is class version $v, not 46"; exit 1; }
-    bad=$(javap -c -p -v "$f" | grep -E 'StackMapTable|StringBuilder|invokedynamic|InvokeDynamic|MethodHandle|BootstrapMethods' || true)
+    bad=$(javap -c -p -v "$f" | grep -E 'StackMapTable|StringBuilder|invokedynamic|InvokeDynamic|MethodHandle|BootstrapMethods|Integer\.valueOf|Boolean\.valueOf' || true)
     [ -z "$bad" ] || { echo "ERROR: $c has something J9 cannot take:"; echo "$bad" | sort -u; exit 1; }
 done
 

@@ -2,6 +2,7 @@ package com.mhi2.androidadio;
 
 import java.io.FileWriter;
 import java.io.PrintWriter;
+import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import org.dsi.ifc.androidauto2.TrackData;
@@ -80,8 +81,9 @@ public class AAJavaBridge {
         debugLog("AAJavaBridge.onNowPlayingData called");
         if (trackProvider != null) {
             try {
-                java.lang.reflect.Method m = trackProvider.getClass().getMethod("handleNowPlayingData", TrackData.class, int.class);
-                m.invoke(trackProvider, trackData, instanceId);
+                java.lang.reflect.Method m = trackProvider.getClass().getMethod(
+                    "handleNowPlayingData", new Class[]{TrackData.class, int.class});
+                m.invoke(trackProvider, new Object[]{trackData, new Integer(instanceId)});
             } catch (Throwable t) {
                 StringBuffer sb = new StringBuffer("onNowPlayingData: trackProvider.handleNowPlayingData threw ");
                 sb.append(t);
@@ -94,8 +96,9 @@ public class AAJavaBridge {
         debugLog("AAJavaBridge.onCoverArtUrl called");
         if (trackProvider != null) {
             try {
-                java.lang.reflect.Method m = trackProvider.getClass().getMethod("handleCoverArtUrl", ResourceLocator.class, int.class);
-                m.invoke(trackProvider, resourceLocator, instanceId);
+                java.lang.reflect.Method m = trackProvider.getClass().getMethod(
+                    "handleCoverArtUrl", new Class[]{ResourceLocator.class, int.class});
+                m.invoke(trackProvider, new Object[]{resourceLocator, new Integer(instanceId)});
             } catch (Throwable t) {
                 StringBuffer sb = new StringBuffer("onCoverArtUrl: trackProvider.handleCoverArtUrl threw ");
                 sb.append(t);
@@ -108,8 +111,9 @@ public class AAJavaBridge {
         debugLog("AAJavaBridge.onNextTurnEvent called");
         if (maneuverProvider != null) {
             try {
-                java.lang.reflect.Method m = maneuverProvider.getClass().getMethod("handleNextTurnEvent", String.class, int.class, int.class, int.class, int.class, int.class);
-                m.invoke(maneuverProvider, roadName, mainElement, direction, turnAngle, turnNumber, event);
+                java.lang.reflect.Method m = maneuverProvider.getClass().getMethod(
+                    "handleNextTurnEvent", new Class[]{String.class, int.class, int.class, int.class, int.class, int.class});
+                m.invoke(maneuverProvider, new Object[]{roadName, new Integer(mainElement), new Integer(direction), new Integer(turnAngle), new Integer(turnNumber), new Integer(event)});
             } catch (Throwable t) {
                 StringBuffer sb = new StringBuffer("onNextTurnEvent: maneuverProvider.handleNextTurnEvent threw ");
                 sb.append(t);
@@ -122,8 +126,9 @@ public class AAJavaBridge {
         debugLog("AAJavaBridge.onNextTurnDistance called");
         if (maneuverProvider != null) {
             try {
-                java.lang.reflect.Method m = maneuverProvider.getClass().getMethod("handleNextTurnDistance", int.class, int.class, int.class);
-                m.invoke(maneuverProvider, distance, unit, remainingDistance);
+                java.lang.reflect.Method m = maneuverProvider.getClass().getMethod(
+                    "handleNextTurnDistance", new Class[]{int.class, int.class, int.class});
+                m.invoke(maneuverProvider, new Object[]{new Integer(distance), new Integer(unit), new Integer(remainingDistance)});
             } catch (Throwable t) {
                 StringBuffer sb = new StringBuffer("onNextTurnDistance: maneuverProvider.handleNextTurnDistance threw ");
                 sb.append(t);
@@ -166,8 +171,8 @@ public class AAJavaBridge {
         debugLog("AAJavaBridge.startDSI() started");
         if (trackProvider != null) {
             try {
-                java.lang.reflect.Method m = trackProvider.getClass().getMethod("startDSI");
-                m.invoke(trackProvider);
+                java.lang.reflect.Method m = trackProvider.getClass().getMethod("startDSI", new Class[0]);
+                m.invoke(trackProvider, new Object[0]);
                 debugLog("AATrackProvider.startDSI() called");
             } catch (Throwable t) {
                 StringBuffer sb = new StringBuffer("AATrackProvider.startDSI() failed: ");

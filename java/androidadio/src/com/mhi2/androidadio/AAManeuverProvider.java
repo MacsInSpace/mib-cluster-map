@@ -58,8 +58,8 @@ public class AAManeuverProvider {
         try {
             BapManeuverDescriptor[] desc = new BapManeuverDescriptor[1];
             desc[0] = new BapManeuverDescriptor(mainElement, direction, 0, null);
-            Method m = instance.clusterService.getClass().getMethod("updateManeuverDescriptor", BapManeuverDescriptor[].class);
-            m.invoke(instance.clusterService, new Object[]{ desc });
+            Method m = instance.clusterService.getClass().getMethod("updateManeuverDescriptor", new Class[]{BapManeuverDescriptor[].class});
+            m.invoke(instance.clusterService, new Object[]{desc});
             debugLog("handleNextTurnEvent: clusterService.updateManeuverDescriptor called");
         } catch (Throwable t) {
             StringBuffer sb3 = new StringBuffer("handleNextTurnEvent: threw ");
@@ -89,8 +89,8 @@ public class AAManeuverProvider {
         }
         try {
             DistanceToNextManeuver dist = new DistanceToNextManeuver(true, distance, true, 0);
-            Method m = instance.clusterService.getClass().getMethod("updateDistanceToNextManeuver", DistanceToNextManeuver.class);
-            m.invoke(instance.clusterService, dist);
+            Method m = instance.clusterService.getClass().getMethod("updateDistanceToNextManeuver", new Class[]{DistanceToNextManeuver.class});
+            m.invoke(instance.clusterService, new Object[]{dist});
             debugLog("handleNextTurnDistance: clusterService.updateDistanceToNextManeuver called");
         } catch (Throwable t) {
             StringBuffer sb3 = new StringBuffer("handleNextTurnDistance: threw ");
@@ -136,20 +136,20 @@ public class AAManeuverProvider {
         try {
             Object bc = AAJavaBridge.getBundleContext();
             if (bc != null) {
-                Method getSR = bc.getClass().getMethod("getServiceReference", String.class);
-                Object ref = getSR.invoke(bc, "de.audi.atip.base.IFrameworkAccess");
+                Method getSR = bc.getClass().getMethod("getServiceReference", new Class[]{String.class});
+                Object ref = getSR.invoke(bc, new Object[]{"de.audi.atip.base.IFrameworkAccess"});
                 if (ref != null) {
-                    Method getService = bc.getClass().getMethod("getService", ref.getClass());
-                    Object fa = getService.invoke(bc, ref);
+                    Method getService = bc.getClass().getMethod("getService", new Class[]{ref.getClass()});
+                    Object fa = getService.invoke(bc, new Object[]{ref});
                     if (fa != null) {
-                        Method getLC = fa.getClass().getMethod("getLogChannel", String.class);
-                        Object lc = getLC.invoke(fa, "AAManeuverProvider");
-                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
-                        unget.invoke(bc, ref);
+                        Method getLC = fa.getClass().getMethod("getLogChannel", new Class[]{String.class});
+                        Object lc = getLC.invoke(fa, new Object[]{"AAManeuverProvider"});
+                        Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
+                        unget.invoke(bc, new Object[]{ref});
                         return lc;
                     }
-                    Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
-                    unget.invoke(bc, ref);
+                    Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
+                    unget.invoke(bc, new Object[]{ref});
                 }
             }
         } catch (Throwable t) {}
@@ -172,8 +172,8 @@ public class AAManeuverProvider {
                 f.setAccessible(true);
                 Object fa = f.get(null);
                 if (fa != null) {
-                    Method getLC = fa.getClass().getMethod("getLogChannel", String.class);
-                    return getLC.invoke(fa, "AAManeuverProvider");
+                    Method getLC = fa.getClass().getMethod("getLogChannel", new Class[]{String.class});
+                    return getLC.invoke(fa, new Object[]{"AAManeuverProvider"});
                 }
             }
         } catch (Throwable t) {}
@@ -184,19 +184,19 @@ public class AAManeuverProvider {
         try {
             Object bc = AAJavaBridge.getBundleContext();
             if (bc != null) {
-                Method getSR = bc.getClass().getMethod("getServiceReference", String.class);
-                Object ref = getSR.invoke(bc, "de.audi.tghu.navi.app.cluster.ClusterService");
+                Method getSR = bc.getClass().getMethod("getServiceReference", new Class[]{String.class});
+                Object ref = getSR.invoke(bc, new Object[]{"de.audi.tghu.navi.app.cluster.ClusterService"});
                 if (ref != null) {
-                    Method getService = bc.getClass().getMethod("getService", ref.getClass());
-                    Object svc = getService.invoke(bc, ref);
+                    Method getService = bc.getClass().getMethod("getService", new Class[]{ref.getClass()});
+                    Object svc = getService.invoke(bc, new Object[]{ref});
                     if (svc != null) {
-                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
-                        unget.invoke(bc, ref);
+                        Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
+                        unget.invoke(bc, new Object[]{ref});
                         debugLog("findClusterService: found via OSGi ClusterService");
                         return svc;
                     }
-                    Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
-                    unget.invoke(bc, ref);
+                    Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
+                    unget.invoke(bc, new Object[]{ref});
                 }
             }
         } catch (Throwable t) {
@@ -239,8 +239,8 @@ public class AAManeuverProvider {
     private void logCall(int level, String msg) {
         if (log != null) {
             try {
-                Method m = log.getClass().getMethod("log", int.class, String.class);
-                m.invoke(log, level, msg);
+                Method m = log.getClass().getMethod("log", new Class[]{int.class, String.class});
+                m.invoke(log, new Object[]{new Integer(level), msg});
             } catch (Throwable t) {}
         }
     }

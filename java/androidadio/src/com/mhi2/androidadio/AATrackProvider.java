@@ -41,20 +41,20 @@ public class AATrackProvider {
         try {
             Object bc = getBundleContext();
             if (bc != null) {
-                Method getSR = bc.getClass().getMethod("getServiceReference", String.class);
-                Object ref = getSR.invoke(bc, "de.audi.atip.base.IFrameworkAccess");
+                Method getSR = bc.getClass().getMethod("getServiceReference", new Class[]{String.class});
+                Object ref = getSR.invoke(bc, new Object[]{"de.audi.atip.base.IFrameworkAccess"});
                 if (ref != null) {
-                    Method getService = bc.getClass().getMethod("getService", ref.getClass());
-                    Object fa = getService.invoke(bc, ref);
+                    Method getService = bc.getClass().getMethod("getService", new Class[]{ref.getClass()});
+                    Object fa = getService.invoke(bc, new Object[]{ref});
                     if (fa != null) {
-                        Method getLC = fa.getClass().getMethod("getLogChannel", String.class);
-                        Object lc = getLC.invoke(fa, "AATrackProvider");
-                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
-                        unget.invoke(bc, ref);
+                        Method getLC = fa.getClass().getMethod("getLogChannel", new Class[]{String.class});
+                        Object lc = getLC.invoke(fa, new Object[]{"AATrackProvider"});
+                        Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
+                        unget.invoke(bc, new Object[]{ref});
                         return lc;
                     }
-                    Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
-                    unget.invoke(bc, ref);
+                    Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
+                    unget.invoke(bc, new Object[]{ref});
                 }
             }
         } catch (Throwable t) {
@@ -81,8 +81,8 @@ public class AATrackProvider {
                 f.setAccessible(true);
                 Object fa = f.get(null);
                 if (fa != null) {
-                    Method getLC = fa.getClass().getMethod("getLogChannel", String.class);
-                    return getLC.invoke(fa, "AATrackProvider");
+                    Method getLC = fa.getClass().getMethod("getLogChannel", new Class[]{String.class});
+                    return getLC.invoke(fa, new Object[]{"AATrackProvider"});
                 }
             }
         } catch (Throwable t) {
@@ -117,15 +117,15 @@ public class AATrackProvider {
                 debugLog("AATrackProvider.getBundleContext: FrameworkUtil not found");
                 return null;
             }
-            Method getBundle = fuCls.getMethod("getBundle", Class.class);
+            Method getBundle = fuCls.getMethod("getBundle", new Class[]{Class.class});
             Class<?> osgiCls = forName("de.audi.app.combi.bap.app.audio.CombiModuleAudio");
             if (osgiCls == null) {
                 osgiCls = AATrackProvider.class;
             }
-            Object bundle = getBundle.invoke(null, osgiCls);
+            Object bundle = getBundle.invoke(null, new Object[]{osgiCls});
             if (bundle != null) {
-                Method getBC = bundle.getClass().getMethod("getBundleContext");
-                Object bc2 = getBC.invoke(bundle);
+                Method getBC = bundle.getClass().getMethod("getBundleContext", new Class[0]);
+                Object bc2 = getBC.invoke(bundle, new Object[0]);
                 StringBuffer sb = new StringBuffer("AATrackProvider.getBundleContext: from FrameworkUtil, bc=");
                 sb.append(bc2 != null ? "non-null" : "null");
                 debugLog(sb.toString());
@@ -140,20 +140,20 @@ public class AATrackProvider {
         try {
             Object bc = getBundleContext();
             if (bc != null) {
-                Method getSR = bc.getClass().getMethod("getServiceReference", String.class);
-                Object ref = getSR.invoke(bc, "de.audi.atip.interapp.combi.bap.audio.CombiBAPServiceMedia");
+                Method getSR = bc.getClass().getMethod("getServiceReference", new Class[]{String.class});
+                Object ref = getSR.invoke(bc, new Object[]{"de.audi.atip.interapp.combi.bap.audio.CombiBAPServiceMedia"});
                 if (ref != null) {
-                    Method getService = bc.getClass().getMethod("getService", ref.getClass());
-                    Object svc = getService.invoke(bc, ref);
+                    Method getService = bc.getClass().getMethod("getService", new Class[]{ref.getClass()});
+                    Object svc = getService.invoke(bc, new Object[]{ref});
                     if (svc != null && "de.audi.app.combi.bap.app.audio.AppConnectorMedia".equals(svc.getClass().getName())) {
-                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
-                        unget.invoke(bc, ref);
+                        Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
+                        unget.invoke(bc, new Object[]{ref});
                         debugLog("findMediaConnector: found via OSGi CombiBAPServiceMedia");
                         return svc;
                     }
                     if (svc != null) {
-                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
-                        unget.invoke(bc, ref);
+                        Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
+                        unget.invoke(bc, new Object[]{ref});
                     }
                 }
             }
@@ -167,10 +167,10 @@ public class AATrackProvider {
             if (cls == null) {
                 debugLog("findMediaConnector: CombiModuleAudio not found");
             } else {
-                Method getMediaService = cls.getMethod("getMediaService");
+                Method getMediaService = cls.getMethod("getMediaService", new Class[0]);
                 Object mod = findStaticInstance(cls);
                 if (mod != null) {
-                    Object svc = getMediaService.invoke(mod);
+                    Object svc = getMediaService.invoke(mod, new Object[0]);
                     if (svc != null && "de.audi.app.combi.bap.app.audio.AppConnectorMedia".equals(svc.getClass().getName())) {
                         debugLog("findMediaConnector: found via CombiModuleAudio.getMediaService");
                         return svc;
@@ -227,8 +227,8 @@ public class AATrackProvider {
     private Object findPictureManager() {
         if (mediaConnector != null) {
             try {
-                Method m = mediaConnector.getClass().getMethod("getPictureManager");
-                Object pm = m.invoke(mediaConnector);
+                Method m = mediaConnector.getClass().getMethod("getPictureManager", new Class[0]);
+                Object pm = m.invoke(mediaConnector, new Object[0]);
                 if (pm != null) {
                     debugLog("findPictureManager: found via mediaConnector.getPictureManager()");
                     return pm;
@@ -242,19 +242,19 @@ public class AATrackProvider {
         try {
             Object bc = getBundleContext();
             if (bc != null) {
-                Method getSR = bc.getClass().getMethod("getServiceReference", String.class);
-                Object ref = getSR.invoke(bc, "de.audi.app.combi.bap.app.kombipictures.IPictureManager");
+                Method getSR = bc.getClass().getMethod("getServiceReference", new Class[]{String.class});
+                Object ref = getSR.invoke(bc, new Object[]{"de.audi.app.combi.bap.app.kombipictures.IPictureManager"});
                 if (ref != null) {
-                    Method getService = bc.getClass().getMethod("getService", ref.getClass());
-                    Object pm = getService.invoke(bc, ref);
+                    Method getService = bc.getClass().getMethod("getService", new Class[]{ref.getClass()});
+                    Object pm = getService.invoke(bc, new Object[]{ref});
                     if (pm != null) {
-                        Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
-                        unget.invoke(bc, ref);
+                        Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
+                        unget.invoke(bc, new Object[]{ref});
                         debugLog("findPictureManager: found via OSGi IPictureManager");
                         return pm;
                     }
-                    Method unget = bc.getClass().getMethod("ungetService", ref.getClass());
-                    unget.invoke(bc, ref);
+                    Method unget = bc.getClass().getMethod("ungetService", new Class[]{ref.getClass()});
+                    unget.invoke(bc, new Object[]{ref});
                 }
             }
         } catch (Throwable t) {
@@ -269,8 +269,8 @@ public class AATrackProvider {
     private void logCall(int level, String msg) {
         if (log != null) {
             try {
-                Method m = log.getClass().getMethod("log", int.class, String.class);
-                m.invoke(log, level, msg);
+                Method m = log.getClass().getMethod("log", new Class[]{int.class, String.class});
+                m.invoke(log, new Object[]{new Integer(level), msg});
             } catch (Throwable t) {}
         }
     }
@@ -308,11 +308,12 @@ public class AATrackProvider {
         Object embeddedCoverLocator = null;
         try {
             java.lang.reflect.Method[] methods = trackData.getClass().getMethods();
-            for (java.lang.reflect.Method m : methods) {
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method m = methods[i];
                 String mn = m.getName();
                 if ((mn.startsWith("getCover") || mn.startsWith("getPicture") || mn.startsWith("getArt"))
                     && m.getParameterTypes().length == 0) {
-                    Object v = m.invoke(trackData);
+                    Object v = m.invoke(trackData, new Object[0]);
                     if (v != null && "org.dsi.ifc.global.ResourceLocator".equals(v.getClass().getName())) {
                         embeddedCoverLocator = v;
                         break;
@@ -326,10 +327,10 @@ public class AATrackProvider {
         }
         if (embeddedCoverLocator != null) {
             try {
-                java.lang.reflect.Method getUrl = embeddedCoverLocator.getClass().getMethod("getUrl");
-                java.lang.reflect.Method getId = embeddedCoverLocator.getClass().getMethod("getId");
-                String ecUrl = (String) getUrl.invoke(embeddedCoverLocator);
-                int ecId = (Integer) getId.invoke(embeddedCoverLocator);
+                java.lang.reflect.Method getUrl = embeddedCoverLocator.getClass().getMethod("getUrl", new Class[0]);
+                java.lang.reflect.Method getId = embeddedCoverLocator.getClass().getMethod("getId", new Class[0]);
+                String ecUrl = (String) getUrl.invoke(embeddedCoverLocator, new Object[0]);
+                int ecId = ((Integer) getId.invoke(embeddedCoverLocator, new Object[0])).intValue();
                 if (ecUrl != null && !ecUrl.equals(lastCoverUrl)) {
                     lastCoverUrl = ecUrl;
                     lastPictureId = ecId;
@@ -368,20 +369,20 @@ public class AATrackProvider {
                 return;
             }
             Object info = infoCls.getDeclaredConstructor().newInstance();
-            Method setPrimary = infoCls.getMethod("setPrimaryInformation", String.class, int.class, int.class);
-            setPrimary.invoke(info, title, 0, 0);
-            Method setSecondary = infoCls.getMethod("setSecondaryInformation", String.class, int.class);
-            setSecondary.invoke(info, artist, 0);
-            Method setTertiary = infoCls.getMethod("setTertiaryInformation", String.class, int.class);
-            setTertiary.invoke(info, album, 0);
-            Method setPicture = infoCls.getMethod("setPicture", int.class, String.class);
-            setPicture.invoke(info, lastPictureId, lastCoverUrl);
-            Method setListRef = infoCls.getMethod("setListRef", int.class);
-            setListRef.invoke(info, (int) (System.currentTimeMillis() & 0x7FFFFFFF));
-            Method getListRef = infoCls.getMethod("getListRef");
-            lastListRef = (Integer) getListRef.invoke(info);
-            Method updateCurrentStation = mediaConnector.getClass().getMethod("updateCurrentStation", infoCls);
-            updateCurrentStation.invoke(mediaConnector, info);
+            Method setPrimary = infoCls.getMethod("setPrimaryInformation", new Class[]{String.class, int.class, int.class});
+            setPrimary.invoke(info, new Object[]{title, new Integer(0), new Integer(0)});
+            Method setSecondary = infoCls.getMethod("setSecondaryInformation", new Class[]{String.class, int.class});
+            setSecondary.invoke(info, new Object[]{artist, new Integer(0)});
+            Method setTertiary = infoCls.getMethod("setTertiaryInformation", new Class[]{String.class, int.class});
+            setTertiary.invoke(info, new Object[]{album, new Integer(0)});
+            Method setPicture = infoCls.getMethod("setPicture", new Class[]{int.class, String.class});
+            setPicture.invoke(info, new Object[]{new Integer(lastPictureId), lastCoverUrl});
+            Method setListRef = infoCls.getMethod("setListRef", new Class[]{int.class});
+            setListRef.invoke(info, new Object[]{new Integer((int) (System.currentTimeMillis() & 0x7FFFFFFF))});
+            Method getListRef = infoCls.getMethod("getListRef", new Class[0]);
+            lastListRef = ((Integer) getListRef.invoke(info, new Object[0])).intValue();
+            Method updateCurrentStation = mediaConnector.getClass().getMethod("updateCurrentStation", new Class[]{infoCls});
+            updateCurrentStation.invoke(mediaConnector, new Object[]{info});
             logCall(100000, "track updated");
             StringBuffer sb4 = new StringBuffer("handleNowPlayingData: mediaConnector.updateCurrentStation(info) called, listRef=");
             sb4.append(lastListRef);
@@ -437,20 +438,20 @@ public class AATrackProvider {
                 return;
             }
             Object info = infoCls.getDeclaredConstructor().newInstance();
-            Method setPrimary = infoCls.getMethod("setPrimaryInformation", String.class, int.class, int.class);
-            setPrimary.invoke(info, lastTitle, 0, 0);
-            Method setSecondary = infoCls.getMethod("setSecondaryInformation", String.class, int.class);
-            setSecondary.invoke(info, lastArtist, 0);
-            Method setTertiary = infoCls.getMethod("setTertiaryInformation", String.class, int.class);
-            setTertiary.invoke(info, lastAlbum, 0);
-            Method setPicture = infoCls.getMethod("setPicture", int.class, String.class);
-            setPicture.invoke(info, lastPictureId, lastCoverUrl);
-            Method setListRef = infoCls.getMethod("setListRef", int.class);
-            setListRef.invoke(info, (int) (System.currentTimeMillis() & 0x7FFFFFFF));
-            Method getListRef = infoCls.getMethod("getListRef");
-            lastListRef = (Integer) getListRef.invoke(info);
-            Method updateCurrentStation = mediaConnector.getClass().getMethod("updateCurrentStation", infoCls);
-            updateCurrentStation.invoke(mediaConnector, info);
+            Method setPrimary = infoCls.getMethod("setPrimaryInformation", new Class[]{String.class, int.class, int.class});
+            setPrimary.invoke(info, new Object[]{lastTitle, new Integer(0), new Integer(0)});
+            Method setSecondary = infoCls.getMethod("setSecondaryInformation", new Class[]{String.class, int.class});
+            setSecondary.invoke(info, new Object[]{lastArtist, new Integer(0)});
+            Method setTertiary = infoCls.getMethod("setTertiaryInformation", new Class[]{String.class, int.class});
+            setTertiary.invoke(info, new Object[]{lastAlbum, new Integer(0)});
+            Method setPicture = infoCls.getMethod("setPicture", new Class[]{int.class, String.class});
+            setPicture.invoke(info, new Object[]{new Integer(lastPictureId), lastCoverUrl});
+            Method setListRef = infoCls.getMethod("setListRef", new Class[]{int.class});
+            setListRef.invoke(info, new Object[]{new Integer((int) (System.currentTimeMillis() & 0x7FFFFFFF))});
+            Method getListRef = infoCls.getMethod("getListRef", new Class[0]);
+            lastListRef = ((Integer) getListRef.invoke(info, new Object[0])).intValue();
+            Method updateCurrentStation = mediaConnector.getClass().getMethod("updateCurrentStation", new Class[]{infoCls});
+            updateCurrentStation.invoke(mediaConnector, new Object[]{info});
             logCall(100000, "cover art updated via updateCurrentStation");
             StringBuffer sb4 = new StringBuffer("handleCoverArtUrl: mediaConnector.updateCurrentStation(info) called with cover art, listRef=");
             sb4.append(lastListRef);
@@ -466,8 +467,8 @@ public class AATrackProvider {
                 }
                 if (pictureManager != null) {
                     long fbListRef = lastListRef != 0 ? lastListRef : 1;
-                    Method m = pictureManager.getClass().getMethod("responseCoverArt", long.class, int.class, ResourceLocator.class, boolean.class);
-                    m.invoke(pictureManager, fbListRef, SOURCE_TYPE_BT_STREAM, resourceLocator, true);
+                    Method m = pictureManager.getClass().getMethod("responseCoverArt", new Class[]{long.class, int.class, ResourceLocator.class, boolean.class});
+                    m.invoke(pictureManager, new Object[]{new Long(fbListRef), new Integer(SOURCE_TYPE_BT_STREAM), resourceLocator, new Boolean(true)});
                     debugLog("handleCoverArtUrl: fallback pictureManager.responseCoverArt called");
                 }
             } catch (Throwable t2) {
