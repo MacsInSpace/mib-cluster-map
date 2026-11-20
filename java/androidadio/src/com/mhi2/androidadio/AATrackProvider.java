@@ -118,7 +118,13 @@ public class AATrackProvider {
                 return null;
             }
             Method getBundle = fuCls.getMethod("getBundle", new Class[]{Class.class});
-            Class<?> osgiCls = forName("de.audi.app.combi.bap.app.audio.CombiModuleAudio");
+            Class<?> appCls = AAJavaBridge.getAppClass();
+            Class<?> osgiCls = null;
+            if (appCls != null) {
+                osgiCls = appCls;
+            } else {
+                osgiCls = forName("de.audi.app.combi.bap.app.audio.CombiModuleAudio");
+            }
             if (osgiCls == null) {
                 osgiCls = AATrackProvider.class;
             }
@@ -286,6 +292,35 @@ public class AATrackProvider {
         if (trackData == null) {
             debugLog("handleNowPlayingData: returning early (null trackData)");
             return;
+        }
+        StringBuffer sbt = new StringBuffer("handleNowPlayingData: trackData.toString()=");
+        sbt.append(trackData.toString());
+        debugLog(sbt.toString());
+        try {
+            java.lang.reflect.Method[] methods = trackData.getClass().getMethods();
+            StringBuffer sbm = new StringBuffer("handleNowPlayingData: trackData getters=");
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method m = methods[i];
+                String mn = m.getName();
+                if ((mn.startsWith("getCover") || mn.startsWith("getPicture") || mn.startsWith("getArt") || mn.startsWith("getTitle") || mn.startsWith("getArtist") || mn.startsWith("getAlbum"))
+                    && m.getParameterTypes().length == 0) {
+                    try {
+                        Object v = m.invoke(trackData, new Object[0]);
+                        sbm.append(mn);
+                        sbm.append("=");
+                        sbm.append(v != null ? v : "null");
+                        sbm.append(";");
+                    } catch (Throwable t) {
+                        sbm.append(mn);
+                        sbm.append("=<invoke threw>;");
+                    }
+                }
+            }
+            debugLog(sbm.toString());
+        } catch (Throwable t) {
+            StringBuffer sbx = new StringBuffer("handleNowPlayingData: trackData getter reflection threw ");
+            sbx.append(t);
+            debugLog(sbx.toString());
         }
         if (mediaConnector == null) {
             debugLog("handleNowPlayingData: mediaConnector null, attempting lazy lookup");

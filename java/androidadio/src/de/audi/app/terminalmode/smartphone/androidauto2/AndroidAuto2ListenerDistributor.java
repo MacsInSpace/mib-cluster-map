@@ -34,6 +34,9 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
         if (listeners != null) {
             for (int i = 0; i < listeners.length; i++) {
                 if (listeners[i] != null) {
+                    try {
+                        AAJavaBridge.setAppClass(listeners[i].getClass());
+                    } catch (Throwable t) {}
                     this.listeners.add(listeners[i]);
                 }
             }
