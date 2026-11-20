@@ -90,7 +90,7 @@ public class AATrackProvider {
             sb.append(t);
             debugLog(sb.toString());
         }
-        return new StubLogChannel();
+        return null;
     }
 
     private Object getBundleContext() {
@@ -102,13 +102,27 @@ public class AATrackProvider {
             }
         } catch (Throwable t) {}
         try {
-            Class<?> fuCls = forName("org.osgi.framework.FrameworkUtil");
+            ClassLoader tccl = Thread.currentThread().getContextClassLoader();
+            Class<?> fuCls;
+            if (tccl != null) {
+                try {
+                    fuCls = Class.forName("org.osgi.framework.FrameworkUtil", true, tccl);
+                } catch (ClassNotFoundException e) {
+                    fuCls = forName("org.osgi.framework.FrameworkUtil");
+                }
+            } else {
+                fuCls = forName("org.osgi.framework.FrameworkUtil");
+            }
             if (fuCls == null) {
                 debugLog("AATrackProvider.getBundleContext: FrameworkUtil not found");
                 return null;
             }
             Method getBundle = fuCls.getMethod("getBundle", Class.class);
-            Object bundle = getBundle.invoke(null, AAJavaBridge.getAppClass());
+            Class<?> osgiCls = forName("de.audi.app.combi.bap.app.audio.CombiModuleAudio");
+            if (osgiCls == null) {
+                osgiCls = AATrackProvider.class;
+            }
+            Object bundle = getBundle.invoke(null, osgiCls);
             if (bundle != null) {
                 Method getBC = bundle.getClass().getMethod("getBundleContext");
                 Object bc2 = getBC.invoke(bundle);
@@ -173,6 +187,14 @@ public class AATrackProvider {
     }
 
     private static Class<?> forName(String name) {
+        ClassLoader tccl = Thread.currentThread().getContextClassLoader();
+        if (tccl != null) {
+            try {
+                return Class.forName(name, true, tccl);
+            } catch (ClassNotFoundException e) {
+                // fall through to appClassLoader
+            }
+        }
         ClassLoader cl = AAJavaBridge.getAppClassLoader();
         if (cl != null) {
             try {
@@ -282,6 +304,47 @@ public class AATrackProvider {
         if (title == null) title = "";
         if (artist == null) artist = "";
         if (album == null) album = "";
+        // Inspect TrackData for embedded cover art ResourceLocator
+        Object embeddedCoverLocator = null;
+        try {
+            java.lang.reflect.Method[] methods = trackData.getClass().getMethods();
+            for (java.lang.reflect.Method m : methods) {
+                String mn = m.getName();
+                if ((mn.startsWith("getCover") || mn.startsWith("getPicture") || mn.startsWith("getArt"))
+                    && m.getParameterTypes().length == 0) {
+                    Object v = m.invoke(trackData);
+                    if (v != null && "org.dsi.ifc.global.ResourceLocator".equals(v.getClass().getName())) {
+                        embeddedCoverLocator = v;
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            StringBuffer sbx = new StringBuffer("handleNowPlayingData: TrackData cover art reflection threw ");
+            sbx.append(t);
+            debugLog(sbx.toString());
+        }
+        if (embeddedCoverLocator != null) {
+            try {
+                java.lang.reflect.Method getUrl = embeddedCoverLocator.getClass().getMethod("getUrl");
+                java.lang.reflect.Method getId = embeddedCoverLocator.getClass().getMethod("getId");
+                String ecUrl = (String) getUrl.invoke(embeddedCoverLocator);
+                int ecId = (Integer) getId.invoke(embeddedCoverLocator);
+                if (ecUrl != null && !ecUrl.equals(lastCoverUrl)) {
+                    lastCoverUrl = ecUrl;
+                    lastPictureId = ecId;
+                    StringBuffer sbc = new StringBuffer("handleNowPlayingData: embedded cover art url='");
+                    sbc.append(ecUrl);
+                    sbc.append("' pictureId=");
+                    sbc.append(ecId);
+                    debugLog(sbc.toString());
+                }
+            } catch (Throwable t) {
+                StringBuffer sbx = new StringBuffer("handleNowPlayingData: embedded cover locator read threw ");
+                sbx.append(t);
+                debugLog(sbx.toString());
+            }
+        }
         StringBuffer sb3 = new StringBuffer("handleNowPlayingData: title='");
         sb3.append(title);
         sb3.append("' artist='");
@@ -427,9 +490,5 @@ public class AATrackProvider {
             pw.println(sb.toString());
             pw.close();
         } catch (Throwable t) {}
-    }
-
-    private static class StubLogChannel {
-        public StubLogChannel() {}
     }
 }

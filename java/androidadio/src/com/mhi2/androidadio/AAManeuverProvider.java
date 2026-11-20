@@ -109,6 +109,14 @@ public class AAManeuverProvider {
     }
 
     private static Class<?> forName(String name) {
+        ClassLoader tccl = Thread.currentThread().getContextClassLoader();
+        if (tccl != null) {
+            try {
+                return Class.forName(name, true, tccl);
+            } catch (ClassNotFoundException e) {
+                // fall through to appClassLoader
+            }
+        }
         ClassLoader cl = AAJavaBridge.getAppClassLoader();
         if (cl != null) {
             try {
@@ -169,7 +177,7 @@ public class AAManeuverProvider {
                 }
             }
         } catch (Throwable t) {}
-        return new StubLogChannel();
+        return null;
     }
 
     private Object findClusterService() {
@@ -249,9 +257,5 @@ public class AAManeuverProvider {
             pw.println(sb.toString());
             pw.close();
         } catch (Throwable t) {}
-    }
-
-    private static class StubLogChannel {
-        public StubLogChannel() {}
     }
 }
