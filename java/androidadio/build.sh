@@ -106,7 +106,12 @@ unzip -l "$OUT/AAcoverart_hook.jar" | grep '\.class$'
 cp "$OUT/AAcoverart_hook.jar" "$ROOT/thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar"
 if [ -f "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" ]; then
     zip -d "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" "thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar" 2>/dev/null || true
-    zip "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" "thirdparty/mib2-android-auto-audi/AAcoverart_hook.jar" -b /tmp 2>/dev/null || true
+    zip -d "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" "ClusterMap/thirdparty/AAcoverart_hook.jar" 2>/dev/null || true
+    # Stage at ClusterMap/thirdparty/ so the zip entry matches enable_hook.sh's $CARD_ROOT/thirdparty/
+    mkdir -p "$ROOT/ClusterMap/thirdparty"
+    cp "$OUT/AAcoverart_hook.jar" "$ROOT/ClusterMap/thirdparty/AAcoverart_hook.jar"
+    zip "$ROOT/mib-cluster-map-aa-install-audi-au37x.zip" "ClusterMap/thirdparty/AAcoverart_hook.jar" -b /tmp 2>/dev/null || true
+    rm -rf "$ROOT/ClusterMap"
     echo "Updated release zip: mib-cluster-map-aa-install-audi-au37x.zip"
 fi
 
