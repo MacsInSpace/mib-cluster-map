@@ -747,7 +747,9 @@ static int build_secondary_sink(void *primary, void *controller)
     store_u8(g_secondary_sink, 0x0cu, g_secondary_service_id);
     store_u32(g_secondary_sink, 0x14u, 3u);  /* H.264 */
     store_u32(g_secondary_sink, 0x18u, 0xffffffffu);
-    store_u32(g_secondary_sink, 0x1cu, 8u);
+    /* max_unacked, sent to the phone in the setup answer: see
+     * gal_hook_max_unacked (8; 4 with GAL_ACK_EVERY_FRAME=1). */
+    store_u32(g_secondary_sink, 0x1cu, gal_hook_max_unacked());
     store_u8(g_secondary_sink, 0x30u, 1u); /* request startup video focus */
     store_u32(g_secondary_sink, 0x4cu, config->viewing_distance);
 
@@ -3200,9 +3202,11 @@ int _ZN13MediaSinkBase10sendConfigEi(void *sink, int arg)
     if (sink == g_secondary_sink) role = "secondary";
     else if (sink == g_primary_sink) role = "primary";
     else role = "other";
-    gal_hook_logf("event=aap.config_response role=%s service=%u msg_id=0x8003 arg=%d allowed_list=%u supported=%u indices=%u result=%s",
+    /* max_unacked (+0x1c): the phone's ACK window for this stream, the
+     * primary's from gal itself for comparison. */
+    gal_hook_logf("event=aap.config_response role=%s service=%u msg_id=0x8003 arg=%d allowed_list=%u supported=%u indices=%u max_unacked=%u result=%s",
                   role, endpoint_service_id(sink), arg, allowed, supported,
-                  indices,
+                  indices, known_video_sink ? (unsigned)load_u32(sink, 0x1cu) : 0u,
                   known_video_sink && indices == 0u ? "EMPTY_PHONE_WILL_REJECT"
                                                     : "ok");
     return g_send_config(sink, arg);

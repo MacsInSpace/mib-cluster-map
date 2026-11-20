@@ -165,6 +165,8 @@ static int g_output_mode = GAL_OUTPUT_WITHHOLD;
 static int g_focus_mirror;
 static int g_focus_start_native = 1;
 static int g_focus_wait_kombi;
+static unsigned g_max_unacked = 8u;   /* GAL_SECONDARY_MAX_UNACKED; 4 with GAL_ACK_EVERY_FRAME */
+static int g_ack_every_frame;         /* GAL_ACK_EVERY_FRAME=1 */
 
 int hook_fix_enabled(hook_fix fix)
 {
@@ -173,6 +175,8 @@ int hook_fix_enabled(hook_fix fix)
 
 int gal_hook_focus_start_native(void) { return g_focus_start_native; }
 int gal_hook_focus_wait_kombi(void) { return g_focus_wait_kombi; }
+unsigned gal_hook_max_unacked(void) { return g_max_unacked; }
+int gal_hook_ack_every_frame(void) { return g_ack_every_frame; }
 
 static void hook_vlog(const char *level, const char *format, va_list arguments)
 {
@@ -518,6 +522,24 @@ int gal_hook_init(const gal_secondary_config *config)
     value = getenv("GAL_FOCUS_START");
     g_focus_start_native = !(value != NULL && strcmp(value, "stock") == 0);
     g_focus_wait_kombi = environment_flag_default_on("GAL_FOCUS_WAIT_KOMBI");
+    /*
+     * The phone sends a cluster frame only while fewer than this many are
+     * unACKed, and the player ACKs a frame once it is drawn. When the phone
+     * draws faster than the 720p decoder keeps up with (about 20-28 pictures
+     * a second on the Superb), every frame in flight waits in front of the
+     * decoder: 8 meant up to 8 x 40-50 ms behind the centre screen. 4 still
+     * keeps the decoder busy (a frame's round trip is well under 4 decodes).
+     */
+    value = getenv("GAL_ACK_EVERY_FRAME");
+    g_ack_every_frame = (value != NULL && strcmp(value, "1") == 0);
+    if (g_ack_every_frame) g_max_unacked = 4u;
+    value = getenv("GAL_SECONDARY_MAX_UNACKED");
+    if (value != NULL && *value != '\0') {
+        unsigned long n = strtoul(value, NULL, 10);
+        if (n >= 1ul && n <= 16ul) g_max_unacked = (unsigned)n;
+        else gal_hook_logf("event=config.max_unacked result=invalid value=%s using=%u",
+                           value, g_max_unacked);
+    }
 
     if (config != NULL) {
         g_config = *config;
@@ -676,7 +698,7 @@ int gal_hook_init(const gal_secondary_config *config)
         g_config.viewing_distance, g_config.pixel_aspect_ratio_e4,
         g_config.displayable_id, g_config.vc_display, g_config.context_id,
         g_config.display_id, g_config.service_id == 0u ? "auto" : "fixed");
-    gal_hook_logf("event=fix.config helper_init_guard=%d focus_control=%d focus_start=%s focus_wait_kombi=%d ack_rendered_only=%d no_idr_replay=%d stream_timing=%d player_log=%d orphan_restore=%d output=%s",
+    gal_hook_logf("event=fix.config helper_init_guard=%d focus_control=%d focus_start=%s focus_wait_kombi=%d ack_rendered_only=%d no_idr_replay=%d stream_timing=%d player_log=%d orphan_restore=%d output=%s max_unacked=%u ack_every_frame=%d",
                   g_fix_on[HOOK_FIX_HELPER_INIT_GUARD],
                   g_fix_on[HOOK_FIX_FOCUS_CONTROL],
                   g_focus_start_native ? "native" : "stock",
@@ -686,7 +708,7 @@ int gal_hook_init(const gal_secondary_config *config)
                   g_fix_on[HOOK_FIX_STREAM_TIMING],
                   g_fix_on[HOOK_FIX_PLAYER_LOG],
                   g_fix_on[HOOK_FIX_ORPHAN_RESTORE],
-                  gal_hook_output_mode_name());
+                  gal_hook_output_mode_name(), g_max_unacked, g_ack_every_frame);
     return 0;
 }
 

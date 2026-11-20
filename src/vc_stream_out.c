@@ -478,6 +478,20 @@ static int queue_flush_locked(void)
 }
 
 /*
+ * An access unit delimiter after every frame (AMDFX60's 1.4.0-beta2; with
+ * GAL_ACK_EVERY_FRAME=1 only). The player's
+ * H.264 parser cuts the byte stream into pictures and only knows one has
+ * ended when the next one starts, so each picture waited for the following
+ * one: a frame of delay, and, when the phone pauses, the last picture of a
+ * movement shown only once it moves again. A delimiter is the start of the
+ * next access unit, so the parser hands the picture over as soon as it has
+ * read these six bytes. The phone's frames carry none (they start with the
+ * slice, 00 00 00 01 65 / 21, in every capture); FFmpeg ignores delimiters
+ * when decoding.
+ */
+static const unsigned char k_aud[6] = { 0x00, 0x00, 0x00, 0x01, 0x09, 0xf0 };
+
+/*
  * gal's reader thread: hand a frame to the controller. *delivered = 1 once it
  * is queued for the player; the focus controller's ACK accounting counts it
  * from then on. Never blocks on the player.
@@ -487,14 +501,17 @@ static int enqueue_frame(const unsigned char *p, size_t bytes, int *delivered)
     vc_frame *f;
     int is_idr = contains_idr_nal(p, bytes);
     long long now_ms = stream_now_ms();
+    size_t aud;
 
-    f = (vc_frame *)malloc(sizeof *f + bytes);
+    aud = gal_hook_ack_every_frame() ? sizeof k_aud : 0u;
+    f = (vc_frame *)malloc(sizeof *f + bytes + aud);
     if (f == NULL) return -1;
     f->next = NULL;
-    f->len = bytes;
+    f->len = bytes + aud;
     f->off = 0u;
     f->queued_us = stream_now_us();
     memcpy(f->data, p, bytes);
+    if (aud != 0u) memcpy(f->data + bytes, k_aud, aud);
 
     pthread_mutex_lock(&g_lock);
     if (ensure_listening() != 0 || g_client_fd < 0) {
@@ -525,7 +542,7 @@ static int enqueue_frame(const unsigned char *p, size_t bytes, int *delivered)
         }
         g_client_has_keyframe = 1;
     }
-    if (g_q_count >= VC_QUEUE_MAX_FRAMES || g_q_bytes + bytes > VC_QUEUE_MAX_BYTES) {
+    if (g_q_count >= VC_QUEUE_MAX_FRAMES || g_q_bytes + f->len > VC_QUEUE_MAX_BYTES) {
         /* A frame missing mid-stream would smear every frame after it, so
          * wait for the next keyframe rather than decode on. */
         ++g_q_overflows;

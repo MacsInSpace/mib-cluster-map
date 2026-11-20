@@ -1224,6 +1224,47 @@ static void nvm_close() {}
 #endif
 
 static void write_ack();
+/*
+ * GAL_ACK_EVERY_FRAME=1 (AMDFX60's 1.4.0, as an opt-in here): every frame the
+ * phone sends is ACKed exactly once -- when its picture is drawn, when a
+ * newer picture replaces it before it is drawn, or at once when it gives no
+ * picture (before the first keyframe, the warm-up frame, a decode error, or
+ * bytes skipped to reach a keyframe). The hook then stops presuming frames
+ * dropped, which had let the phone queue seconds of frames in front of a
+ * slow 720p decoder (pepsonEL's Skoda, #125: 1-1.5 s behind).
+ *
+ * In this mode the hook ends every frame with an access unit delimiter
+ * (00 00 00 01 09 f0), and the phone's own frames carry none, so frames are
+ * counted by delimiters in the bytes the decoder has consumed. ack_settle()
+ * ACKs everything consumed except the one picture still waiting to be drawn,
+ * so it can never ACK a frame that has not arrived. Off (the default) the
+ * player ACKs only drawn pictures, as up to v1.2.8, and the hook makes up
+ * the rest.
+ */
+static bool g_ackEveryFrame = false;
+static pthread_mutex_t g_ackLock = PTHREAD_MUTEX_INITIALIZER;
+static uint64_t g_ackConsumed = 0;     /* g_ackLock: frames whose delimiter has been consumed */
+static uint64_t g_ackSent = 0;         /* g_ackLock */
+static unsigned g_audZeros = 0;        /* decoder thread: delimiter scanner state */
+static void ack_count_bytes(const uint8_t* p, size_t n) {
+    if (!g_ackEveryFrame) return;
+    unsigned found = 0;
+    for (size_t i = 0; i < n; ++i) {
+        uint8_t b = p[i];
+        if (g_audZeros >= 3u) {           /* after 00 00 01 */
+            g_audZeros = 0;
+            if ((b & 0x1f) == 9) { ++found; continue; }
+        }
+        if (b == 0) { g_audZeros = g_audZeros >= 2u ? 2u : g_audZeros + 1u; continue; }
+        g_audZeros = (b == 1 && g_audZeros >= 2u) ? 3u : 0u;
+    }
+    if (found) {
+        pthread_mutex_lock(&g_ackLock);
+        g_ackConsumed += found;
+        pthread_mutex_unlock(&g_ackLock);
+    }
+}
+static void ack_settle(bool pictureWaiting);
 
 static void crash_signal_handler(int sig) {
     /* First, with calls that are safe in a signal handler: the next start,
@@ -1465,6 +1506,10 @@ static ssize_t reader_take(uint8_t* out, size_t max, size_t* backlog, size_t* sk
     if (g_rbJumpFound) {
         if (g_rbJumpAt > g_rbRead && g_rbJumpAt - g_rbRead < g_rbFill) {
             size_t drop = (size_t)(g_rbJumpAt - g_rbRead);
+            /* Frames in the skipped bytes are never decoded: ACK them. */
+            size_t dfirst = kReaderBufBytes - g_rbHead < drop ? kReaderBufBytes - g_rbHead : drop;
+            ack_count_bytes(g_rb + g_rbHead, dfirst);
+            ack_count_bytes(g_rb, drop - dfirst);
             g_rbHead = (g_rbHead + drop) % kReaderBufBytes;
             g_rbFill -= drop;
             g_rbRead += drop;
@@ -1677,6 +1722,22 @@ static void* DecoderThreadFunc(void* arg) {
 
         while (g_running) {
             ssize_t bytes_read = 0;
+            if (g_ackEveryFrame && g_ackConsumed == 0 && g_decodedFrameCount >= 30) {
+                /* No delimiters: the hook is not in this mode (an older hook,
+                 * or the setting reached only the player). Counting nothing
+                 * would never ACK and the hook would kill the player as hung. */
+                g_ackEveryFrame = false;
+                LOG("acks: no frame delimiters from the hook after %u pictures; ACKing drawn pictures only (GAL_ACK_EVERY_FRAME needs the hook's mode too)",
+                    (unsigned)g_decodedFrameCount);
+            }
+            if (g_ackEveryFrame) {
+                /* The previous buffer is decoded: ACK its frames, except
+                 * the picture the render loop has not drawn yet. */
+                pthread_mutex_lock(&g_frameMutex);
+                bool waiting = g_framePool.readySlot >= 0;
+                pthread_mutex_unlock(&g_frameMutex);
+                ack_settle(waiting);
+            }
             if (readerRunning) {
                 size_t backlog = 0, skipped = 0;
                 bytes_read = reader_take(inbuf, 131072, &backlog, &skipped);
@@ -1768,6 +1829,7 @@ static void* DecoderThreadFunc(void* arg) {
                                           data, data_size,
                                           AV_NOPTS_VALUE, AV_NOPTS_VALUE, 0);
                 if (len < 0) break;
+                ack_count_bytes(data, (size_t)len);
                 data += len;
                 data_size -= len;
 
@@ -1793,7 +1855,8 @@ static void* DecoderThreadFunc(void* arg) {
                     g_newFrameReady = true;
                     pthread_cond_signal(&g_frameCond);
                     pthread_mutex_unlock(&g_frameMutex);
-                    write_ack();
+                    /* NvSS draws it itself: nothing waits in the pool. */
+                    if (g_ackEveryFrame) ack_settle(false); else write_ack();
                     continue;
                 }
                 if (packet->size > 0 && g_nvmActive) {
@@ -2158,6 +2221,9 @@ static void load_player_config() {
             } else if (strcmp(key, "GAL_PLAYER_NEON") == 0) {
                 /* 0: decode without NEON; anything else: NEON where the CPU has it. */
                 g_neonAllowed = atoi(val) != 0;
+            } else if (strcmp(key, "GAL_ACK_EVERY_FRAME") == 0) {
+                /* 1: ACK every frame; the hook reads the same key. */
+                g_ackEveryFrame = atoi(val) == 1;
             } else if (strcmp(key, "GAL_PLAYER_HW_HD") == 0) {
                 /* 1: the unit's decoder into memory for 720p/1080p frames too. */
                 g_hwHd = atoi(val) == 1;
@@ -2243,6 +2309,10 @@ static void load_player_config() {
     if (env_idle_bytes) {
         g_idleMaxBytes = atoi(env_idle_bytes);
     }
+    /* gal's environment (the hook loads the settings into it) wins, so the
+     * player and the hook always agree on GAL_ACK_EVERY_FRAME. */
+    const char* env_ack = getenv("GAL_ACK_EVERY_FRAME");
+    if (env_ack) g_ackEveryFrame = strcmp(env_ack, "1") == 0;
     const char* env_hb = getenv("GAL_PLAYER_HEARTBEAT_HZ");
     if (env_hb) {
         g_idleHeartbeatHz = atoi(env_hb);
@@ -2299,6 +2369,28 @@ static void ack_connect() {}
 static void write_ack() {}
 #endif
 
+/* GAL_ACK_EVERY_FRAME: ACK every consumed frame except a picture still
+ * waiting in the pool to be drawn. Called by the decoder after each buffer
+ * and by the render loop after each draw. */
+static void ack_settle(bool pictureWaiting) {
+    static uint64_t s_nextLogUs = 0, s_lastSent = 0;
+    pthread_mutex_lock(&g_ackLock);
+    uint64_t target = g_ackConsumed;
+    if (pictureWaiting && target > 0) --target;
+    unsigned n = 0;
+    while (g_ackSent < target) { write_ack(); ++g_ackSent; ++n; }
+    uint64_t now = now_us();
+    if (s_nextLogUs == 0) s_nextLogUs = now + 60000000ULL;
+    else if (now >= s_nextLogUs) {
+        LOG("acks: %llu frames ACKed in the last minute, %llu in all (GAL_ACK_EVERY_FRAME)",
+            (unsigned long long)(g_ackSent - s_lastSent), (unsigned long long)g_ackSent);
+        s_lastSent = g_ackSent;
+        s_nextLogUs = now + 60000000ULL;
+    }
+    pthread_mutex_unlock(&g_ackLock);
+    (void)n;
+}
+
 /*
  * GAL_PLAYER_PRIORITY: raise the player to this priority, never lower it.
  * Set on the main thread before any other starts, so the decoder, FFmpeg's
@@ -2343,6 +2435,7 @@ int main(int argc, char* argv[]) {
         if (strcmp(argv[i], "--no-ack") == 0) {
 #if defined(__QNX__) || defined(__linux__)
             g_noAck = true;
+            g_ackEveryFrame = false; /* CarPlay: no hook, no delimiters */
 #endif
             g_bufferedReader = true;
         } else if (strncmp(argv[i], "--size=", 7) == 0) {
@@ -2782,7 +2875,14 @@ int main(int argc, char* argv[]) {
                     LOGE("render: EGL_CONTEXT_LOST (display power down or surface invalidated)");
                 }
             }
-            write_ack();
+            if (g_ackEveryFrame) {
+                pthread_mutex_lock(&g_frameMutex);
+                bool waiting = g_framePool.readySlot >= 0;
+                pthread_mutex_unlock(&g_frameMutex);
+                ack_settle(waiting);
+            } else {
+                write_ack();
+            }
 #else
             if (!g_dumpVideoPipe) {
                 const char* dumpPath = getenv("GAL_PLAYER_DUMP_VIDEO");
@@ -2821,7 +2921,14 @@ int main(int argc, char* argv[]) {
             }
             glfwSwapBuffers(g_glfwWindow);
             glfwPollEvents();
-            write_ack();
+            if (g_ackEveryFrame) {
+                pthread_mutex_lock(&g_frameMutex);
+                bool waiting = g_framePool.readySlot >= 0;
+                pthread_mutex_unlock(&g_frameMutex);
+                ack_settle(waiting);
+            } else {
+                write_ack();
+            }
 #endif
         } else {
             pthread_mutex_unlock(&g_frameMutex);

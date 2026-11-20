@@ -117,6 +117,22 @@ typedef enum {
     HOOK_FIX_COUNT
 } hook_fix;
 int hook_fix_enabled(hook_fix fix);
+/*
+ * GAL_SECONDARY_MAX_UNACKED: how many cluster frames the phone may have sent
+ * and not yet had ACKed (the max_unacked of the secondary sink's setup
+ * answer). Every frame in flight waits in front of the player's decoder, so
+ * this bounds how far the cockpit map can lag. 8 by default, 4 with
+ * GAL_ACK_EVERY_FRAME=1; 1 to 16.
+ */
+unsigned gal_hook_max_unacked(void);
+/*
+ * GAL_ACK_EVERY_FRAME=1: the player ACKs every frame (drawn, replaced before
+ * it was drawn, or giving no picture), the hook stops presuming frames
+ * dropped, puts an access unit delimiter after each frame, and the phone's
+ * window is 4 instead of 8. AMDFX60's 1.4.0: the cockpit map in step with
+ * the centre screen on a Skoda Superb. Off by default; both sides read it.
+ */
+int gal_hook_ack_every_frame(void);
 /* GAL_FOCUS_START=stock lets gal's setup-time mode 1 through; default native. */
 int gal_hook_focus_start_native(void);
 /* GAL_FOCUS_WAIT_KOMBI: the first grant also waits for the Kombi map. */
