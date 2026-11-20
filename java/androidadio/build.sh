@@ -57,6 +57,11 @@ for c in org/osgi/framework/FrameworkUtil.class org/osgi/framework/Bundle.class;
     ALL_CLASSES+=("$c")
 done
 
+# Inner classes of AppConnectorMedia (no .java files; compiled by javac)
+for c in 'de/audi/app/combi/bap/app/audio/AppConnectorMedia$1.class' 'de/audi/app/combi/bap/app/audio/AppConnectorMedia$CoverArtProvider.class'; do
+    ALL_CLASSES+=("$c")
+done
+
 echo "Stripping StackMapTable frames to version 46..."
 for c in "${ALL_CLASSES[@]}"; do
     f="$T/classes/$c"
@@ -89,6 +94,8 @@ ALL_CLASSES=(
     de/audi/app/terminalmode/smartphone/androidauto2/AndroidAuto2ListenerDistributor.class
     de/audi/app/terminalmode/smartphone/androidauto2/AndroidAuto2EventListener.class
     de/audi/app/combi/bap/app/audio/AppConnectorMedia.class
+    'de/audi/app/combi/bap/app/audio/AppConnectorMedia$1.class'
+    'de/audi/app/combi/bap/app/audio/AppConnectorMedia$CoverArtProvider.class'
 )
 (cd "$T/classes" && jar cf "$OUT/AAcoverart_hook.jar" "${ALL_CLASSES[@]}")
 
