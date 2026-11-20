@@ -18,6 +18,11 @@ logs/
 *.h264
 *.pcapng
 
+# Audi MIB2 artifacts - never commit lsd.jar or lsd.jxe (car-specific, 43 MB)
+thirdparty/lsd.jar
+thirdparty/*/lsd.jar
+*.jxe
+
 # IDE & OS metadata
 .DS_Store
 Thumbs.db

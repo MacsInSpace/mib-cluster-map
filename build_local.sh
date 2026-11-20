@@ -217,6 +217,15 @@ package() {
   rm -f "$ROOT"/dist/*.zip "$ROOT"/dist/*.sha256
   (cd "$S" && zip -qr -X "$Z" ClusterMap Custom metainfo2.txt Swdlautorun.txt -x '*.DS_Store' -x '._*')
   (cd "$ROOT/dist" && shasum -a 256 "$(basename "$Z")" > "$(basename "$Z").sha256")
+  # Guardrail: the install zip must stay small (~5 MB max). lsd.jar (43 MB)
+  # must never sneak back into the package.
+  ZSIZE=$(wc -c < "$Z")
+  if [ "$ZSIZE" -gt 5242880 ]; then
+    echo "REJECTED: install zip $Z is $ZSIZE bytes (> 5 MB); lsd.jar must not be packaged"; exit 1
+  fi
+  if [ -f "$S/ClusterMap/thirdparty/lsd.jar" ] || find "$S/ClusterMap/thirdparty" -name '*.jxe' | grep -q .; then
+    echo "REJECTED: lsd.jar or *.jxe found in packaged thirdparty/"; exit 1
+  fi
   echo "Packaged: $S"; echo "Archive:  $Z"
   (cd "$S" && find . -type f | sort)
 }
