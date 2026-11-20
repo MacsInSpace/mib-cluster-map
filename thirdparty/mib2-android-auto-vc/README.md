@@ -33,6 +33,19 @@ together with VCAndroidAuto.jar, which carries the same classes. Android Auto tr
 car-tested on the Golf as part of VCAndroidAutoTurns.jar; CarPlay track info
 not yet car-tested.
 
+## VCAndroidAutoMusic_K3342.jar
+
+The music-only build for K3342 (`MHI2_ER_VWG11_K3342`), from the fork's
+commit `9d1847e` (`make music-k3342`, on e8239c5's sources), sha256
+`a2be805fc3839aa047d641db8e960fe9a270c1152fb87f9d68ab9fe78aa50afd`.
+K3342's stock Java is older than the Golf's: no ExBox guidance, no Baidu
+CarLife, two station-info fields renamed, and a different smartphone
+property id. `variants/k3342.sh` adapts the music sources and the jar is
+compiled against K3342's own lsd.jxe (#62), where every stock class, method
+and field it uses was found. The installer copies it as
+`VCAndroidAutoMusic.jar` on trains marked `infok3342` in profiles.conf.
+Not yet car-tested.
+
 ## VCAndroidAutoTurns.jar
 
 The full jar with the cockpit view left alone (commit `b7af41d`,
