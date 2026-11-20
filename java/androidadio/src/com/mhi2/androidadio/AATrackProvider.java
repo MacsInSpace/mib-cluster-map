@@ -20,6 +20,8 @@ public class AATrackProvider {
     private String lastCoverUrl;
     private int lastPictureId;
     private long lastListRef;
+    private long lastDurationMs;
+    private String lastCoverUrlNormalized;
 
     public static AATrackProvider getInstance() {
         return instance;
@@ -34,6 +36,8 @@ public class AATrackProvider {
         lastCoverUrl = "";
         lastPictureId = 0;
         lastListRef = 0;
+        lastDurationMs = 0;
+        lastCoverUrlNormalized = "";
         debugLog("AATrackProvider.<init> entered (lazy service lookup)");
     }
 
@@ -350,6 +354,33 @@ public class AATrackProvider {
         debugLog("AATrackProvider.startDSI() entered");
     }
 
+    private String normalizeCoverArtUrl(String url) {
+        if (url == null) return "";
+        String normalized = url;
+        if (normalized.startsWith("/")) {
+            StringBuffer nb = new StringBuffer("file://");
+            nb.append(normalized);
+            normalized = nb.toString();
+            try {
+                java.io.File f = new java.io.File(url);
+                if (f.exists()) {
+                    StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: file exists size=");
+                    sb.append(f.length());
+                    debugLog(sb.toString());
+                } else {
+                    StringBuffer sbnf = new StringBuffer("normalizeCoverArtUrl: file does not exist: ");
+                    sbnf.append(url);
+                    debugLog(sbnf.toString());
+                }
+            } catch (Throwable t) {
+                StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: file check threw ");
+                sb.append(t);
+                debugLog(sb.toString());
+            }
+        }
+        return normalized;
+    }
+
     public void handleNowPlayingData(TrackData trackData, int instanceId) {
         StringBuffer sb = new StringBuffer("handleNowPlayingData called, trackData=");
         sb.append(trackData != null ? "non-null" : "null");
@@ -401,6 +432,21 @@ public class AATrackProvider {
         String title = trackData.getTitle();
         String artist = trackData.getArtist();
         String album = trackData.getAlbum();
+        long durationMs = 0;
+        try {
+            java.lang.reflect.Method getDuration = trackData.getClass().getMethod("getDuration", new Class[0]);
+            Object dur = getDuration.invoke(trackData, new Object[0]);
+            if (dur instanceof Integer) {
+                durationMs = ((Integer) dur).intValue();
+            } else if (dur instanceof Long) {
+                durationMs = ((Long) dur).longValue();
+            }
+        } catch (Throwable t) {
+            StringBuffer sbx = new StringBuffer("handleNowPlayingData: getDuration threw ");
+            sbx.append(t);
+            debugLog(sbx.toString());
+        }
+        lastDurationMs = durationMs;
         if (title == null) title = "";
         if (artist == null) artist = "";
         if (album == null) album = "";
@@ -433,6 +479,7 @@ public class AATrackProvider {
                 int ecId = ((Integer) getId.invoke(embeddedCoverLocator, new Object[0])).intValue();
                 if (ecUrl != null && !ecUrl.equals(lastCoverUrl)) {
                     lastCoverUrl = ecUrl;
+                    lastCoverUrlNormalized = normalizeCoverArtUrl(lastCoverUrl);
                     lastPictureId = ecId;
                     StringBuffer sbc = new StringBuffer("handleNowPlayingData: embedded cover art url='");
                     sbc.append(ecUrl);
@@ -476,9 +523,16 @@ public class AATrackProvider {
             Method setTertiary = infoCls.getMethod("setTertiaryInformation", new Class[]{String.class, int.class});
             setTertiary.invoke(info, new Object[]{album, new Integer(0)});
             Method setPicture = infoCls.getMethod("setPicture", new Class[]{int.class, String.class});
-            setPicture.invoke(info, new Object[]{new Integer(lastPictureId), lastCoverUrl});
+            String coverUrlToUse = (lastCoverUrlNormalized != null && lastCoverUrlNormalized.length() > 0) ? lastCoverUrlNormalized : lastCoverUrl;
+            setPicture.invoke(info, new Object[]{new Integer(lastPictureId), coverUrlToUse});
+            // Only regenerate listRef when track/cover actually changed; keep stable listRef per track/cover change
+            boolean trackChanged = !title.equals(lastTitle) || !artist.equals(lastArtist) || !album.equals(lastAlbum);
             Method setListRef = infoCls.getMethod("setListRef", new Class[]{int.class});
-            setListRef.invoke(info, new Object[]{new Integer((int) (System.currentTimeMillis() & 0x7FFFFFFF))});
+            if (!trackChanged && lastListRef != 0) {
+                // keep existing listRef
+            } else {
+                setListRef.invoke(info, new Object[]{new Integer((int) (System.currentTimeMillis() & 0x7FFFFFFF))});
+            }
             Method getListRef = infoCls.getMethod("getListRef", new Class[0]);
             lastListRef = ((Integer) getListRef.invoke(info, new Object[0])).intValue();
 
@@ -587,8 +641,9 @@ public class AATrackProvider {
                 try {
                     // Build ResourceLocator for cover art
                     Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
+                    String coverUrlForLocator = (lastCoverUrlNormalized != null && lastCoverUrlNormalized.length() > 0) ? lastCoverUrlNormalized : lastCoverUrl;
                     Object coverLocator = locatorCls.getDeclaredConstructor(
-                        new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(lastPictureId), lastCoverUrl});
+                        new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(lastPictureId), coverUrlForLocator});
                     Method responseStationArt = pictureManager.getClass().getMethod(
                         "responseStationArt", new Class[]{long.class, int.class, locatorCls, boolean.class});
                     responseStationArt.invoke(pictureManager, new Object[]{
@@ -611,6 +666,38 @@ public class AATrackProvider {
                     }
                 } catch (Throwable t) {
                     StringBuffer sbx = new StringBuffer("handleNowPlayingData: responseStationArt threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+            }
+            // Push initial PlayPosition(0, duration/1000) so total track duration appears immediately
+            if (terminalModeService != null && lastDurationMs > 0) {
+                try {
+                    Class<?> playPositionCls = forName("de.audi.atip.interapp.combi.bap.audio.data.PlayPosition");
+                    if (playPositionCls != null) {
+                        Class<?> builderCls = forName("de.audi.atip.interapp.combi.bap.audio.data.PlayPosition$Builder");
+                        Object builder = builderCls.getDeclaredConstructor().newInstance();
+                        Class<?> timeStampCls = forName("de.audi.atip.interapp.bap.data.TimeStamp");
+                        Object t0 = timeStampCls.getMethod("getInstanceFromSeconds", new Class[]{int.class}).invoke(null, new Object[]{new Integer(0)});
+                        Object totalSecs = timeStampCls.getMethod("getInstanceFromSeconds", new Class[]{int.class}).invoke(null, new Object[]{new Integer((int) (lastDurationMs / 1000))});
+                        Method setTimePosition = builderCls.getMethod("setTimePosition", new Class[]{timeStampCls});
+                        Method setTotalPlayTime = builderCls.getMethod("setTotalPlayTime", new Class[]{timeStampCls});
+                        Method setVariableBitRate = builderCls.getMethod("setVariableBitRate", new Class[]{boolean.class});
+                        Method build = builderCls.getMethod("build", new Class[0]);
+                        setTimePosition.invoke(builder, new Object[]{t0});
+                        setTotalPlayTime.invoke(builder, new Object[]{totalSecs});
+                        setVariableBitRate.invoke(builder, new Object[]{new Boolean(false)});
+                        Object playPos = build.invoke(builder, new Object[0]);
+                        Method updatePlayPosition = terminalModeService.getClass().getMethod("updatePlayPosition", new Class[]{playPositionCls});
+                        updatePlayPosition.setAccessible(true);
+                        updatePlayPosition.invoke(terminalModeService, new Object[]{playPos});
+                        StringBuffer sbpp = new StringBuffer("handleNowPlayingData: initial PlayPosition(0, ");
+                        sbpp.append(lastDurationMs / 1000);
+                        sbpp.append(") sent to terminalModeService.updatePlayPosition");
+                        debugLog(sbpp.toString());
+                    }
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handleNowPlayingData: initial PlayPosition threw ");
                     sbx.append(t);
                     debugLog(sbx.toString());
                 }
@@ -647,6 +734,7 @@ public class AATrackProvider {
         if (url == null) url = "";
         boolean changed = !url.equals(lastCoverUrl);
         lastCoverUrl = url;
+        lastCoverUrlNormalized = normalizeCoverArtUrl(lastCoverUrl);
         lastPictureId = resourceLocator.getId();
         StringBuffer sb3 = new StringBuffer("handleCoverArtUrl: url='");
         sb3.append(url);
@@ -674,9 +762,15 @@ public class AATrackProvider {
             Method setTertiary = infoCls.getMethod("setTertiaryInformation", new Class[]{String.class, int.class});
             setTertiary.invoke(info, new Object[]{lastAlbum, new Integer(0)});
             Method setPicture = infoCls.getMethod("setPicture", new Class[]{int.class, String.class});
-            setPicture.invoke(info, new Object[]{new Integer(lastPictureId), lastCoverUrl});
+            String coverUrlToUse = (lastCoverUrlNormalized != null && lastCoverUrlNormalized.length() > 0) ? lastCoverUrlNormalized : lastCoverUrl;
+            setPicture.invoke(info, new Object[]{new Integer(lastPictureId), coverUrlToUse});
+            // Only regenerate listRef when cover URL actually changed; keep stable listRef per cover change
             Method setListRef = infoCls.getMethod("setListRef", new Class[]{int.class});
-            setListRef.invoke(info, new Object[]{new Integer((int) (System.currentTimeMillis() & 0x7FFFFFFF))});
+            if (!changed && lastListRef != 0) {
+                // keep existing listRef
+            } else {
+                setListRef.invoke(info, new Object[]{new Integer((int) (System.currentTimeMillis() & 0x7FFFFFFF))});
+            }
             Method getListRef = infoCls.getMethod("getListRef", new Class[0]);
             lastListRef = ((Integer) getListRef.invoke(info, new Object[0])).intValue();
 
@@ -784,8 +878,9 @@ public class AATrackProvider {
                 }
                 try {
                     Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
+                    String coverUrlForLocator = (lastCoverUrlNormalized != null && lastCoverUrlNormalized.length() > 0) ? lastCoverUrlNormalized : lastCoverUrl;
                     Object coverLocator = locatorCls.getDeclaredConstructor(
-                        new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(lastPictureId), lastCoverUrl});
+                        new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(lastPictureId), coverUrlForLocator});
                     Method responseStationArt = pictureManager2.getClass().getMethod(
                         "responseStationArt", new Class[]{long.class, int.class, locatorCls, boolean.class});
                     responseStationArt.invoke(pictureManager2, new Object[]{
@@ -818,6 +913,70 @@ public class AATrackProvider {
             StringBuffer sb5 = new StringBuffer("handleCoverArtUrl: threw ");
             sb5.append(t);
             debugLog(sb5.toString());
+        }
+    }
+
+    public void handlePlayPosition(int position, int instanceId) {
+        if (mediaConnector == null) {
+            mediaConnector = findMediaConnector();
+            StringBuffer sb2 = new StringBuffer("handlePlayPosition: mediaConnector after lazy lookup=");
+            sb2.append(mediaConnector != null ? "non-null" : "null");
+            debugLog(sb2.toString());
+        }
+        if (mediaConnector == null) {
+            debugLog("handlePlayPosition: returning early (no media connector)");
+            return;
+        }
+        try {
+            Object combiModule = AAJavaBridge.getCombiModule();
+            Object terminalModeService = null;
+            if (combiModule != null) {
+                try {
+                    terminalModeService = combiModule.getClass().getMethod(
+                        "getTerminalModeService", new Class[0]).invoke(combiModule, new Object[0]);
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handlePlayPosition: getTerminalModeService threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+            }
+            if (terminalModeService != null) {
+                try {
+                    Class<?> playPositionCls = forName("de.audi.atip.interapp.combi.bap.audio.data.PlayPosition");
+                    if (playPositionCls != null) {
+                        Class<?> builderCls = forName("de.audi.atip.interapp.combi.bap.audio.data.PlayPosition$Builder");
+                        Object builder = builderCls.getDeclaredConstructor().newInstance();
+                        Class<?> timeStampCls = forName("de.audi.atip.interapp.bap.data.TimeStamp");
+                        Object elapsed = timeStampCls.getMethod("getInstanceFromSeconds", new Class[]{int.class}).invoke(null, new Object[]{new Integer(position / 1000)});
+                        Object totalSecs = timeStampCls.getMethod("getInstanceFromSeconds", new Class[]{int.class}).invoke(null, new Object[]{new Integer((int) (lastDurationMs / 1000))});
+                        Method setTimePosition = builderCls.getMethod("setTimePosition", new Class[]{timeStampCls});
+                        Method setTotalPlayTime = builderCls.getMethod("setTotalPlayTime", new Class[]{timeStampCls});
+                        Method setVariableBitRate = builderCls.getMethod("setVariableBitRate", new Class[]{boolean.class});
+                        Method build = builderCls.getMethod("build", new Class[0]);
+                        setTimePosition.invoke(builder, new Object[]{elapsed});
+                        setTotalPlayTime.invoke(builder, new Object[]{totalSecs});
+                        setVariableBitRate.invoke(builder, new Object[]{new Boolean(false)});
+                        Object playPos = build.invoke(builder, new Object[0]);
+                        Method updatePlayPosition = terminalModeService.getClass().getMethod("updatePlayPosition", new Class[]{playPositionCls});
+                        updatePlayPosition.setAccessible(true);
+                        updatePlayPosition.invoke(terminalModeService, new Object[]{playPos});
+                        StringBuffer sbpp = new StringBuffer("handlePlayPosition: PlayPosition(");
+                        sbpp.append(position / 1000);
+                        sbpp.append("/");
+                        sbpp.append(lastDurationMs / 1000);
+                        sbpp.append(") sent to terminalModeService.updatePlayPosition");
+                        debugLog(sbpp.toString());
+                    }
+                } catch (Throwable t) {
+                    StringBuffer sbx = new StringBuffer("handlePlayPosition: terminalModeService.updatePlayPosition threw ");
+                    sbx.append(t);
+                    debugLog(sbx.toString());
+                }
+            }
+        } catch (Throwable t) {
+            StringBuffer sbx = new StringBuffer("handlePlayPosition: threw ");
+            sbx.append(t);
+            debugLog(sbx.toString());
         }
     }
 

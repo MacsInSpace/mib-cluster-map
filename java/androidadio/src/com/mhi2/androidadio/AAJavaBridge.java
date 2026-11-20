@@ -167,6 +167,21 @@ public class AAJavaBridge {
         }
     }
 
+    public static void onPlayPosition(int position, int instanceId) {
+        debugLog("AAJavaBridge.onPlayPosition called");
+        if (trackProvider != null) {
+            try {
+                java.lang.reflect.Method m = trackProvider.getClass().getMethod(
+                    "handlePlayPosition", new Class[]{int.class, int.class});
+                m.invoke(trackProvider, new Object[]{new Integer(position), new Integer(instanceId)});
+            } catch (Throwable t) {
+                StringBuffer sb = new StringBuffer("onPlayPosition: trackProvider.handlePlayPosition threw ");
+                sb.append(t);
+                debugLog(sb.toString());
+            }
+        }
+    }
+
     public static void onNextTurnEvent(String roadName, int mainElement, int direction, int turnAngle, int turnNumber, int event) {
         debugLog("AAJavaBridge.onNextTurnEvent called");
         if (maneuverProvider != null) {

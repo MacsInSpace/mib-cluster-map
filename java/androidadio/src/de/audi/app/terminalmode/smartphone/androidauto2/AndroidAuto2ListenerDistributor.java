@@ -309,6 +309,7 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
         forwardUpdatePlaybackState(a, b);
     }
     public void updatePlayposition(int a, int b) {
+        try { com.mhi2.androidadio.AAJavaBridge.onPlayPosition(a, b); } catch (Throwable t) {}
         forwardUpdatePlayposition(a, b);
     }
     public void setExternalDestination(double a, double b, String c, String d, int e) {
