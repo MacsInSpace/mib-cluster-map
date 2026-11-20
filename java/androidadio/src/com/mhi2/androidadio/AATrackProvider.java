@@ -2,16 +2,13 @@ package com.mhi2.androidadio;
 
 import java.io.FileWriter;
 import java.io.PrintWriter;
-import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import org.dsi.ifc.androidauto2.TrackData;
 import org.dsi.ifc.global.ResourceLocator;
 
 public class AATrackProvider {
-    private static final int SOURCE_TYPE_BT_STREAM = 3;
     private static AATrackProvider instance;
     private Object log;
     private Object mediaConnector;
@@ -24,8 +21,6 @@ public class AATrackProvider {
     private long lastListRef;
     private long lastDurationMs;
     private String lastCoverUrlNormalized;
-    private Object currentCoverLocator;
-    private boolean pictureProviderRegistered;
 
     public static AATrackProvider getInstance() {
         return instance;
@@ -42,8 +37,6 @@ public class AATrackProvider {
         lastListRef = 0;
         lastDurationMs = 0;
         lastCoverUrlNormalized = "";
-        currentCoverLocator = null;
-        pictureProviderRegistered = false;
         debugLog("AATrackProvider.<init> entered (lazy service lookup)");
     }
 
@@ -544,10 +537,10 @@ public class AATrackProvider {
             Method getListRef = infoCls.getMethod("getListRef", new Class[0]);
             lastListRef = ((Integer) getListRef.invoke(info, new Object[0])).intValue();
 
-            // Send updateCurrentStation to AppConnectorTerminalMode (active audio app during Android Auto)
+            // Send updateCurrentStation to media connector (AppConnectorMedia handles cover art + text)
             Object combiModule = AAJavaBridge.getCombiModule();
+            Object mediaConn = AAJavaBridge.getMediaConnector();
             Object terminalModeService = null;
-            Object pictureManager = null;
             if (combiModule != null) {
                 try {
                     terminalModeService = combiModule.getClass().getMethod(
@@ -557,60 +550,31 @@ public class AATrackProvider {
                     sbx.append(t);
                     debugLog(sbx.toString());
                 }
+            }
+            if (mediaConn != null) {
                 try {
-                pictureManager = combiModule.getClass().getMethod(
-                        "getPictureManager", new Class[0]).invoke(combiModule, new Object[0]);
+                    Method updateCurrentStation = mediaConn.getClass().getMethod(
+                        "updateCurrentStation", new Class[]{infoCls});
+                    updateCurrentStation.invoke(mediaConn, new Object[]{info});
+                    StringBuffer sb4 = new StringBuffer("handleNowPlayingData: AppConnectorMedia.updateCurrentStation(info) called, listRef=");
+                    sb4.append(lastListRef);
+                    debugLog(sb4.toString());
                 } catch (Throwable t) {
-                    StringBuffer sbx = new StringBuffer("handleNowPlayingData: getPictureManager threw ");
+                    StringBuffer sbx = new StringBuffer("handleNowPlayingData: mediaConn.updateCurrentStation threw ");
                     sbx.append(t);
                     debugLog(sbx.toString());
                 }
-                registerPictureProviderProxy(pictureManager);
-            }
-            if (terminalModeService != null) {
+            } else if (terminalModeService != null) {
                 try {
-                    // Log focus state before sending cover art
-                    try {
-                        Method isFocused = terminalModeService.getClass().getMethod("isAudioApplicationInFocus", new Class[0]);
-                        isFocused.setAccessible(true);
-                        Boolean focused = (Boolean) isFocused.invoke(terminalModeService, new Object[0]);
-                        StringBuffer sbFocus = new StringBuffer("handleNowPlayingData: isAudioApplicationInFocus=");
-                        sbFocus.append(focused);
-                        debugLog(sbFocus.toString());
-                    } catch (Throwable t) {
-                        StringBuffer sbx = new StringBuffer("handleNowPlayingData: isAudioApplicationInFocus check threw ");
-                        sbx.append(t);
-                        debugLog(sbx.toString());
-                    }
-                    // Look up updateCurrentStation, walking superclass chain.
-                    // AbstractAppConnectorAudio is package-private in de.audi.app.combi.bap.app.audio,
-                    // so setAccessible(true) is required to call from com.mhi2.androidadio.
-                    // Note: AppConnectorTerminalMode.updateCurrentStation() internally calls pushCoverArt(info)
-                    // which sends IPictureManager.responseCoverArt(listRef, sourceType, ResourceLocator, true).
-                    // Do NOT also call updateStationArt() or responseStationArt()/responseCoverArt() directly -
-                    // that would duplicate cover art delivery with conflicting parameters.
-                    Method updateCurrentStation = null;
-                    Class<?> ucsCls = terminalModeService.getClass();
-                    while (ucsCls != null && updateCurrentStation == null) {
-                        try {
-                            updateCurrentStation = ucsCls.getDeclaredMethod("updateCurrentStation", new Class[]{infoCls});
-                        } catch (NoSuchMethodException e) {
-                            ucsCls = ucsCls.getSuperclass();
-                        }
-                    }
-                    if (updateCurrentStation != null) {
-                        updateCurrentStation.setAccessible(true);
-                        updateCurrentStation.invoke(terminalModeService, new Object[]{info});
-                        StringBuffer sb4 = new StringBuffer("handleNowPlayingData: AppConnectorTerminalMode.updateCurrentStation(info) called, listRef=");
-                        sb4.append(lastListRef);
-                        debugLog(sb4.toString());
-                    } else {
-                        StringBuffer sbx = new StringBuffer("handleNowPlayingData: updateCurrentStation method not found on ");
-                        sbx.append(terminalModeService.getClass().getName());
-                        debugLog(sbx.toString());
-                    }
+                    Method pushCoverArt = terminalModeService.getClass().getDeclaredMethod(
+                        "pushCoverArt", new Class[]{infoCls});
+                    pushCoverArt.setAccessible(true);
+                    pushCoverArt.invoke(terminalModeService, new Object[]{info});
+                    StringBuffer sb5 = new StringBuffer("handleNowPlayingData: AppConnectorTerminalMode.pushCoverArt(info) called, listRef=");
+                    sb5.append(lastListRef);
+                    debugLog(sb5.toString());
                 } catch (Throwable t) {
-                    StringBuffer sbx = new StringBuffer("handleNowPlayingData: terminalModeService.updateCurrentStation threw ");
+                    StringBuffer sbx = new StringBuffer("handleNowPlayingData: terminalModeService.pushCoverArt threw ");
                     sbx.append(t);
                     debugLog(sbx.toString());
                 }
@@ -681,24 +645,6 @@ public class AATrackProvider {
         lastCoverUrl = url;
         lastCoverUrlNormalized = normalizeCoverArtUrl(lastCoverUrl);
         lastPictureId = resourceLocator.getId();
-        // Build currentCoverLocator for IPictureProvider proxy responses
-        Object newCoverLocator = null;
-        try {
-            Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
-            String coverUrlForLocator = (lastCoverUrlNormalized != null && lastCoverUrlNormalized.length() > 0) ? lastCoverUrlNormalized : lastCoverUrl;
-            newCoverLocator = locatorCls.getDeclaredConstructor(
-                new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(lastPictureId), coverUrlForLocator});
-            currentCoverLocator = newCoverLocator;
-            StringBuffer sbLoc = new StringBuffer("handleCoverArtUrl: currentCoverLocator stored, pictureId=");
-            sbLoc.append(lastPictureId);
-            sbLoc.append(" url=");
-            sbLoc.append(coverUrlForLocator);
-            debugLog(sbLoc.toString());
-        } catch (Throwable t) {
-            StringBuffer sbx = new StringBuffer("handleCoverArtUrl: currentCoverLocator creation threw ");
-            sbx.append(t);
-            debugLog(sbx.toString());
-        }
         StringBuffer sb3 = new StringBuffer("handleCoverArtUrl: url='");
         sb3.append(url);
         sb3.append("' pictureId=");
@@ -738,34 +684,9 @@ public class AATrackProvider {
             }
             Method getListRef = infoCls.getMethod("getListRef", new Class[0]);
             lastListRef = ((Integer) getListRef.invoke(info, new Object[0])).intValue();
-            // Proactively push cover art to IPictureManager so Virtual Cockpit's
-            // MOST picture request resolves immediately (AppConnectorTerminalMode
-            // from /ifs/lsd.jxe does NOT register an IPictureProvider or push cover art)
-            if (changed && currentCoverLocator != null) {
-                try {
-                    Object pm2 = AAJavaBridge.getPictureManager();
-                    if (pm2 != null) {
-                        Method rc = pm2.getClass().getMethod(
-                            "responseCoverArt", new Class[]{long.class, int.class, Object.class, boolean.class});
-                        rc.invoke(pm2, new Object[]{new Long(lastListRef), new Integer(SOURCE_TYPE_BT_STREAM), currentCoverLocator, new Boolean(true)});
-                        StringBuffer sbp = new StringBuffer("handleCoverArtUrl: proactive IPictureManager.responseCoverArt(listRef=");
-                        sbp.append(lastListRef);
-                        sbp.append(", sourceType=");
-                        sbp.append(SOURCE_TYPE_BT_STREAM);
-                        sbp.append(")");
-                        debugLog(sbp.toString());
-                    }
-                } catch (Throwable t) {
-                    StringBuffer sbx = new StringBuffer("handleCoverArtUrl: proactive responseCoverArt threw ");
-                    sbx.append(t);
-                    debugLog(sbx.toString());
-                }
-            }
-
-            // Send updateCurrentStation to AppConnectorTerminalMode (active audio app during Android Auto)
+            // Send updateCurrentStation to media connector (AppConnectorMedia handles cover art + text)
             Object combiModule = AAJavaBridge.getCombiModule();
             Object terminalModeService = null;
-            Object pictureManager2 = null;
             if (combiModule != null) {
                 try {
                     terminalModeService = combiModule.getClass().getMethod(
@@ -775,60 +696,31 @@ public class AATrackProvider {
                     sbx.append(t);
                     debugLog(sbx.toString());
                 }
+            }
+            if (mediaConnector != null) {
                 try {
-                    pictureManager2 = combiModule.getClass().getMethod(
-                        "getPictureManager", new Class[0]).invoke(combiModule, new Object[0]);
+                    Method updateCurrentStation = mediaConnector.getClass().getMethod(
+                        "updateCurrentStation", new Class[]{infoCls});
+                    updateCurrentStation.invoke(mediaConnector, new Object[]{info});
+                    StringBuffer sb6 = new StringBuffer("handleCoverArtUrl: AppConnectorMedia.updateCurrentStation(info) called, listRef=");
+                    sb6.append(lastListRef);
+                    debugLog(sb6.toString());
                 } catch (Throwable t) {
-                    StringBuffer sbx = new StringBuffer("handleCoverArtUrl: getPictureManager threw ");
+                    StringBuffer sbx = new StringBuffer("handleCoverArtUrl: mediaConnector.updateCurrentStation threw ");
                     sbx.append(t);
                     debugLog(sbx.toString());
                 }
-                registerPictureProviderProxy(pictureManager2);
-            }
-            if (terminalModeService != null) {
+            } else if (terminalModeService != null) {
                 try {
-                    // Log focus state before sending cover art
-                    try {
-                        Method isFocused = terminalModeService.getClass().getMethod("isAudioApplicationInFocus", new Class[0]);
-                        isFocused.setAccessible(true);
-                        Boolean focused = (Boolean) isFocused.invoke(terminalModeService, new Object[0]);
-                        StringBuffer sbFocus = new StringBuffer("handleCoverArtUrl: isAudioApplicationInFocus=");
-                        sbFocus.append(focused);
-                        debugLog(sbFocus.toString());
-                    } catch (Throwable t) {
-                        StringBuffer sbx = new StringBuffer("handleCoverArtUrl: isAudioApplicationInFocus check threw ");
-                        sbx.append(t);
-                        debugLog(sbx.toString());
-                    }
-                    // Look up updateCurrentStation, walking superclass chain.
-                    // AbstractAppConnectorAudio is package-private in de.audi.app.combi.bap.app.audio,
-                    // so setAccessible(true) is required to call from com.mhi2.androidadio.
-                    // Note: AppConnectorTerminalMode.updateCurrentStation() internally calls pushCoverArt(info)
-                    // which sends IPictureManager.responseCoverArt(listRef, sourceType, ResourceLocator, true).
-                    // Do NOT also call updateStationArt() or responseStationArt()/responseCoverArt() directly -
-                    // that would duplicate cover art delivery with conflicting parameters.
-                    Method updateCurrentStation = null;
-                    Class<?> ucsCls = terminalModeService.getClass();
-                    while (ucsCls != null && updateCurrentStation == null) {
-                        try {
-                            updateCurrentStation = ucsCls.getDeclaredMethod("updateCurrentStation", new Class[]{infoCls});
-                        } catch (NoSuchMethodException e) {
-                            ucsCls = ucsCls.getSuperclass();
-                        }
-                    }
-                    if (updateCurrentStation != null) {
-                        updateCurrentStation.setAccessible(true);
-                        updateCurrentStation.invoke(terminalModeService, new Object[]{info});
-                        StringBuffer sb6 = new StringBuffer("handleCoverArtUrl: AppConnectorTerminalMode.updateCurrentStation(info) called, listRef=");
-                        sb6.append(lastListRef);
-                        debugLog(sb6.toString());
-                    } else {
-                        StringBuffer sbx = new StringBuffer("handleCoverArtUrl: updateCurrentStation method not found on ");
-                        sbx.append(terminalModeService.getClass().getName());
-                        debugLog(sbx.toString());
-                    }
+                    Method pushCoverArt = terminalModeService.getClass().getDeclaredMethod(
+                        "pushCoverArt", new Class[]{infoCls});
+                    pushCoverArt.setAccessible(true);
+                    pushCoverArt.invoke(terminalModeService, new Object[]{info});
+                    StringBuffer sb7 = new StringBuffer("handleCoverArtUrl: AppConnectorTerminalMode.pushCoverArt(info) called, listRef=");
+                    sb7.append(lastListRef);
+                    debugLog(sb7.toString());
                 } catch (Throwable t) {
-                    StringBuffer sbx = new StringBuffer("handleCoverArtUrl: terminalModeService.updateCurrentStation threw ");
+                    StringBuffer sbx = new StringBuffer("handleCoverArtUrl: terminalModeService.pushCoverArt threw ");
                     sbx.append(t);
                     debugLog(sbx.toString());
                 }
@@ -901,61 +793,6 @@ public class AATrackProvider {
             }
         } catch (Throwable t) {
             StringBuffer sbx = new StringBuffer("handlePlayPosition: threw ");
-            sbx.append(t);
-            debugLog(sbx.toString());
-        }
-    }
-
-    private void registerPictureProviderProxy(Object pictureManager) {
-        if (pictureManager == null || pictureProviderRegistered) return;
-        try {
-            Class<?> ipcCls = forName("de.audi.app.combi.bap.app.kombipictures.IPictureProvider");
-            ClassLoader cl = ipcCls.getClassLoader();
-            final Object pm = pictureManager;
-            Object proxy = Proxy.newProxyInstance(cl, new Class[]{ipcCls}, new InvocationHandler() {
-                public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-                    String mn = method.getName();
-                    if ("requestPicture".equals(mn)) {
-                        long bapEntryID = 0;
-                        int instanceId = 255;
-                        if (args != null && args.length >= 1 && args[0] instanceof Long) {
-                            bapEntryID = ((Long) args[0]).longValue();
-                        }
-                        if (args != null && args.length >= 2 && args[1] instanceof Integer) {
-                            instanceId = ((Integer) args[1]).intValue();
-                        }
-                        StringBuffer sb = new StringBuffer("IPictureProvider.proxy.requestPicture bapEntryID=");
-                        sb.append(bapEntryID);
-                        sb.append(" instanceId=");
-                        sb.append(instanceId);
-                        debugLog(sb.toString());
-                        if (currentCoverLocator != null && pm != null) {
-                            try {
-                                Method rc = pm.getClass().getMethod(
-                                    "responseCoverArt", new Class[]{long.class, int.class, Object.class, boolean.class});
-                                rc.invoke(pm, new Object[]{
-                                    new Long(bapEntryID), new Integer(instanceId), currentCoverLocator, new Boolean(false)});
-                                StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
-                                sb2.append(bapEntryID);
-                                debugLog(sb2.toString());
-                            } catch (Throwable t) {
-                                StringBuffer sbx = new StringBuffer("IPictureProvider.proxy.responseCoverArt threw ");
-                                sbx.append(t);
-                                debugLog(sbx.toString());
-                            }
-                        }
-                    }
-                    return null;
-                }
-            });
-            Method reg = pictureManager.getClass().getMethod(
-                "registerPictureProvider", new Class[]{int.class, ipcCls});
-            reg.invoke(pictureManager, new Object[]{new Integer(3), proxy});
-            pictureProviderRegistered = true;
-            StringBuffer sb3 = new StringBuffer("AATrackProvider: IPictureProvider proxy registered with type=3");
-            debugLog(sb3.toString());
-        } catch (Throwable t) {
-            StringBuffer sbx = new StringBuffer("AATrackProvider: registerPictureProviderProxy threw ");
             sbx.append(t);
             debugLog(sbx.toString());
         }

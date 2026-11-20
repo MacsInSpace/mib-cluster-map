@@ -53,6 +53,7 @@ public class AppConnectorMedia extends de.audi.app.combi.bap.app.audio.AbstractA
         module.getPictureManager().registerPictureProvider(0, pictureProvider);
         try {
             com.mhi2.androidadio.AAJavaBridge.setCombiModule(module);
+            com.mhi2.androidadio.AAJavaBridge.setPictureManager(module.getPictureManager());
         } catch (Throwable t) {}
     }
 
