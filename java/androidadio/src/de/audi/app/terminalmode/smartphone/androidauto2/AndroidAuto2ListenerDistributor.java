@@ -21,6 +21,9 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
         this.context = context;
         this.listeners = new Vector();
         try {
+            AAJavaBridge.setAppClass(this.getClass());
+        } catch (Throwable t) {}
+        try {
             this.logger = new StubLogChannel();
         } catch (Throwable t) {}
         debugLog("AndroidAuto2ListenerDistributor.<init> called");

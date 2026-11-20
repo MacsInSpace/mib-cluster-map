@@ -108,6 +108,22 @@ public class AAManeuverProvider {
         debugLog("AAManeuverProvider.<init> entered (lazy clusterService lookup)");
     }
 
+    private static Class<?> forName(String name) {
+        ClassLoader cl = AAJavaBridge.getAppClassLoader();
+        if (cl != null) {
+            try {
+                return Class.forName(name, true, cl);
+            } catch (ClassNotFoundException e) {
+                // fall through to 1-arg
+            }
+        }
+        try {
+            return Class.forName(name);
+        } catch (ClassNotFoundException e) {
+            return null;
+        }
+    }
+
     private Object getLogChannel() {
         try {
             Object bc = AAJavaBridge.getBundleContext();
@@ -130,7 +146,10 @@ public class AAManeuverProvider {
             }
         } catch (Throwable t) {}
         try {
-            Class<?> cls = Class.forName("de.audi.atip.base.IFrameworkAccess");
+            Class<?> cls = forName("de.audi.atip.base.IFrameworkAccess");
+            if (cls == null) {
+                debugLog("getLogChannel: static instance lookup threw ClassNotFoundException");
+            }
             Class<?> c = cls;
             java.lang.reflect.Field f = null;
             while (c != null) {
@@ -178,7 +197,10 @@ public class AAManeuverProvider {
             debugLog(sb.toString());
         }
         try {
-            Class<?> cls = Class.forName("de.audi.tghu.navi.app.cluster.ClusterService");
+            Class<?> cls = forName("de.audi.tghu.navi.app.cluster.ClusterService");
+            if (cls == null) {
+                debugLog("findClusterService: static field lookup threw ClassNotFoundException");
+            }
             Class<?> c = cls;
             java.lang.reflect.Field f = null;
             while (c != null) {

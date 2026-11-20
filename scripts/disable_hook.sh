@@ -257,18 +257,19 @@ if [ -f "$LSD_DST" ] && [ ! -r "$LSD_DST.stock" ]; then
     fi
 fi
 
-# Remove the -Xbootclasspath/p: line for AAcoverart_hook.jar from lsd.sh.
-LSD_SH=/mnt/app/eso/hmi/lsd/lsd.sh
-if mount -uw /mnt/app 2>/dev/null; then
-    if grep -q 'AAcoverart_hook.jar' "$LSD_SH" 2>/dev/null; then
-        awk '/AAcoverart_hook.jar/ { next } { print }' "$LSD_SH" > "$LSD_SH.new" && \
-        [ "`wc -l < "$LSD_SH.new"`" -gt 10 ] && \
-        mv "$LSD_SH.new" "$LSD_SH" && \
-        chmod 755 "$LSD_SH" && \
-        sync && \
-        echo "Java check: removed -Xbootclasspath/p: for AAcoverart_hook.jar from lsd.sh"
+# Remove the -Xbootclasspath/p: line for AAcoverart_hook.jar from lsd.sh and runHMI.sh.
+for LSD_SH in /mnt/app/eso/hmi/lsd/lsd.sh /mnt/app/eso/hmi/lsd/runHMI.sh /mnt/app/eso/hmi/runHMI.sh; do
+    if [ -r "$LSD_SH" ] && mount -uw /mnt/app 2>/dev/null; then
+        if grep -q 'AAcoverart_hook.jar' "$LSD_SH" 2>/dev/null; then
+            awk '/AAcoverart_hook.jar/ { next } { print }' "$LSD_SH" > "$LSD_SH.new" && \
+            [ "`wc -l < "$LSD_SH.new"`" -gt 10 ] && \
+            mv "$LSD_SH.new" "$LSD_SH" && \
+            chmod 755 "$LSD_SH" && \
+            sync && \
+            echo "Java check: removed -Xbootclasspath/p: for AAcoverart_hook.jar from $LSD_SH"
+        fi
+        mount -ur /mnt/app 2>/dev/null || true
     fi
-    mount -ur /mnt/app 2>/dev/null || true
-fi
+done
 
 echo "Reboot the unit to run GAL without the hook."

@@ -63,7 +63,10 @@ public class AATrackProvider {
             debugLog(sb.toString());
         }
         try {
-            Class<?> cls = Class.forName("de.audi.atip.base.IFrameworkAccess");
+            Class<?> cls = forName("de.audi.atip.base.IFrameworkAccess");
+            if (cls == null) {
+                debugLog("getLogChannel: static instance lookup threw ClassNotFoundException");
+            }
             Class<?> c = cls;
             java.lang.reflect.Field f = null;
             while (c != null) {
@@ -99,9 +102,13 @@ public class AATrackProvider {
             }
         } catch (Throwable t) {}
         try {
-            Class<?> fuCls = Class.forName("org.osgi.framework.FrameworkUtil");
+            Class<?> fuCls = forName("org.osgi.framework.FrameworkUtil");
+            if (fuCls == null) {
+                debugLog("AATrackProvider.getBundleContext: FrameworkUtil not found");
+                return null;
+            }
             Method getBundle = fuCls.getMethod("getBundle", Class.class);
-            Object bundle = getBundle.invoke(null, AATrackProvider.class);
+            Object bundle = getBundle.invoke(null, AAJavaBridge.getAppClass());
             if (bundle != null) {
                 Method getBC = bundle.getClass().getMethod("getBundleContext");
                 Object bc2 = getBC.invoke(bundle);
@@ -142,14 +149,18 @@ public class AATrackProvider {
             debugLog(sb.toString());
         }
         try {
-            Class<?> cls = Class.forName("de.audi.app.combi.bap.app.audio.CombiModuleAudio");
-            Method getMediaService = cls.getMethod("getMediaService");
-            Object mod = findStaticInstance(cls);
-            if (mod != null) {
-                Object svc = getMediaService.invoke(mod);
-                if (svc != null && "de.audi.app.combi.bap.app.audio.AppConnectorMedia".equals(svc.getClass().getName())) {
-                    debugLog("findMediaConnector: found via CombiModuleAudio.getMediaService");
-                    return svc;
+            Class<?> cls = forName("de.audi.app.combi.bap.app.audio.CombiModuleAudio");
+            if (cls == null) {
+                debugLog("findMediaConnector: CombiModuleAudio not found");
+            } else {
+                Method getMediaService = cls.getMethod("getMediaService");
+                Object mod = findStaticInstance(cls);
+                if (mod != null) {
+                    Object svc = getMediaService.invoke(mod);
+                    if (svc != null && "de.audi.app.combi.bap.app.audio.AppConnectorMedia".equals(svc.getClass().getName())) {
+                        debugLog("findMediaConnector: found via CombiModuleAudio.getMediaService");
+                        return svc;
+                    }
                 }
             }
         } catch (Throwable t) {
@@ -159,6 +170,22 @@ public class AATrackProvider {
         }
         debugLog("findMediaConnector: returning null");
         return null;
+    }
+
+    private static Class<?> forName(String name) {
+        ClassLoader cl = AAJavaBridge.getAppClassLoader();
+        if (cl != null) {
+            try {
+                return Class.forName(name, true, cl);
+            } catch (ClassNotFoundException e) {
+                // fall through to 1-arg
+            }
+        }
+        try {
+            return Class.forName(name);
+        } catch (ClassNotFoundException e) {
+            return null;
+        }
     }
 
     private Object findStaticInstance(Class<?> cls) throws Exception {
@@ -272,7 +299,11 @@ public class AATrackProvider {
             return;
         }
         try {
-            Class<?> infoCls = Class.forName("de.audi.atip.interapp.combi.bap.audio.data.CombiBAPCurrentStationInfo");
+            Class<?> infoCls = forName("de.audi.atip.interapp.combi.bap.audio.data.CombiBAPCurrentStationInfo");
+            if (infoCls == null) {
+                debugLog("CombiBAPCurrentStationInfo not found");
+                return;
+            }
             Object info = infoCls.getDeclaredConstructor().newInstance();
             Method setPrimary = infoCls.getMethod("setPrimaryInformation", String.class, int.class, int.class);
             setPrimary.invoke(info, title, 0, 0);
@@ -337,7 +368,11 @@ public class AATrackProvider {
         }
         try {
             long listRef = lastListRef != 0 ? lastListRef : 1;
-            Class<?> infoCls = Class.forName("de.audi.atip.interapp.combi.bap.audio.data.CombiBAPCurrentStationInfo");
+            Class<?> infoCls = forName("de.audi.atip.interapp.combi.bap.audio.data.CombiBAPCurrentStationInfo");
+            if (infoCls == null) {
+                debugLog("CombiBAPCurrentStationInfo not found");
+                return;
+            }
             Object info = infoCls.getDeclaredConstructor().newInstance();
             Method setPrimary = infoCls.getMethod("setPrimaryInformation", String.class, int.class, int.class);
             setPrimary.invoke(info, lastTitle, 0, 0);

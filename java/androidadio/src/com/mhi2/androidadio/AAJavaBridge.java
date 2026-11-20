@@ -13,9 +13,31 @@ public class AAJavaBridge {
     private static Object bundleContext;
     private static Object trackProvider;
     private static Object maneuverProvider;
+    private static Class appClass;
+    private static ClassLoader appClassLoader;
 
     static {
         init();
+    }
+
+    public static void setAppClass(Class cls) {
+        appClass = cls;
+        if (cls != null) {
+            appClassLoader = cls.getClassLoader();
+        }
+        StringBuffer sb = new StringBuffer("AAJavaBridge.setAppClass called, appClass=");
+        sb.append(appClass != null ? "set" : "null");
+        sb.append(" appClassLoader=");
+        sb.append(appClassLoader != null ? "set" : "null");
+        debugLog(sb.toString());
+    }
+
+    public static Class getAppClass() {
+        return appClass;
+    }
+
+    public static ClassLoader getAppClassLoader() {
+        return appClassLoader;
     }
 
     public static void setBundleContext(Object bc) {
