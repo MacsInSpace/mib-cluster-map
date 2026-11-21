@@ -29,7 +29,6 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
             this.logger = new StubLogChannel();
         } catch (Throwable t) {}
         debugLog("AndroidAuto2ListenerDistributor.<init> called");
-        dumpObject(context, "IContext");
         discoverReferences(context);
     }
 
@@ -41,7 +40,6 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
                     StringBuffer lbl = new StringBuffer("listener[");
                     lbl.append(i);
                     lbl.append("]");
-                    dumpObject(listeners[i], lbl.toString());
                     discoverReferences(listeners[i]);
                     if (AAJavaBridge.getAppClassLoader() == null) {
                         try {
@@ -55,63 +53,6 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
         if (!discoveryDone) {
             discoveryDone = true;
             debugLog("Discovery phase complete");
-        }
-    }
-
-    private void dumpObject(Object obj, String label) {
-        if (obj == null) {
-            StringBuffer sbn = new StringBuffer("DUMP ");
-            sbn.append(label);
-            sbn.append(" is null");
-            debugLog(sbn.toString());
-            return;
-        }
-        try {
-            StringBuffer sb = new StringBuffer("DUMP ");
-            sb.append(label);
-            sb.append(" class=");
-            sb.append(obj.getClass().getName());
-            debugLog(sb.toString());
-
-            java.lang.reflect.Method[] methods = obj.getClass().getMethods();
-            for (int i = 0; i < methods.length; i++) {
-                StringBuffer sm = new StringBuffer("  METHOD ");
-                sm.append(methods[i].getName());
-                sm.append("(");
-                Class[] params = methods[i].getParameterTypes();
-                for (int j = 0; j < params.length; j++) {
-                    if (j > 0) sm.append(",");
-                    sm.append(params[j].getName());
-                }
-                sm.append(") -> ");
-                sm.append(methods[i].getReturnType().getName());
-                debugLog(sm.toString());
-            }
-
-            Class cls = obj.getClass();
-            while (cls != null) {
-                java.lang.reflect.Field[] fields = cls.getDeclaredFields();
-                for (int i = 0; i < fields.length; i++) {
-                    try {
-                        fields[i].setAccessible(true);
-                        Object val = fields[i].get(obj);
-                        StringBuffer sf = new StringBuffer("  FIELD ");
-                        sf.append(fields[i].getName());
-                        sf.append(" type=");
-                        sf.append(fields[i].getType().getName());
-                        sf.append(" value=");
-                        sf.append(val != null ? val : "null");
-                        debugLog(sf.toString());
-                    } catch (Throwable t) {}
-                }
-                cls = cls.getSuperclass();
-            }
-        } catch (Throwable t) {
-            StringBuffer sbt = new StringBuffer("DUMP ");
-            sbt.append(label);
-            sbt.append(" threw ");
-            sbt.append(t);
-            debugLog(sbt.toString());
         }
     }
 
@@ -494,6 +435,7 @@ public class AndroidAuto2ListenerDistributor implements DSIAndroidAuto2Listener 
     }
 
     private void debugLog(String msg) {
+        if (!new java.io.File("/tmp/aa_debug").exists()) return;
         try {
             java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("HH:mm:ss.SSS");
             StringBuffer sb = new StringBuffer();

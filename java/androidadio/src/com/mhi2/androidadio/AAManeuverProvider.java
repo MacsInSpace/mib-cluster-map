@@ -1,5 +1,6 @@
 package com.mhi2.androidadio;
 
+import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.lang.reflect.Method;
@@ -246,6 +247,7 @@ public class AAManeuverProvider {
     }
 
     private static void debugLog(String msg) {
+        if (!new File("/tmp/aa_debug").exists()) return;
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS");
             StringBuffer sb = new StringBuffer();

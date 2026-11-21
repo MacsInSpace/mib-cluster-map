@@ -928,6 +928,7 @@ public class AATrackProvider {
     }
 
     private void debugLog(String msg) {
+        if (!new File("/tmp/aa_debug").exists()) return;
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS");
             StringBuffer sb = new StringBuffer();

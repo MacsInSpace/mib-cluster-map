@@ -124,6 +124,7 @@ public class AAJavaBridge {
     }
 
     public static void debugLog(String msg) {
+        if (!new java.io.File("/tmp/aa_debug").exists()) return;
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss.SSS");
             StringBuffer sb = new StringBuffer();
