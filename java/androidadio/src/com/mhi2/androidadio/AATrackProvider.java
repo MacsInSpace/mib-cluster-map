@@ -736,7 +736,7 @@ public class AATrackProvider {
                                             try {
                                                 Class<?> locatorCls3 = forName("org.dsi.ifc.global.ResourceLocator");
                                                 Object locator3 = locatorCls3.getDeclaredConstructor(
-                                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), AATrackProvider.this.currentCoverUrl});
+                                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(AATrackProvider.this.currentPicId > 0 ? AATrackProvider.this.currentPicId : 1), AATrackProvider.this.currentCoverUrl});
                                                 Method rc2 = null;
                                                 java.lang.reflect.Method[] pmMethods = pm.getClass().getMethods();
                                                 for (int i = 0; i < pmMethods.length; i++) {
@@ -1073,7 +1073,7 @@ public class AATrackProvider {
                                             try {
                                                 Class<?> locatorCls3 = forName("org.dsi.ifc.global.ResourceLocator");
                                                 Object locator3 = locatorCls3.getDeclaredConstructor(
-                                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), AATrackProvider.this.currentCoverUrl});
+                                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(AATrackProvider.this.currentPicId > 0 ? AATrackProvider.this.currentPicId : 1), AATrackProvider.this.currentCoverUrl});
                                                 Method rc2 = null;
                                                 java.lang.reflect.Method[] pmMethods = pm.getClass().getMethods();
                                                 for (int i = 0; i < pmMethods.length; i++) {
