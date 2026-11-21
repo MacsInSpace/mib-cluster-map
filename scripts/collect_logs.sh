@@ -21,7 +21,9 @@ ls -lR /mnt/ota/system/logs /net/rcc/tmp > $OUT/update_logs_listing.txt 2>&1
 ls -l /lib/libEGL* /lib/libGLESv2* /usr/lib/libEGL* > $OUT/gl_libs.txt 2>&1
 grep -n "gal" /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/gal_config_lines.txt 2>&1
 sh $HERE/scripts/hook_status.sh > $OUT/status.txt 2>&1
-grep -n 'Xbootclasspath' /mnt/app/eso/hmi/lsd/lsd.sh > $OUT/java_patches.txt 2>&1
+# AU57x lsd.sh adds patch jars as BOOTCLASSPATH="...:jar" lines (lsd_jar.sh),
+# which the Xbootclasspath line alone does not show.
+grep -n -e 'Xbootclasspath' -e '^BOOTCLASSPATH=' /mnt/app/eso/hmi/lsd/lsd.sh > $OUT/java_patches.txt 2>&1
 # Audi lsd.sh loads every jar in lsd/jars by itself (#51): list them too.
 { echo "--- lsd/jars"; ls -l /mnt/app/eso/hmi/lsd/jars /mnt/app/eso/hmi/lsd/jars_off; } >> $OUT/java_patches.txt 2>&1
 # dmdt buffers its output when it is not a terminal; the flush shim makes it
@@ -102,7 +104,7 @@ cat $OUT/context_check.txt >> $OUT/dmdt_gs.txt 2>/dev/null
 # CarPlay map: the supervisor, its player, and harman-f's hook state.
 mkdir -p $OUT/carplay
 cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log \
-   /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status /tmp/clustermap-wheelzoom.log $OUT/carplay/ 2>/dev/null
+   /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status /tmp/clustermap-wheelzoom.log /tmp/clustermap-gfxstate.log $OUT/carplay/ 2>/dev/null
 grep -n -e dio_manager -e libcarplay -e ALTSCREEN111 /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/carplay/config_lines.txt 2>&1
 grep -n carplay0 /mnt/system/etc/pf*.conf > $OUT/carplay/firewall_lines.txt 2>&1
 # Crash archives the unit's dumper keeps (pidin: dumper -d /mnt/ota/system/core).
