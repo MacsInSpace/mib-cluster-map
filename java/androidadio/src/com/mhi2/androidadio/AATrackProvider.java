@@ -23,6 +23,12 @@ public class AATrackProvider {
     private long lastListRef;
     private long lastDurationMs;
     private String lastCoverUrlNormalized;
+    // Instance fields read by IPictureProvider proxy so it always serves the
+    // latest track's cover art (registered once, not per-track)
+    private String currentCoverUrl;
+    private int currentSourceType;
+    private Object currentPictureManager;
+    private boolean pictureProviderRegistered;
 
     public static AATrackProvider getInstance() {
         return instance;
@@ -39,6 +45,10 @@ public class AATrackProvider {
         lastListRef = 0;
         lastDurationMs = 0;
         lastCoverUrlNormalized = "";
+        currentCoverUrl = "";
+        currentSourceType = 21;
+        currentPictureManager = null;
+        pictureProviderRegistered = false;
         debugLog("AATrackProvider.<init> entered (lazy service lookup)");
     }
 
@@ -573,6 +583,32 @@ public class AATrackProvider {
                         StringBuffer sb4 = new StringBuffer("handleNowPlayingData: terminalModeService.updateCurrentStation(info) called, listRef=");
                         sb4.append(lastListRef);
                         debugLog(sb4.toString());
+                        // Directly set fsgHandle on CurrentStation_Handle_Status (BAP Function 22)
+                        // so Virtual Cockpit sees real listRef instead of 65535 default
+                        if (combiModule != null) {
+                            try {
+                                Object func22 = combiModule.getClass().getMethod(
+                                    "getBAPFunctionPropertyFSG", new Class[]{int.class}).invoke(combiModule, new Object[]{new Integer(22)});
+                                if (func22 != null) {
+                                    Object status22 = func22.getClass().getMethod("getLastStatus", new Class[0]).invoke(func22, new Object[0]);
+                                    if (status22 != null) {
+                                        java.lang.reflect.Field fhField = status22.getClass().getField("fsgHandle");
+                                        fhField.setInt(status22, (int) lastListRef);
+                                        Method sendStatusIfChanged = func22.getClass().getMethod("sendStatusIfChanged", new Class[]{status22.getClass()});
+                                        sendStatusIfChanged.setAccessible(true);
+                                        sendStatusIfChanged.invoke(func22, new Object[]{status22});
+                                        StringBuffer sbfh = new StringBuffer("handleNowPlayingData: set fsgHandle=");
+                                        sbfh.append(lastListRef);
+                                        sbfh.append(" on CurrentStation_Handle_Status and sent");
+                                        debugLog(sbfh.toString());
+                                    }
+                                }
+                            } catch (Throwable t) {
+                                StringBuffer sbx = new StringBuffer("handleNowPlayingData: set fsgHandle threw ");
+                                sbx.append(t);
+                                debugLog(sbx.toString());
+                            }
+                        }
                     } else {
                         StringBuffer sbx = new StringBuffer("handleNowPlayingData: updateCurrentStation method not found on ");
                         sbx.append(terminalModeService.getClass().getName());
@@ -608,7 +644,11 @@ public class AATrackProvider {
                     }
                     Object pictureManager = combiModule.getClass().getMethod(
                         "getPictureManager", new Class[0]).invoke(combiModule, new Object[0]);
+                    // Store latest state for IPictureProvider proxy (serves latest track cover art)
+                    currentPictureManager = pictureManager;
                     if (pictureManager != null) {
+                        currentCoverUrl = coverUrlToUse;
+                        currentSourceType = sourceType;
                         Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
                         Object locator = locatorCls.getDeclaredConstructor(
                             new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrlToUse});
@@ -651,16 +691,13 @@ public class AATrackProvider {
                             debugLog(sbm.toString());
                         }
                     }
-                    // Register IPictureProvider proxy for on-demand requestPicture from cluster
-                    // (AbstractPictureManager.requestCoverArt looks up pictureProviders by type 0 hardcoded)
-                    if (pictureManager != null) {
+                    // Register IPictureProvider proxy once (AbstractPictureManager.requestCoverArt
+                    // looks up pictureProviders by type 0 hardcoded). Read currentCoverUrl /
+                    // currentSourceType from instance fields so proxy always serves latest track.
+                    if (pictureManager != null && !pictureProviderRegistered) {
                         try {
                             Class<?> ipcCls = forName("de.audi.app.combi.bap.app.kombipictures.IPictureProvider");
                             ClassLoader cl = ipcCls.getClassLoader();
-                            final Object pm = pictureManager;
-                            final String coverUrl = coverUrlToUse;
-                            final long bapEntryID = lastListRef;
-                            final int sourceTypeForProxy = sourceType;
                             Object proxy = Proxy.newProxyInstance(cl, new Class[]{ipcCls}, new InvocationHandler() {
                                 public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
                                     String mn = method.getName();
@@ -678,11 +715,12 @@ public class AATrackProvider {
                                         sb.append(" instanceId=");
                                         sb.append(instanceId);
                                         debugLog(sb.toString());
+                                        Object pm = AATrackProvider.this.currentPictureManager;
                                         if (pm != null) {
                                             try {
                                                 Class<?> locatorCls3 = forName("org.dsi.ifc.global.ResourceLocator");
                                                 Object locator3 = locatorCls3.getDeclaredConstructor(
-                                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrl});
+                                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), AATrackProvider.this.currentCoverUrl});
                                                 Method rc2 = null;
                                                 java.lang.reflect.Method[] pmMethods = pm.getClass().getMethods();
                                                 for (int i = 0; i < pmMethods.length; i++) {
@@ -695,7 +733,9 @@ public class AATrackProvider {
                                                 }
                                                 if (rc2 != null) {
                                                     rc2.setAccessible(true);
-                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(sourceTypeForProxy), locator3, new Boolean(false)});
+                                                    // Respond with bapEntryID2 (even if 65535) so Virtual
+                                                    // Cockpit matches cover art to its requested entry
+                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(AATrackProvider.this.currentSourceType), locator3, new Boolean(true)});
                                                     StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
                                                     sb2.append(bapEntryID2);
                                                     debugLog(sb2.toString());
@@ -713,8 +753,10 @@ public class AATrackProvider {
                             // Register under sourceType (e.g. 39) and type 0 (requestCoverArt hardcodes type 0)
                             Method reg = pictureManager.getClass().getMethod(
                                 "registerPictureProvider", new Class[]{int.class, ipcCls});
+                            reg.setAccessible(true);
                             reg.invoke(pictureManager, new Object[]{new Integer(sourceType), proxy});
                             reg.invoke(pictureManager, new Object[]{new Integer(0), proxy});
+                            pictureProviderRegistered = true;
                             StringBuffer sbReg = new StringBuffer("AATrackProvider: IPictureProvider proxy registered with type=");
                             sbReg.append(sourceType);
                             sbReg.append(" and type=0");
@@ -895,6 +937,32 @@ public class AATrackProvider {
                         StringBuffer sb6 = new StringBuffer("handleCoverArtUrl: terminalModeService.updateCurrentStation(info) called, listRef=");
                         sb6.append(lastListRef);
                         debugLog(sb6.toString());
+                        // Directly set fsgHandle on CurrentStation_Handle_Status (BAP Function 22)
+                        // so Virtual Cockpit sees real listRef instead of 65535 default
+                        if (combiModule != null) {
+                            try {
+                                Object func22 = combiModule.getClass().getMethod(
+                                    "getBAPFunctionPropertyFSG", new Class[]{int.class}).invoke(combiModule, new Object[]{new Integer(22)});
+                                if (func22 != null) {
+                                    Object status22 = func22.getClass().getMethod("getLastStatus", new Class[0]).invoke(func22, new Object[0]);
+                                    if (status22 != null) {
+                                        java.lang.reflect.Field fhField = status22.getClass().getField("fsgHandle");
+                                        fhField.setInt(status22, (int) lastListRef);
+                                        Method sendStatusIfChanged = func22.getClass().getMethod("sendStatusIfChanged", new Class[]{status22.getClass()});
+                                        sendStatusIfChanged.setAccessible(true);
+                                        sendStatusIfChanged.invoke(func22, new Object[]{status22});
+                                        StringBuffer sbfh = new StringBuffer("handleCoverArtUrl: set fsgHandle=");
+                                        sbfh.append(lastListRef);
+                                        sbfh.append(" on CurrentStation_Handle_Status and sent");
+                                        debugLog(sbfh.toString());
+                                    }
+                                }
+                            } catch (Throwable t) {
+                                StringBuffer sbx = new StringBuffer("handleCoverArtUrl: set fsgHandle threw ");
+                                sbx.append(t);
+                                debugLog(sbx.toString());
+                            }
+                        }
                     } else {
                         StringBuffer sbx = new StringBuffer("handleCoverArtUrl: updateCurrentStation method not found on ");
                         sbx.append(terminalModeService.getClass().getName());
@@ -930,7 +998,11 @@ public class AATrackProvider {
                     }
                     Object pictureManager = combiModule.getClass().getMethod(
                         "getPictureManager", new Class[0]).invoke(combiModule, new Object[0]);
+                    // Store latest state for IPictureProvider proxy (serves latest track cover art)
+                    currentPictureManager = pictureManager;
                     if (pictureManager != null) {
+                        currentCoverUrl = coverUrlToUse;
+                        currentSourceType = sourceType;
                         Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
                         Object locator = locatorCls.getDeclaredConstructor(
                             new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrlToUse});
@@ -973,16 +1045,13 @@ public class AATrackProvider {
                             debugLog(sbm.toString());
                         }
                     }
-                    // Register IPictureProvider proxy for on-demand requestPicture from cluster
-                    // (AbstractPictureManager.requestCoverArt looks up pictureProviders by type 0 hardcoded)
-                    if (pictureManager != null) {
+                    // Register IPictureProvider proxy once (AbstractPictureManager.requestCoverArt
+                    // looks up pictureProviders by type 0 hardcoded). Read currentCoverUrl /
+                    // currentSourceType from instance fields so proxy always serves latest track.
+                    if (pictureManager != null && !pictureProviderRegistered) {
                         try {
                             Class<?> ipcCls = forName("de.audi.app.combi.bap.app.kombipictures.IPictureProvider");
                             ClassLoader cl = ipcCls.getClassLoader();
-                            final Object pm = pictureManager;
-                            final String coverUrl = coverUrlToUse;
-                            final long bapEntryID = lastListRef;
-                            final int sourceTypeForProxy = sourceType;
                             Object proxy = Proxy.newProxyInstance(cl, new Class[]{ipcCls}, new InvocationHandler() {
                                 public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
                                     String mn = method.getName();
@@ -1000,11 +1069,12 @@ public class AATrackProvider {
                                         sb.append(" instanceId=");
                                         sb.append(instanceId);
                                         debugLog(sb.toString());
+                                        Object pm = AATrackProvider.this.currentPictureManager;
                                         if (pm != null) {
                                             try {
                                                 Class<?> locatorCls3 = forName("org.dsi.ifc.global.ResourceLocator");
                                                 Object locator3 = locatorCls3.getDeclaredConstructor(
-                                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrl});
+                                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), AATrackProvider.this.currentCoverUrl});
                                                 Method rc2 = null;
                                                 java.lang.reflect.Method[] pmMethods = pm.getClass().getMethods();
                                                 for (int i = 0; i < pmMethods.length; i++) {
@@ -1017,7 +1087,9 @@ public class AATrackProvider {
                                                 }
                                                 if (rc2 != null) {
                                                     rc2.setAccessible(true);
-                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(sourceTypeForProxy), locator3, new Boolean(false)});
+                                                    // Respond with bapEntryID2 (even if 65535) so Virtual
+                                                    // Cockpit matches cover art to its requested entry
+                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(AATrackProvider.this.currentSourceType), locator3, new Boolean(true)});
                                                     StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
                                                     sb2.append(bapEntryID2);
                                                     debugLog(sb2.toString());
@@ -1035,8 +1107,10 @@ public class AATrackProvider {
                             // Register under sourceType (e.g. 39) and type 0 (requestCoverArt hardcodes type 0)
                             Method reg = pictureManager.getClass().getMethod(
                                 "registerPictureProvider", new Class[]{int.class, ipcCls});
+                            reg.setAccessible(true);
                             reg.invoke(pictureManager, new Object[]{new Integer(sourceType), proxy});
                             reg.invoke(pictureManager, new Object[]{new Integer(0), proxy});
+                            pictureProviderRegistered = true;
                             StringBuffer sbReg = new StringBuffer("AATrackProvider: IPictureProvider proxy registered with type=");
                             sbReg.append(sourceType);
                             sbReg.append(" and type=0");
