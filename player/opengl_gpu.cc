@@ -1470,7 +1470,15 @@ static void* primary_mem_thread(void* arg) {
     FILE* p = popen("pidin info 2>/dev/null", "r");
     if (p) {
         char line[256];
+        bool first = true;
         while (fgets(line, sizeof(line), p)) {
+            if (first && !strstr(line, "FreeMem:")) {
+                /* Format not seen on these units yet: keep the first line. */
+                char* nl = strpbrk(line, "\r\n");
+                if (nl) *nl = '\0';
+                LOG("primary: pidin info: %s", line);
+            }
+            first = false;
             char* m = strstr(line, "FreeMem:");
             if (m) {
                 char* end = strpbrk(m, " \r\n");
