@@ -368,26 +368,26 @@ public class AATrackProvider {
     private String normalizeCoverArtUrl(String url) {
         if (url == null) return "";
         String normalized = url;
-        if (normalized.startsWith("/")) {
-            StringBuffer nb = new StringBuffer("file://");
-            nb.append(normalized);
-            normalized = nb.toString();
-            try {
-                java.io.File f = new java.io.File(url);
-                if (f.exists()) {
-                    StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: file exists size=");
-                    sb.append(f.length());
-                    debugLog(sb.toString());
-                } else {
-                    StringBuffer sbnf = new StringBuffer("normalizeCoverArtUrl: file does not exist: ");
-                    sbnf.append(url);
-                    debugLog(sbnf.toString());
-                }
-            } catch (Throwable t) {
-                StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: file check threw ");
-                sb.append(t);
+        // Strip "file://" prefix - MIB2 PictureManager/ResourceLocator IPC expects
+        // raw filesystem path (e.g. "/tmp/gal_albumArt_2.png"), not "file:///..."
+        if (normalized.startsWith("file://")) {
+            normalized = normalized.substring(7);
+        }
+        try {
+            java.io.File f = new java.io.File(normalized);
+            if (f.exists()) {
+                StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: file exists size=");
+                sb.append(f.length());
                 debugLog(sb.toString());
+            } else {
+                StringBuffer sbnf = new StringBuffer("normalizeCoverArtUrl: file does not exist: ");
+                sbnf.append(normalized);
+                debugLog(sbnf.toString());
             }
+        } catch (Throwable t) {
+            StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: file check threw ");
+            sb.append(t);
+            debugLog(sb.toString());
         }
         return normalized;
     }
@@ -684,6 +684,10 @@ public class AATrackProvider {
                                         if (args != null && args.length >= 2 && args[1] instanceof Integer) {
                                             instanceId = ((Integer) args[1]).intValue();
                                         }
+                                        // Never overwrite a valid listRef (e.g. 6279) with stock 65535 default
+                                        if (bapEntryID2 == 65535 && AATrackProvider.this.lastListRef > 0 && AATrackProvider.this.lastListRef < 65535) {
+                                            bapEntryID2 = AATrackProvider.this.lastListRef;
+                                        }
                                         StringBuffer sb = new StringBuffer("IPictureProvider.proxy.requestPicture bapEntryID=");
                                         sb.append(bapEntryID2);
                                         sb.append(" instanceId=");
@@ -707,9 +711,9 @@ public class AATrackProvider {
                                                 }
                                                 if (rc2 != null) {
                                                     rc2.setAccessible(true);
-                                                    // Respond with bapEntryID2 (even if 65535) so Virtual
-                                                    // Cockpit matches cover art to its requested entry
-                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(instanceId), locator3, new Boolean(true)});
+                                                    // Respond with resolved bapEntryID (not 65535 default)
+                                                    // Pass false for stationArt (matches CoverArtProvider.requestPicture in AppConnectorMedia)
+                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(instanceId), locator3, new Boolean(false)});
                                                     StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
                                                     sb2.append(bapEntryID2);
                                                     sb2.append(" sourceType=");
@@ -1014,6 +1018,10 @@ public class AATrackProvider {
                                         if (args != null && args.length >= 2 && args[1] instanceof Integer) {
                                             instanceId = ((Integer) args[1]).intValue();
                                         }
+                                        // Never overwrite a valid listRef (e.g. 6279) with stock 65535 default
+                                        if (bapEntryID2 == 65535 && AATrackProvider.this.lastListRef > 0 && AATrackProvider.this.lastListRef < 65535) {
+                                            bapEntryID2 = AATrackProvider.this.lastListRef;
+                                        }
                                         StringBuffer sb = new StringBuffer("IPictureProvider.proxy.requestPicture bapEntryID=");
                                         sb.append(bapEntryID2);
                                         sb.append(" instanceId=");
@@ -1037,9 +1045,9 @@ public class AATrackProvider {
                                                 }
                                                 if (rc2 != null) {
                                                     rc2.setAccessible(true);
-                                                    // Respond with bapEntryID2 (even if 65535) so Virtual
-                                                    // Cockpit matches cover art to its requested entry
-                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(instanceId), locator3, new Boolean(true)});
+                                                    // Respond with resolved bapEntryID (not 65535 default)
+                                                    // Pass false for stationArt (matches CoverArtProvider.requestPicture in AppConnectorMedia)
+                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(instanceId), locator3, new Boolean(false)});
                                                     StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
                                                     sb2.append(bapEntryID2);
                                                     sb2.append(" sourceType=");
