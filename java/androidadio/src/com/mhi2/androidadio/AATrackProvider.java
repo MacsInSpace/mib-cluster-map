@@ -429,8 +429,9 @@ public class AATrackProvider {
                     Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
                     Object locator = locatorCls.getDeclaredConstructor(
                         new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(effectivePicId), coverPath});
-                    // Respond under sourceType (e.g. 39) so PictureManagerEvo caches by source type
-                    rc.invoke(pictureManager, new Object[]{new Long(listRef), new Integer(currentSourceType), locator, new Boolean(true)});
+                    // Respond under sourceType (e.g. 39) so PictureManagerEvo caches by source type.
+                    // stationArt = false, matching AppConnectorMedia.CoverArtProvider.requestPicture.
+                    rc.invoke(pictureManager, new Object[]{new Long(listRef), new Integer(currentSourceType), locator, new Boolean(false)});
                     StringBuffer sbp = new StringBuffer("sendCurrentStation: proactive IPictureManager.responseCoverArt(listRef=");
                     sbp.append(listRef);
                     sbp.append(", sourceType=");
@@ -439,11 +440,22 @@ public class AATrackProvider {
                     debugLog(sbp.toString());
                     // Also respond under instanceId=0 so whichever key PictureManagerEvo
                     // expects matches.
-                    rc.invoke(pictureManager, new Object[]{new Long(listRef), new Integer(0), locator, new Boolean(true)});
+                    rc.invoke(pictureManager, new Object[]{new Long(listRef), new Integer(0), locator, new Boolean(false)});
                     StringBuffer sbp2 = new StringBuffer("sendCurrentStation: proactive IPictureManager.responseCoverArt(listRef=");
                     sbp2.append(listRef);
                     sbp2.append(", instanceId=0)");
                     debugLog(sbp2.toString());
+                    // Also push 65535L (PictureManagerEvo's sentinel for "no specific entry")
+                    // under both sourceType and instanceId=0, so a pending requestPicture(65535)
+                    // is matched even when listRef differs.
+                    rc.invoke(pictureManager, new Object[]{new Long(65535L), new Integer(currentSourceType), locator, new Boolean(false)});
+                    StringBuffer sbp3 = new StringBuffer("sendCurrentStation: proactive IPictureManager.responseCoverArt(65535L, sourceType=");
+                    sbp3.append(currentSourceType);
+                    sbp3.append(")");
+                    debugLog(sbp3.toString());
+                    rc.invoke(pictureManager, new Object[]{new Long(65535L), new Integer(0), locator, new Boolean(false)});
+                    StringBuffer sbp4 = new StringBuffer("sendCurrentStation: proactive IPictureManager.responseCoverArt(65535L, instanceId=0)");
+                    debugLog(sbp4.toString());
                 } else {
                     debugLog("sendCurrentStation: responseCoverArt not found on PictureManager");
                 }
@@ -758,7 +770,6 @@ public class AATrackProvider {
                                 // Read latest instance fields dynamically (not stale finals)
                                 Object pm2 = pmRef;
                                 int st2 = currentSourceType;
-                                long lr2 = lastListRef;
                                 String cv2 = currentCoverPath;
                                 int pid2 = currentPicId;
                                 StringBuffer sbp = new StringBuffer("IPictureProvider.proxy.requestPicture bapEntryID=");
@@ -767,8 +778,6 @@ public class AATrackProvider {
                                 sbp.append(instanceId2);
                                 sbp.append(" sourceType=");
                                 sbp.append(st2);
-                                sbp.append(" lastListRef=");
-                                sbp.append(lr2);
                                 sbp.append(" picId=");
                                 sbp.append(pid2);
                                 debugLog(sbp.toString());
@@ -789,18 +798,20 @@ public class AATrackProvider {
                                         }
                                         if (rc2 != null) {
                                             rc2.setAccessible(true);
-                                            // Respond with currentSourceType and also instanceId=0
-                                            long beid = bapEntryID2 != 65535 ? bapEntryID2 : lr2;
-                                            rc2.invoke(pm2, new Object[]{new Long(beid), new Integer(st2), locator3, new Boolean(true)});
+                                            // Pass bapEntryID2 verbatim (e.g. 65535) — matching
+                                            // AppConnectorMedia.CoverArtProvider.requestPicture,
+                                            // so PictureManagerEvo matches the response to its
+                                            // pending request. stationArt = false.
+                                            rc2.invoke(pm2, new Object[]{new Long(bapEntryID2), new Integer(st2), locator3, new Boolean(false)});
                                             StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
-                                            sb2.append(beid);
+                                            sb2.append(bapEntryID2);
                                             sb2.append(" sourceType=");
                                             sb2.append(st2);
                                             debugLog(sb2.toString());
                                             if (instanceId2 != st2) {
-                                                rc2.invoke(pm2, new Object[]{new Long(beid), new Integer(instanceId2), locator3, new Boolean(true)});
+                                                rc2.invoke(pm2, new Object[]{new Long(bapEntryID2), new Integer(instanceId2), locator3, new Boolean(false)});
                                                 StringBuffer sb3 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
-                                                sb3.append(beid);
+                                                sb3.append(bapEntryID2);
                                                 sb3.append(" instanceId=");
                                                 sb3.append(instanceId2);
                                                 debugLog(sb3.toString());
