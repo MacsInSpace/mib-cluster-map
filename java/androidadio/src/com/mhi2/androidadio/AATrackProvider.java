@@ -400,10 +400,14 @@ public class AATrackProvider {
         if (coverPath != null && coverPath.length() > 0 && effectivePicId != 0) {
             Method setPicture = infoCls.getMethod("setPicture", new Class[]{int.class, String.class});
             setPicture.invoke(info, new Object[]{new Integer(effectivePicId), coverPath});
+            // Non-zero 16-bit listRef triggers VC requestPicture(bapEntryID=listRef, instanceId=0)
+            setListRef.invoke(info, new Object[]{new Integer((int) listRef)});
             StringBuffer sb = new StringBuffer("sendCurrentStation: setPicture picId=");
             sb.append(effectivePicId);
             sb.append(" path=");
             sb.append(coverPath);
+            sb.append(" listRef=");
+            sb.append(listRef);
             debugLog(sb.toString());
         }
         // Proactively push cover art to IPictureManager so the VC's MOST picture
@@ -425,6 +429,7 @@ public class AATrackProvider {
                     Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
                     Object locator = locatorCls.getDeclaredConstructor(
                         new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(effectivePicId), coverPath});
+                    // Respond under sourceType (e.g. 39) so PictureManagerEvo caches by source type
                     rc.invoke(pictureManager, new Object[]{new Long(listRef), new Integer(currentSourceType), locator, new Boolean(true)});
                     StringBuffer sbp = new StringBuffer("sendCurrentStation: proactive IPictureManager.responseCoverArt(listRef=");
                     sbp.append(listRef);
@@ -432,6 +437,13 @@ public class AATrackProvider {
                     sbp.append(currentSourceType);
                     sbp.append(")");
                     debugLog(sbp.toString());
+                    // Also respond under instanceId=0 so whichever key PictureManagerEvo
+                    // expects matches.
+                    rc.invoke(pictureManager, new Object[]{new Long(listRef), new Integer(0), locator, new Boolean(true)});
+                    StringBuffer sbp2 = new StringBuffer("sendCurrentStation: proactive IPictureManager.responseCoverArt(listRef=");
+                    sbp2.append(listRef);
+                    sbp2.append(", instanceId=0)");
+                    debugLog(sbp2.toString());
                 } else {
                     debugLog("sendCurrentStation: responseCoverArt not found on PictureManager");
                 }
@@ -496,6 +508,9 @@ public class AATrackProvider {
         if (trackData == null) {
             debugLog("handleNowPlayingData: returning early (null trackData)");
             return;
+        }
+        if (pictureManager == null) {
+            pictureManager = findPictureManager();
         }
         try {
             java.lang.reflect.Method[] methods = trackData.getClass().getMethods();
@@ -664,6 +679,9 @@ public class AATrackProvider {
             debugLog("handleCoverArtUrl: returning early (null resourceLocator)");
             return;
         }
+        if (pictureManager == null) {
+            pictureManager = findPictureManager();
+        }
         String url = resourceLocator.getUrl();
         if (url == null) url = "";
         boolean changed = !url.equals(lastCoverUrl);
@@ -724,11 +742,7 @@ public class AATrackProvider {
                 try {
                     Class<?> ipcCls = forName("de.audi.app.combi.bap.app.kombipictures.IPictureProvider");
                     ClassLoader cl = ipcCls.getClassLoader();
-                    final Object pm = pictureManager;
-                    final int st = currentSourceType;
-                    final long lr = lastListRef;
-                    final String cv = currentCoverPath;
-                    final int pid = currentPicId;
+                    final Object pmRef = pictureManager;
                     Object proxy = Proxy.newProxyInstance(cl, new Class[]{ipcCls}, new InvocationHandler() {
                         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
                             String mn = method.getName();
@@ -741,17 +755,28 @@ public class AATrackProvider {
                                 if (args != null && args.length >= 2 && args[1] instanceof Integer) {
                                     instanceId2 = ((Integer) args[1]).intValue();
                                 }
+                                // Read latest instance fields dynamically (not stale finals)
+                                Object pm2 = pmRef;
+                                int st2 = currentSourceType;
+                                long lr2 = lastListRef;
+                                String cv2 = currentCoverPath;
+                                int pid2 = currentPicId;
                                 StringBuffer sbp = new StringBuffer("IPictureProvider.proxy.requestPicture bapEntryID=");
                                 sbp.append(bapEntryID2);
                                 sbp.append(" instanceId=");
                                 sbp.append(instanceId2);
+                                sbp.append(" sourceType=");
+                                sbp.append(st2);
+                                sbp.append(" lastListRef=");
+                                sbp.append(lr2);
+                                sbp.append(" picId=");
+                                sbp.append(pid2);
                                 debugLog(sbp.toString());
-                                Object pm2 = pm;
                                 if (pm2 != null) {
                                     try {
                                         Class<?> locatorCls3 = forName("org.dsi.ifc.global.ResourceLocator");
                                         Object locator3 = locatorCls3.getDeclaredConstructor(
-                                            new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(pid), cv});
+                                            new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(pid2), cv2});
                                         Method rc2 = null;
                                         java.lang.reflect.Method[] pmMethods = pm2.getClass().getMethods();
                                         for (int i = 0; i < pmMethods.length; i++) {
@@ -764,16 +789,15 @@ public class AATrackProvider {
                                         }
                                         if (rc2 != null) {
                                             rc2.setAccessible(true);
-                                            // Respond with currentSourceType (39) and also instanceId (0)
-                                            // so whichever key PictureManagerEvo expects matches.
-                                            long beid = bapEntryID2 != 65535 ? bapEntryID2 : lr;
-                                            rc2.invoke(pm2, new Object[]{new Long(beid), new Integer(st), locator3, new Boolean(true)});
+                                            // Respond with currentSourceType and also instanceId=0
+                                            long beid = bapEntryID2 != 65535 ? bapEntryID2 : lr2;
+                                            rc2.invoke(pm2, new Object[]{new Long(beid), new Integer(st2), locator3, new Boolean(true)});
                                             StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
                                             sb2.append(beid);
                                             sb2.append(" sourceType=");
-                                            sb2.append(st);
+                                            sb2.append(st2);
                                             debugLog(sb2.toString());
-                                            if (instanceId2 != st) {
+                                            if (instanceId2 != st2) {
                                                 rc2.invoke(pm2, new Object[]{new Long(beid), new Integer(instanceId2), locator3, new Boolean(true)});
                                                 StringBuffer sb3 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
                                                 sb3.append(beid);
@@ -796,10 +820,10 @@ public class AATrackProvider {
                         "registerPictureProvider", new Class[]{int.class, ipcCls});
                     reg.setAccessible(true);
                     reg.invoke(pictureManager, new Object[]{new Integer(0), proxy});
-                    reg.invoke(pictureManager, new Object[]{new Integer(st), proxy});
+                    reg.invoke(pictureManager, new Object[]{new Integer(currentSourceType), proxy});
                     pictureProviderRegistered = true;
                     StringBuffer sbReg = new StringBuffer("AATrackProvider: IPictureProvider proxy registered with type=0 and type=");
-                    sbReg.append(st);
+                    sbReg.append(currentSourceType);
                     debugLog(sbReg.toString());
                 } catch (Throwable t) {
                     StringBuffer sbx = new StringBuffer("AATrackProvider: registerPictureProviderProxy threw ");
