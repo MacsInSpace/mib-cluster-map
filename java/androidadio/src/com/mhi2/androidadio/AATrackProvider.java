@@ -7,6 +7,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.zip.CRC32;
 import org.dsi.ifc.androidauto2.TrackData;
 import org.dsi.ifc.global.ResourceLocator;
 
@@ -29,6 +30,12 @@ public class AATrackProvider {
     private int currentSourceType;
     private Object currentPictureManager;
     private boolean pictureProviderRegistered;
+    // Which cover art file is currently active: "/tmp/aa_vc_cover.png" (downscaled)
+    // or "/tmp/gal_albumArt_*.png" (raw). Set by normalizeCoverArtUrl().
+    private String currentCoverPath;
+    // Non-zero CRC32-derived pictureId (31-bit, >0). 0 means "no picture" to
+    // Audi's PictureManager, so we always force >= 1.
+    private int currentPicId;
 
     public static AATrackProvider getInstance() {
         return instance;
@@ -49,6 +56,8 @@ public class AATrackProvider {
         currentSourceType = 21;
         currentPictureManager = null;
         pictureProviderRegistered = false;
+        currentCoverPath = "";
+        currentPicId = 0;
         debugLog("AATrackProvider.<init> entered (lazy service lookup)");
     }
 
@@ -366,30 +375,59 @@ public class AATrackProvider {
     }
 
     private String normalizeCoverArtUrl(String url) {
-        if (url == null) return "";
-        String normalized = url;
-        // Strip "file://" prefix - MIB2 PictureManager/ResourceLocator IPC expects
-        // raw filesystem path (e.g. "/tmp/gal_albumArt_2.png"), not "file:///..."
-        if (normalized.startsWith("file://")) {
-            normalized = normalized.substring(7);
+        // Prefer the downscaled cover art published by libgal_hook.so.
+        // /tmp/aa_vc_cover.png is written atomically (temp file + rename) so
+        // Java never reads a half-written file.
+        String preferred = "/tmp/aa_vc_cover.png";
+        java.io.File pf = new java.io.File(preferred);
+        String chosen;
+        if (pf.exists() && pf.length() > 0) {
+            chosen = preferred;
+        } else if (url != null) {
+            chosen = url;
+            if (chosen.startsWith("file://")) {
+                chosen = chosen.substring(7);
+            }
+        } else {
+            chosen = "";
         }
+        currentCoverPath = chosen;
+        currentPicId = 0;
         try {
-            java.io.File f = new java.io.File(normalized);
-            if (f.exists()) {
-                StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: file exists size=");
+            java.io.File f = new java.io.File(chosen);
+            if (f.exists() && f.length() > 0) {
+                // Compute CRC32 of file content -> non-zero 31-bit pictureId.
+                // Audi's PictureManager treats pictureId <= 0 as "no picture".
+                CRC32 crc32 = new CRC32();
+                java.io.FileInputStream fis = new java.io.FileInputStream(f);
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = fis.read(buf)) > 0) {
+                    crc32.update(buf, 0, n);
+                }
+                fis.close();
+                long crcVal = crc32.getValue();
+                int picId = (int)(crcVal & 0x7FFFFFFFL);
+                if (picId == 0) picId = 1;
+                currentPicId = picId;
+                StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: chosen=");
+                sb.append(chosen);
+                sb.append(" size=");
                 sb.append(f.length());
+                sb.append(" picId=");
+                sb.append(picId);
                 debugLog(sb.toString());
             } else {
-                StringBuffer sbnf = new StringBuffer("normalizeCoverArtUrl: file does not exist: ");
-                sbnf.append(normalized);
+                StringBuffer sbnf = new StringBuffer("normalizeCoverArtUrl: file does not exist or empty: ");
+                sbnf.append(chosen);
                 debugLog(sbnf.toString());
             }
         } catch (Throwable t) {
-            StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: file check threw ");
+            StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: threw ");
             sb.append(t);
             debugLog(sb.toString());
         }
-        return normalized;
+        return chosen;
     }
 
     public void handleNowPlayingData(TrackData trackData, int instanceId) {
@@ -535,10 +573,10 @@ public class AATrackProvider {
             setTertiary.invoke(info, new Object[]{album, new Integer(0)});
             Method setPicture = infoCls.getMethod("setPicture", new Class[]{int.class, String.class});
             String coverUrlToUse = (lastCoverUrlNormalized != null && lastCoverUrlNormalized.length() > 0) ? lastCoverUrlNormalized : lastCoverUrl;
-            int pictureIdToUse = lastPictureId;
-            if (pictureIdToUse < 0 && coverUrlToUse.length() > 0) {
-                pictureIdToUse = 0;
-            }
+            // currentPicId is CRC32-derived (non-zero 31-bit). lastPictureId from
+            // ResourceLocator.getId() can be -1 ("no picture"); Audi's PictureManager
+            // treats pictureId <= 0 as "no picture", so always prefer currentPicId.
+            int pictureIdToUse = currentPicId > 0 ? currentPicId : (lastPictureId < 0 ? 0 : lastPictureId);
             setPicture.invoke(info, new Object[]{new Integer(pictureIdToUse), coverUrlToUse});
             // Only regenerate listRef when track/cover actually changed; keep stable listRef per track/cover change
             boolean trackChanged = !title.equals(lastTitle) || !artist.equals(lastArtist) || !album.equals(lastAlbum);
@@ -625,7 +663,7 @@ public class AATrackProvider {
                         currentSourceType = sourceType;
                         Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
                         Object locator = locatorCls.getDeclaredConstructor(
-                            new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrlToUse});
+                            new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(currentPicId > 0 ? currentPicId : 0), coverUrlToUse});
                         // Match responseCoverArt by name + 4 params (primitive long, not Long.class)
                         Method rc = null;
                         java.lang.reflect.Method[] allMethods = pictureManager.getClass().getMethods();
@@ -760,7 +798,7 @@ public class AATrackProvider {
                                 Method addToMapping = pictureProvider.getClass().getMethod("addToMapping", new Class[]{long.class, ResourceLocator.class});
                                 Class<?> locatorCls2 = forName("org.dsi.ifc.global.ResourceLocator");
                                 Object locator2 = locatorCls2.getDeclaredConstructor(
-                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrlToUse});
+                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(currentPicId > 0 ? currentPicId : 0), coverUrlToUse});
                                 addToMapping.invoke(pictureProvider, new Object[]{new Long(lastListRef), locator2});
                                 StringBuffer sbm = new StringBuffer("handleNowPlayingData: AppConnectorMedia pictureProvider mapping updated, listRef=");
                                 sbm.append(lastListRef);
@@ -871,10 +909,10 @@ public class AATrackProvider {
             setTertiary.invoke(info, new Object[]{lastAlbum, new Integer(0)});
             Method setPicture = infoCls.getMethod("setPicture", new Class[]{int.class, String.class});
             String coverUrlToUse = (lastCoverUrlNormalized != null && lastCoverUrlNormalized.length() > 0) ? lastCoverUrlNormalized : lastCoverUrl;
-            int pictureIdToUse = lastPictureId;
-            if (pictureIdToUse < 0 && coverUrlToUse.length() > 0) {
-                pictureIdToUse = 0;
-            }
+            // currentPicId is CRC32-derived (non-zero 31-bit). lastPictureId from
+            // ResourceLocator.getId() can be -1 ("no picture"); Audi's PictureManager
+            // treats pictureId <= 0 as "no picture", so always prefer currentPicId.
+            int pictureIdToUse = currentPicId > 0 ? currentPicId : (lastPictureId < 0 ? 0 : lastPictureId);
             setPicture.invoke(info, new Object[]{new Integer(pictureIdToUse), coverUrlToUse});
             // Only regenerate listRef when cover URL actually changed; keep stable listRef per cover change
             Method setListRef = infoCls.getMethod("setListRef", new Class[]{int.class});
@@ -882,8 +920,11 @@ public class AATrackProvider {
                 // Keep existing listRef - don't regenerate, don't send 65535
                 setListRef.invoke(info, new Object[]{new Integer((int) lastListRef)});
             } else {
-                int newListRef = (int) ((System.currentTimeMillis() & 0x7FFFFFFFL) % 65533L) + 1;
-                setListRef.invoke(info, new Object[]{new Integer(newListRef)});
+                // Cover art arrived after track text (or no valid listRef yet):
+                // increment listRef so Virtual Cockpit refreshes station picture
+                // instead of ignoring a duplicate listRef.
+                lastListRef = (lastListRef % 65533L) + 1L;
+                setListRef.invoke(info, new Object[]{new Integer((int) lastListRef)});
             }
             Method getListRef = infoCls.getMethod("getListRef", new Class[0]);
             lastListRef = ((Integer) getListRef.invoke(info, new Object[0])).intValue();
@@ -959,7 +1000,7 @@ public class AATrackProvider {
                         currentSourceType = sourceType;
                         Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
                         Object locator = locatorCls.getDeclaredConstructor(
-                            new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrlToUse});
+                            new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(currentPicId > 0 ? currentPicId : 0), coverUrlToUse});
                         // Match responseCoverArt by name + 4 params (primitive long, not Long.class)
                         Method rc = null;
                         java.lang.reflect.Method[] allMethods = pictureManager.getClass().getMethods();
@@ -1094,7 +1135,7 @@ public class AATrackProvider {
                                 Method addToMapping = pictureProvider.getClass().getMethod("addToMapping", new Class[]{long.class, ResourceLocator.class});
                                 Class<?> locatorCls2 = forName("org.dsi.ifc.global.ResourceLocator");
                                 Object locator2 = locatorCls2.getDeclaredConstructor(
-                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrlToUse});
+                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(currentPicId > 0 ? currentPicId : 0), coverUrlToUse});
                                 addToMapping.invoke(pictureProvider, new Object[]{new Long(lastListRef), locator2});
                                 StringBuffer sbm = new StringBuffer("handleCoverArtUrl: AppConnectorMedia pictureProvider mapping updated, listRef=");
                                 sbm.append(lastListRef);

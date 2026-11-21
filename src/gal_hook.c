@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "vc_player_mgr.h"
 #include "gal_hook.h"
 #include "hd_frame_geometry.h"
@@ -14,6 +15,24 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+#include <dlfcn.h>
+
+/* Cover art downscaler for the MIB2 Virtual Cockpit.
+ * stb_image / stb_image_write are public-domain single headers; only PNG/JPEG
+ * decode and PNG encode are compiled in (STBI_ONLY_PNG, STBI_ONLY_JPEG,
+ * STBI_NO_STDIO so stb never calls fopen/fclose itself -- we interpose those
+ * via LD_PRELOAD instead). */
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_ONLY_JPEG
+#define STBI_NO_STDIO
+#define STBI_NO_THREAD_LOCALS
+#define STBI_NO_SIMD
+#include "stb/stb_image.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STBIW_NO_STDIO
+#include "stb/stb_image_write.h"
 
 /*
  * Build identity, stamped in by build_local.sh. Every car capture so far had
@@ -802,4 +821,248 @@ static void gal_hook_destructor(void)
         close(g_log_fd);
         g_log_fd = -1;
     }
+}
+
+/* =========================================================================
+ * Cover art downscaler for the MIB2 Virtual Cockpit
+ *
+ * Intercepts writes to /tmp/gal_albumArt_*.png via LD_PRELOAD fopen/fclose.
+ * When gal publishes a new album art file, decode it (stb_image), resize to
+ * 256x256 (box/bilinear filter), encode as PNG (stb_image_write), and atomically
+ * publish to /tmp/aa_vc_cover.png via temp file + rename. CRC32 dedup avoids
+ * re-decoding identical cover art. Java's AATrackProvider then prefers
+ * /tmp/aa_vc_cover.png over the raw /tmp/gal_albumArt_*.png and uses a
+ * non-zero CRC32-derived pictureId so the Virtual Cockpit renders it instead
+ * of the orange icon / black note.
+ * ========================================================================= */
+
+#define COVERART_SRC_PREFIX "/tmp/gal_albumArt_"
+#define COVERART_DST "/tmp/aa_vc_cover.png"
+#define COVERART_DST_TMP "/tmp/aa_vc_cover.tmp.png"
+#define COVERART_MAX_TRACKED 8
+#define COVERART_TARGET_W 256
+#define COVERART_TARGET_H 256
+#define COVERART_MAX_FILE_BYTES (16u * 1024u * 1024u)
+
+static pthread_mutex_t g_coverart_mutex = PTHREAD_MUTEX_INITIALIZER;
+static FILE *g_coverart_files[COVERART_MAX_TRACKED];
+static char g_coverart_paths[COVERART_MAX_TRACKED][512];
+static int g_coverart_count = 0;
+static uint32_t g_coverart_crc_table[256];
+static int g_coverart_crc_ready = 0;
+static uint32_t g_last_coverart_crc = 0;
+static int g_last_coverart_crc_valid = 0;
+
+static FILE *(*real_fopen)(const char *, const char *);
+static int (*real_fclose)(FILE *);
+
+static void coverart_crc_init(void)
+{
+    if (g_coverart_crc_ready) return;
+    for (uint32_t i = 0; i < 256; i++) {
+        uint32_t c = i;
+        for (int j = 0; j < 8; j++)
+            c = (c & 1u) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+        g_coverart_crc_table[i] = c;
+    }
+    g_coverart_crc_ready = 1;
+}
+
+static uint32_t coverart_crc32(const void *data, size_t len)
+{
+    coverart_crc_init();
+    uint32_t crc = ~0u;
+    const unsigned char *p = (const unsigned char *)data;
+    for (size_t i = 0; i < len; i++)
+        crc = (crc >> 8) ^ g_coverart_crc_table[p[i] ^ (crc & 0xffu)];
+    return ~crc;
+}
+
+static int coverart_is_album_art(const char *path)
+{
+    return path != NULL && strstr(path, COVERART_SRC_PREFIX) != NULL;
+}
+
+static int coverart_track_add(FILE *f, const char *path)
+{
+    pthread_mutex_lock(&g_coverart_mutex);
+    for (int i = 0; i < COVERART_MAX_TRACKED; i++) {
+        if (g_coverart_files[i] == NULL) {
+            g_coverart_files[i] = f;
+            strncpy(g_coverart_paths[i], path, sizeof(g_coverart_paths[i]) - 1);
+            g_coverart_paths[i][sizeof(g_coverart_paths[i]) - 1] = '\0';
+            g_coverart_count++;
+            pthread_mutex_unlock(&g_coverart_mutex);
+            return 1;
+        }
+    }
+    pthread_mutex_unlock(&g_coverart_mutex);
+    return 0;
+}
+
+static int coverart_track_remove(FILE *f, char *path_out, size_t path_out_sz)
+{
+    pthread_mutex_lock(&g_coverart_mutex);
+    int found = 0;
+    for (int i = 0; i < COVERART_MAX_TRACKED; i++) {
+        if (g_coverart_files[i] == f) {
+            if (path_out != NULL && path_out_sz > 0) {
+                strncpy(path_out, g_coverart_paths[i], path_out_sz - 1);
+                path_out[path_out_sz - 1] = '\0';
+            }
+            g_coverart_files[i] = NULL;
+            g_coverart_paths[i][0] = '\0';
+            g_coverart_count--;
+            found = 1;
+            break;
+        }
+    }
+    pthread_mutex_unlock(&g_coverart_mutex);
+    return found;
+}
+
+/* Simple box/bilinear resize: sample 4 source texels per dest pixel. */
+static void coverart_resize_rgba(const unsigned char *src, int sw, int sh,
+                                 unsigned char *dst, int dw, int dh)
+{
+    for (int y = 0; y < dh; y++) {
+        for (int x = 0; x < dw; x++) {
+            float sx = (float)x * sw / dw;
+            float sy = (float)y * sh / dh;
+            int x0 = (int)sx, y0 = (int)sy;
+            int x1 = x0 + 1 < sw ? x0 + 1 : sw - 1;
+            int y1 = y0 + 1 < sh ? y0 + 1 : sh - 1;
+            float fx = sx - (float)x0, fy = sy - (float)y0;
+            for (int c = 0; c < 4; c++) {
+                unsigned char v00 = src[(y0 * sw + x0) * 4 + c];
+                unsigned char v01 = src[(y0 * sw + x1) * 4 + c];
+                unsigned char v10 = src[(y1 * sw + x0) * 4 + c];
+                unsigned char v11 = src[(y1 * sw + x1) * 4 + c];
+                unsigned char v = (unsigned char)(
+                    (float)v00 * (1.0f - fx) * (1.0f - fy) +
+                    (float)v01 * fx * (1.0f - fy) +
+                    (float)v10 * (1.0f - fx) * fy +
+                    (float)v11 * fx * fy);
+                dst[(y * dw + x) * 4 + c] = v;
+            }
+        }
+    }
+}
+
+static int coverart_downscale(const char *src_path)
+{
+    FILE *f = real_fopen(src_path, "rb");
+    if (f == NULL) return -1;
+    fseek(f, 0, SEEK_END);
+    long file_len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (file_len <= 0 || file_len > (long)COVERART_MAX_FILE_BYTES) {
+        real_fclose(f);
+        return -1;
+    }
+    unsigned char *file_data = (unsigned char *)malloc((size_t)file_len);
+    if (file_data == NULL) {
+        real_fclose(f);
+        return -1;
+    }
+    size_t read_len = fread(file_data, 1, (size_t)file_len, f);
+    real_fclose(f);
+    if ((long)read_len != file_len) {
+        free(file_data);
+        return -1;
+    }
+
+    /* CRC32 dedup: skip if identical cover art was already processed */
+    uint32_t crc = coverart_crc32(file_data, read_len);
+    pthread_mutex_lock(&g_coverart_mutex);
+    if (g_last_coverart_crc_valid && g_last_coverart_crc == crc) {
+        pthread_mutex_unlock(&g_coverart_mutex);
+        free(file_data);
+        return 0; /* unchanged, nothing to do */
+    }
+    g_last_coverart_crc = crc;
+    g_last_coverart_crc_valid = 1;
+    pthread_mutex_unlock(&g_coverart_mutex);
+
+    /* Decode (PNG or JPEG) */
+    int sw, sh, comp;
+    unsigned char *pixels = stbi_load_from_memory(
+        file_data, (int)read_len, &sw, &sh, &comp, STBI_rgb_alpha);
+    free(file_data);
+    if (pixels == NULL) {
+        gal_hook_logf("coverart: decode failed path=%s reason=%s",
+                      src_path, stbi_failure_reason());
+        return -1;
+    }
+    gal_hook_logf("coverart: decoded %ux%u comp=%d size=%lu",
+                  sw, sh, comp, (unsigned long)read_len);
+
+    /* Resize to 256x256 RGBA */
+    int dw = COVERART_TARGET_W;
+    int dh = COVERART_TARGET_H;
+    unsigned char *out = (unsigned char *)malloc((size_t)dw * dh * 4u);
+    if (out == NULL) {
+        stbi_image_free(pixels);
+        return -1;
+    }
+    coverart_resize_rgba(pixels, sw, sh, out, dw, dh);
+    stbi_image_free(pixels);
+
+    /* Encode as PNG to temp file */
+    int stride = dw * 4;
+    int ok = stbi_write_png(COVERART_DST_TMP, dw, dh, 4, out, stride);
+    free(out);
+    if (!ok) {
+        gal_hook_logf("coverart: encode failed path=%s", src_path);
+        return -1;
+    }
+
+    /* Log output size */
+    FILE *of = real_fopen(COVERART_DST_TMP, "rb");
+    if (of != NULL) {
+        fseek(of, 0, SEEK_END);
+        long out_len = ftell(of);
+        real_fclose(of);
+        gal_hook_logf("coverart: resized %ux%u (%lu B) -> %ux%u (%ld B)",
+                      sw, sh, (unsigned long)read_len, dw, dh, out_len);
+    }
+
+    /* Atomic publish via temp file + rename */
+    if (rename(COVERART_DST_TMP, COVERART_DST) != 0) {
+        unlink(COVERART_DST_TMP);
+        return -1;
+    }
+    return 0;
+}
+
+/* LD_PRELOAD interposition: fopen -- track album art files opened for writing */
+FILE *fopen(const char *path, const char *mode)
+{
+    if (real_fopen == NULL) {
+        real_fopen = dlsym(RTLD_NEXT, "fopen");
+        real_fclose = dlsym(RTLD_NEXT, "fclose");
+    }
+    FILE *f = real_fopen(path, mode);
+    if (f != NULL && coverart_is_album_art(path) && mode != NULL &&
+        strchr(mode, 'w') != NULL) {
+        coverart_track_add(f, path);
+    }
+    return f;
+}
+
+/* LD_PRELOAD interposition: fclose -- downscale album art on close */
+int fclose(FILE *f)
+{
+    if (real_fclose == NULL) {
+        real_fopen = dlsym(RTLD_NEXT, "fopen");
+        real_fclose = dlsym(RTLD_NEXT, "fclose");
+    }
+    char path[512];
+    path[0] = '\0';
+    int tracked = coverart_track_remove(f, path, sizeof(path));
+    int rc = real_fclose(f);
+    if (tracked && path[0] != '\0') {
+        coverart_downscale(path);
+    }
+    return rc;
 }
