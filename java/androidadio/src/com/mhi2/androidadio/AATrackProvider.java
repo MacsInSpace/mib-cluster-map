@@ -567,32 +567,40 @@ public class AATrackProvider {
         logCall(1000000, "handleCoverArtUrl completed");
     }
 
-    public void handlePlayPosition(int position, int duration) {
-        // Already confirmed working - keep intact
+    public void handlePlayPosition(int position, int instanceId) {
         if (terminalModeService == null) {
             Object tms = findTerminalModeService();
             terminalModeService = tms;
         }
         if (terminalModeService != null) {
             try {
-                Class<?> tmsCls = terminalModeService.getClass();
-                Method pp = null;
-                Class<?> scan = tmsCls;
-                while (scan != null && pp == null) {
-                    try {
-                        pp = scan.getDeclaredMethod("playPosition", new Class[]{int.class, int.class});
-                    } catch (NoSuchMethodException e) {
-                        scan = scan.getSuperclass();
-                    }
-                }
-                if (pp != null) {
-                    pp.setAccessible(true);
-                    pp.invoke(terminalModeService, new Object[]{new Integer(position), new Integer(duration)});
-                } else {
-                    debugLog("handlePlayPosition: playPosition method not found");
+                Class<?> playPositionCls = forName("de.audi.atip.interapp.combi.bap.audio.data.PlayPosition");
+                if (playPositionCls != null) {
+                    Class<?> builderCls = forName("de.audi.atip.interapp.combi.bap.audio.data.PlayPosition$Builder");
+                    Object builder = builderCls.getDeclaredConstructor().newInstance();
+                    Class<?> timeStampCls = forName("de.audi.atip.interapp.bap.data.TimeStamp");
+                    Object elapsed = timeStampCls.getMethod("getInstanceFromSeconds", new Class[]{int.class}).invoke(null, new Object[]{new Integer(position / 1000)});
+                    Object totalSecs = timeStampCls.getMethod("getInstanceFromSeconds", new Class[]{int.class}).invoke(null, new Object[]{new Integer((int) (lastDurationMs / 1000))});
+                    Method setTimePosition = builderCls.getMethod("setTimePosition", new Class[]{timeStampCls});
+                    Method setTotalPlayTime = builderCls.getMethod("setTotalPlayTime", new Class[]{timeStampCls});
+                    Method setVariableBitRate = builderCls.getMethod("setVariableBitRate", new Class[]{boolean.class});
+                    Method build = builderCls.getMethod("build", new Class[0]);
+                    setTimePosition.invoke(builder, new Object[]{elapsed});
+                    setTotalPlayTime.invoke(builder, new Object[]{totalSecs});
+                    setVariableBitRate.invoke(builder, new Object[]{new Boolean(false)});
+                    Object playPos = build.invoke(builder, new Object[0]);
+                    Method updatePlayPosition = terminalModeService.getClass().getMethod("updatePlayPosition", new Class[]{playPositionCls});
+                    updatePlayPosition.setAccessible(true);
+                    updatePlayPosition.invoke(terminalModeService, new Object[]{playPos});
+                    StringBuffer sbpp = new StringBuffer("handlePlayPosition: PlayPosition(");
+                    sbpp.append(position / 1000);
+                    sbpp.append("/");
+                    sbpp.append(lastDurationMs / 1000);
+                    sbpp.append(") sent to terminalModeService.updatePlayPosition");
+                    debugLog(sbpp.toString());
                 }
             } catch (Throwable t) {
-                StringBuffer sbx = new StringBuffer("handlePlayPosition: threw ");
+                StringBuffer sbx = new StringBuffer("handlePlayPosition: terminalModeService.updatePlayPosition threw ");
                 sbx.append(t);
                 debugLog(sbx.toString());
             }

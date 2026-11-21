@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include "vc_player_mgr.h"
 #include "gal_hook.h"
 #include "hd_frame_geometry.h"
@@ -14,6 +15,24 @@
 #include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
+
+/* Cover art downscaler for the MIB2 Virtual Cockpit.
+ * stb_image / stb_image_write are public-domain single headers; only PNG/JPEG
+ * decode and PNG encode are compiled in (STBI_ONLY_PNG, STBI_ONLY_JPEG,
+ * STBI_NO_STDIO so stb never calls fopen/fclose itself). We poll via stat()
+ * instead of LD_PRELOAD interposition, so gal's libc file I/O is untouched.
+ */
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_ONLY_JPEG
+#define STBI_NO_STDIO
+#define STBI_NO_THREAD_LOCALS
+#define STBI_NO_SIMD
+#include "stb/stb_image.h"
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#define STBIW_NO_STDIO
+#include "stb/stb_image_write.h"
 
 /*
  * Build identity, stamped in by build_local.sh. Every car capture so far had
@@ -760,6 +779,9 @@ static void gal_hook_set_owner_pid(void)
 
 /* QNX loads shared objects without requiring a custom entry point. */
 __attribute__((constructor))
+static void coverart_start_polling(void);
+static void coverart_stop_polling(void);
+
 static void gal_hook_constructor(void)
 {
     if (g_main_pid == 0) gal_hook_set_owner_pid();
@@ -780,6 +802,7 @@ static void gal_hook_constructor(void)
         return;
     }
     (void)gal_hook_init(NULL);
+    coverart_start_polling();
 }
 
 __attribute__((destructor))
@@ -793,6 +816,7 @@ static void gal_hook_destructor(void)
          */
         return;
     }
+    coverart_stop_polling();
     fc_shutdown();
     /* gal is exiting: no pings left to answer, so let the player put the
      * Kombi map back itself. */
@@ -802,4 +826,241 @@ static void gal_hook_destructor(void)
         close(g_log_fd);
         g_log_fd = -1;
     }
+}
+
+/* =========================================================================
+ * Cover art downscaler for the MIB2 Virtual Cockpit
+ *
+ * Polls /tmp/gal_albumArt_1.png and /tmp/gal_albumArt_2.png via stat()
+ * every ~250ms. When (st_mtime, st_size) changes, decode the file with
+ * stb_image, resize to 256x256, encode as PNG, and atomically publish to
+ * /tmp/aa_vc_cover.png via temp file + rename. CRC32 dedup avoids
+ * re-decoding identical cover art. Java's AATrackProvider then prefers
+ * /tmp/aa_vc_cover.png over the raw /tmp/gal_albumArt_*.png and uses a
+ * non-zero CRC32-derived pictureId so the Virtual Cockpit renders it instead
+ * of the orange icon / black note.
+ * ========================================================================= */
+
+#define COVERART_DST "/tmp/aa_vc_cover.png"
+#define COVERART_DST_TMP "/tmp/aa_vc_cover.tmp.png"
+#define COVERART_TARGET_W 256
+#define COVERART_TARGET_H 256
+#define COVERART_MAX_FILE_BYTES (16u * 1024u * 1024u)
+#define COVERART_POLL_MS 250u
+
+static pthread_mutex_t g_coverart_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_t g_coverart_thread;
+static int g_coverart_thread_running = 0;
+static uint32_t g_coverart_crc_table[256];
+static int g_coverart_crc_ready = 0;
+static uint32_t g_last_coverart_crc = 0;
+static int g_last_coverart_crc_valid = 0;
+
+static void coverart_crc_init(void)
+{
+    if (g_coverart_crc_ready) return;
+    for (uint32_t i = 0; i < 256; i++) {
+        uint32_t c = i;
+        for (int j = 0; j < 8; j++)
+            c = (c & 1u) ? (0xEDB88320u ^ (c >> 1)) : (c >> 1);
+        g_coverart_crc_table[i] = c;
+    }
+    g_coverart_crc_ready = 1;
+}
+
+static uint32_t coverart_crc32(const void *data, size_t len)
+{
+    coverart_crc_init();
+    uint32_t crc = ~0u;
+    const unsigned char *p = (const unsigned char *)data;
+    for (size_t i = 0; i < len; i++)
+        crc = (crc >> 8) ^ g_coverart_crc_table[p[i] ^ (crc & 0xffu)];
+    return ~crc;
+}
+
+/* Simple box/bilinear resize: sample 4 source texels per dest pixel. */
+static void coverart_resize_rgba(const unsigned char *src, int sw, int sh,
+                                 unsigned char *dst, int dw, int dh)
+{
+    for (int y = 0; y < dh; y++) {
+        for (int x = 0; x < dw; x++) {
+            float sx = (float)x * sw / dw;
+            float sy = (float)y * sh / dh;
+            int x0 = (int)sx, y0 = (int)sy;
+            int x1 = x0 + 1 < sw ? x0 + 1 : sw - 1;
+            int y1 = y0 + 1 < sh ? y0 + 1 : sh - 1;
+            float fx = sx - (float)x0, fy = sy - (float)y0;
+            for (int c = 0; c < 4; c++) {
+                unsigned char v00 = src[(y0 * sw + x0) * 4 + c];
+                unsigned char v01 = src[(y0 * sw + x1) * 4 + c];
+                unsigned char v10 = src[(y1 * sw + x0) * 4 + c];
+                unsigned char v11 = src[(y1 * sw + x1) * 4 + c];
+                unsigned char v = (unsigned char)(
+                    (float)v00 * (1.0f - fx) * (1.0f - fy) +
+                    (float)v01 * fx * (1.0f - fy) +
+                    (float)v10 * (1.0f - fx) * fy +
+                    (float)v11 * fx * fy);
+                dst[(y * dw + x) * 4 + c] = v;
+            }
+        }
+    }
+}
+
+static int coverart_downscale(const char *src_path)
+{
+    FILE *f = fopen(src_path, "rb");
+    if (f == NULL) return -1;
+    fseek(f, 0, SEEK_END);
+    long file_len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    if (file_len <= 0 || file_len > (long)COVERART_MAX_FILE_BYTES) {
+        fclose(f);
+        return -1;
+    }
+    unsigned char *file_data = (unsigned char *)malloc((size_t)file_len);
+    if (file_data == NULL) {
+        fclose(f);
+        return -1;
+    }
+    size_t read_len = fread(file_data, 1, (size_t)file_len, f);
+    fclose(f);
+    if ((long)read_len != file_len) {
+        free(file_data);
+        return -1;
+    }
+
+    /* CRC32 dedup: skip if identical cover art was already processed */
+    uint32_t crc = coverart_crc32(file_data, read_len);
+    pthread_mutex_lock(&g_coverart_mutex);
+    if (g_last_coverart_crc_valid && g_last_coverart_crc == crc) {
+        pthread_mutex_unlock(&g_coverart_mutex);
+        free(file_data);
+        return 0; /* unchanged, nothing to do */
+    }
+    g_last_coverart_crc = crc;
+    g_last_coverart_crc_valid = 1;
+    pthread_mutex_unlock(&g_coverart_mutex);
+
+    /* Decode (PNG or JPEG) */
+    int sw, sh, comp;
+    unsigned char *pixels = stbi_load_from_memory(
+        file_data, (int)read_len, &sw, &sh, &comp, STBI_rgb_alpha);
+    free(file_data);
+    if (pixels == NULL) {
+        gal_hook_logf("coverart: decode failed path=%s reason=%s",
+                      src_path, stbi_failure_reason());
+        return -1;
+    }
+    gal_hook_logf("coverart: decoded %ux%u comp=%d size=%lu",
+                  sw, sh, comp, (unsigned long)read_len);
+
+    /* Resize to 256x256 RGBA */
+    int dw = COVERART_TARGET_W;
+    int dh = COVERART_TARGET_H;
+    unsigned char *out = (unsigned char *)malloc((size_t)dw * dh * 4u);
+    if (out == NULL) {
+        stbi_image_free(pixels);
+        return -1;
+    }
+    coverart_resize_rgba(pixels, sw, sh, out, dw, dh);
+    stbi_image_free(pixels);
+
+    /* Encode as PNG to heap memory (never large stack arrays) */
+    int stride = dw * 4;
+    int out_len = 0;
+    unsigned char *png_data = stbi_write_png_to_mem(out, stride, dw, dh, 4, &out_len);
+    free(out);
+    if (png_data == NULL || out_len <= 0) {
+        gal_hook_logf("coverart: encode failed path=%s", src_path);
+        if (png_data) free(png_data);
+        return -1;
+    }
+
+    /* Write temp file then atomic rename */
+    FILE *of = fopen(COVERART_DST_TMP, "wb");
+    if (of == NULL) {
+        if (png_data) free(png_data);
+        return -1;
+    }
+    fwrite(png_data, 1, (size_t)out_len, of);
+    fclose(of);
+    if (png_data) free(png_data);
+
+    /* Atomic publish via temp file + rename */
+    if (rename(COVERART_DST_TMP, COVERART_DST) != 0) {
+        unlink(COVERART_DST_TMP);
+        return -1;
+    }
+    gal_hook_logf("coverart: resized %ux%u (%lu B) -> %ux%u (%d B)",
+                  sw, sh, (unsigned long)read_len, dw, dh, out_len);
+    return 0;
+}
+
+static int coverart_pick_source(char *path_out, size_t path_out_sz,
+                                struct stat *st_out)
+{
+    const char *candidates[2] = { "/tmp/gal_albumArt_1.png",
+                                  "/tmp/gal_albumArt_2.png" };
+    int best = -1;
+    time_t best_mtime = 0;
+    off_t best_size = 0;
+    for (int i = 0; i < 2; i++) {
+        struct stat st;
+        if (stat(candidates[i], &st) != 0) continue;
+        if (st.st_size == 0) continue;
+        if (best < 0 || st.st_mtime > best_mtime ||
+            (st.st_mtime == best_mtime && st.st_size > best_size)) {
+            best = i;
+            best_mtime = st.st_mtime;
+            best_size = st.st_size;
+        }
+    }
+    if (best < 0) return -1;
+    if (path_out != NULL && path_out_sz > 0) {
+        strncpy(path_out, candidates[best], path_out_sz - 1);
+        path_out[path_out_sz - 1] = '\0';
+    }
+    if (st_out != NULL) {
+        stat(candidates[best], st_out);
+    }
+    return 0;
+}
+
+static void *coverart_poll_thread(void *arg)
+{
+    (void)arg;
+    time_t last_mtime = 0;
+    off_t last_size = 0;
+    int have_last = 0;
+    while (g_coverart_thread_running) {
+        char path[512];
+        struct stat st;
+        if (coverart_pick_source(path, sizeof(path), &st) == 0) {
+            int changed = !have_last || st.st_mtime != last_mtime || st.st_size != last_size;
+            if (changed) {
+                have_last = 1;
+                last_mtime = st.st_mtime;
+                last_size = st.st_size;
+                coverart_downscale(path);
+            }
+        }
+        /* Sleep in small increments so we can stop quickly. */
+        for (int i = 0; i < (int)(COVERART_POLL_MS / 10) && g_coverart_thread_running; i++)
+            usleep(10000);
+    }
+    return NULL;
+}
+
+static void coverart_start_polling(void)
+{
+    if (g_coverart_thread_running) return;
+    g_coverart_thread_running = 1;
+    pthread_create(&g_coverart_thread, NULL, coverart_poll_thread, NULL);
+}
+
+static void coverart_stop_polling(void)
+{
+    if (!g_coverart_thread_running) return;
+    g_coverart_thread_running = 0;
+    pthread_join(g_coverart_thread, NULL);
 }
