@@ -1771,6 +1771,59 @@ else
     esac
 fi
 
+# ---- CarPlay map: put the cockpit in its map view (AU57x cockpit) -----------
+# ClusterMapGfxKeep.jar replaces one tiny event class of the stock navigation
+# (UpdateGfxState) and starts a small watcher with it. The player only
+# replaces the cockpit's MAP view picture (context 73), but the nav tab can be
+# on COMPASS (no video) or on the route map (KDK, context 75): its own menu
+# decides, and few owners have ever set it to MAP (and on a unit not coded for
+# a MOST cluster the stock MAP choice is refused). On an RS7 C7.5 (K3663) the
+# CarPlay map therefore never showed: the compass, or a blank tab during an
+# Audi route. While the CarPlay map is up the watcher puts the tab in MAP view
+# the stock way (GfxStreamController.switchViewMode); 4 s after it ends it
+# puts the tab back to the view it was in. Every step goes to
+# /tmp/clustermap-gfxstate.log. Added where profiles.conf says "gfxkeep" AND
+# lsd.jxe is the build it was checked against; CLUSTERMAP_CARPLAY_GFX_KEEP=0
+# leaves it out.
+GK=`sed -n 's/^CLUSTERMAP_CARPLAY_GFX_KEEP=\([a-z0-9]*\)[ \t]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+GK_JAR=ClusterMapGfxKeep.jar
+GK_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_gfxkeep_added
+GK_WHY=
+if [ "$GK" = 0 ]; then
+    GK_WHY="turned off (CLUSTERMAP_CARPLAY_GFX_KEEP=0)"
+elif [ "$CARPLAY_OK" -ne 1 ]; then
+    GK_WHY="the CarPlay map is not installed"
+elif ! train_has "$PROFILES" "$TRAIN" gfxkeep; then
+    GK_WHY="not made for $TRAIN"
+elif [ "`file_size /ifs/lsd.jxe`" != 44688282 ]; then
+    GK_WHY="this unit's interface (lsd.jxe) is not the 44688282-byte build it was made for"
+elif [ ! -r "$CARD_ROOT/carplay/$GK_JAR" ] || [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
+    GK_WHY="its files are not in this package"
+fi
+if [ -z "$GK_WHY" ]; then
+    if sh "$CARD_ROOT/lsd_jar.sh" add $GK_JAR "$CARD_ROOT/carplay/$GK_JAR"; then
+        if mount -uw /mnt/app 2>/dev/null; then
+            : > "$GK_MARKER"
+            mount -ur /mnt/app 2>/dev/null || true
+        fi
+        echo "CarPlay map: cockpit map view on: while the CarPlay map is up the cockpit's nav tab is put in map view (compass or route view before)."
+    else
+        echo "WARNING: could not add $GK_JAR; lsd.sh is unchanged." >&2
+    fi
+elif [ -f "$GK_MARKER" ] && sh "$CARD_ROOT/lsd_jar.sh" loaded $GK_JAR; then
+    if sh "$CARD_ROOT/lsd_jar.sh" remove $GK_JAR; then
+        if mount -uw /mnt/app 2>/dev/null; then rm -f "$GK_MARKER"; mount -ur /mnt/app 2>/dev/null || true; fi
+        echo "CarPlay map: cockpit graphics guard removed, $GK_WHY."
+    else
+        echo "WARNING: could not remove $GK_JAR; lsd.sh is unchanged." >&2
+    fi
+else
+    case "$TRAIN" in
+        *_AU57x_*) echo "CarPlay map: cockpit graphics guard not installed, $GK_WHY." ;;
+    esac
+fi
+
 # ---- CarPlay map: keep it when the iPhone starts a route --------------------
 # CLUSTERMAP_CARPLAY_HIDE_NAV=1: the CarPlay hook does not pass on to the car
 # that the iPhone has started a route (libcarplay_cluster.so reads the marker

@@ -52,6 +52,10 @@ if grep -q 'libcarplay_cluster.so' "$CONFIG" 2>/dev/null; then
         [ -f /mnt/app/eso/lib/gal_dualscreen/wheel_zoom_reverse ] && echo "    reversed"
         if [ -r /tmp/clustermap-wheelzoom.log ]; then tail -4 /tmp/clustermap-wheelzoom.log | sed 's/^/    /'; fi
     fi
+    if sh "$PKG/lsd_jar.sh" loaded ClusterMapGfxKeep.jar; then
+        echo "  cockpit map view: loaded (the nav tab goes to map view while the CarPlay map is up)"
+        if [ -r /tmp/clustermap-gfxstate.log ]; then grep -v 'graphics state=1$' /tmp/clustermap-gfxstate.log | tail -3 | sed 's/^/    /'; fi
+    fi
 else
     # The library is not in the same folder on every unit: found as the
     # installer finds it (common.sh).
