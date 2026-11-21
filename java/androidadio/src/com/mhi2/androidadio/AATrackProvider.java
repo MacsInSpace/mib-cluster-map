@@ -583,49 +583,6 @@ public class AATrackProvider {
                         StringBuffer sb4 = new StringBuffer("handleNowPlayingData: terminalModeService.updateCurrentStation(info) called, listRef=");
                         sb4.append(lastListRef);
                         debugLog(sb4.toString());
-                        // Directly set fsgHandle on CurrentStation_Handle_Status (BAP Function 22)
-                        // so Virtual Cockpit sees real listRef instead of 65535 default
-                        if (combiModule != null) {
-                            try {
-                                Object func22 = combiModule.getClass().getMethod(
-                                    "getBAPFunctionPropertyFSG", new Class[]{int.class}).invoke(combiModule, new Object[]{new Integer(22)});
-                                if (func22 != null) {
-                                    Object status22 = func22.getClass().getMethod("getLastStatus", new Class[0]).invoke(func22, new Object[0]);
-                                    if (status22 != null) {
-                                        java.lang.reflect.Field fhField = status22.getClass().getField("fsgHandle");
-                                        fhField.setInt(status22, (int) lastListRef);
-                                        // Match sendStatusIfChanged by name + 1 param (takes StatusProperty,
-                                        // not concrete CurrentStation_Handle_Status subclass)
-                                        Method sendStatusIfChanged = null;
-                                        java.lang.reflect.Method[] fsgMethods = func22.getClass().getMethods();
-                                        for (int i = 0; i < fsgMethods.length; i++) {
-                                            java.lang.reflect.Method m = fsgMethods[i];
-                                            if ("sendStatusIfChanged".equals(m.getName())
-                                                && m.getParameterTypes().length == 1) {
-                                                sendStatusIfChanged = m;
-                                                break;
-                                            }
-                                        }
-                                        if (sendStatusIfChanged != null) {
-                                            sendStatusIfChanged.setAccessible(true);
-                                            sendStatusIfChanged.invoke(func22, new Object[]{status22});
-                                            StringBuffer sbfh = new StringBuffer("handleNowPlayingData: set fsgHandle=");
-                                            sbfh.append(lastListRef);
-                                            sbfh.append(" on CurrentStation_Handle_Status and sent");
-                                            debugLog(sbfh.toString());
-                                        } else {
-                                            StringBuffer sbx = new StringBuffer("handleNowPlayingData: sendStatusIfChanged not found on ");
-                                            sbx.append(func22.getClass().getName());
-                                            debugLog(sbx.toString());
-                                        }
-                                    }
-                                }
-                            } catch (Throwable t) {
-                                StringBuffer sbx = new StringBuffer("handleNowPlayingData: set fsgHandle threw ");
-                                sbx.append(t);
-                                debugLog(sbx.toString());
-                            }
-                        }
                     } else {
                         StringBuffer sbx = new StringBuffer("handleNowPlayingData: updateCurrentStation method not found on ");
                         sbx.append(terminalModeService.getClass().getName());
@@ -956,49 +913,6 @@ public class AATrackProvider {
                         StringBuffer sb6 = new StringBuffer("handleCoverArtUrl: terminalModeService.updateCurrentStation(info) called, listRef=");
                         sb6.append(lastListRef);
                         debugLog(sb6.toString());
-                        // Directly set fsgHandle on CurrentStation_Handle_Status (BAP Function 22)
-                        // so Virtual Cockpit sees real listRef instead of 65535 default
-                        if (combiModule != null) {
-                            try {
-                                Object func22 = combiModule.getClass().getMethod(
-                                    "getBAPFunctionPropertyFSG", new Class[]{int.class}).invoke(combiModule, new Object[]{new Integer(22)});
-                                if (func22 != null) {
-                                    Object status22 = func22.getClass().getMethod("getLastStatus", new Class[0]).invoke(func22, new Object[0]);
-                                    if (status22 != null) {
-                                        java.lang.reflect.Field fhField = status22.getClass().getField("fsgHandle");
-                                        fhField.setInt(status22, (int) lastListRef);
-                                        // Match sendStatusIfChanged by name + 1 param (takes StatusProperty,
-                                        // not concrete CurrentStation_Handle_Status subclass)
-                                        Method sendStatusIfChanged = null;
-                                        java.lang.reflect.Method[] fsgMethods = func22.getClass().getMethods();
-                                        for (int i = 0; i < fsgMethods.length; i++) {
-                                            java.lang.reflect.Method m = fsgMethods[i];
-                                            if ("sendStatusIfChanged".equals(m.getName())
-                                                && m.getParameterTypes().length == 1) {
-                                                sendStatusIfChanged = m;
-                                                break;
-                                            }
-                                        }
-                                        if (sendStatusIfChanged != null) {
-                                            sendStatusIfChanged.setAccessible(true);
-                                            sendStatusIfChanged.invoke(func22, new Object[]{status22});
-                                            StringBuffer sbfh = new StringBuffer("handleCoverArtUrl: set fsgHandle=");
-                                            sbfh.append(lastListRef);
-                                            sbfh.append(" on CurrentStation_Handle_Status and sent");
-                                            debugLog(sbfh.toString());
-                                        } else {
-                                            StringBuffer sbx = new StringBuffer("handleCoverArtUrl: sendStatusIfChanged not found on ");
-                                            sbx.append(func22.getClass().getName());
-                                            debugLog(sbx.toString());
-                                        }
-                                    }
-                                }
-                            } catch (Throwable t) {
-                                StringBuffer sbx = new StringBuffer("handleCoverArtUrl: set fsgHandle threw ");
-                                sbx.append(t);
-                                debugLog(sbx.toString());
-                            }
-                        }
                     } else {
                         StringBuffer sbx = new StringBuffer("handleCoverArtUrl: updateCurrentStation method not found on ");
                         sbx.append(terminalModeService.getClass().getName());
