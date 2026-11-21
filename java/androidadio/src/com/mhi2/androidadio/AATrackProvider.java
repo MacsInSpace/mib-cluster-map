@@ -2,7 +2,9 @@ package com.mhi2.androidadio;
 
 import java.io.FileWriter;
 import java.io.PrintWriter;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import org.dsi.ifc.androidauto2.TrackData;
@@ -610,14 +612,118 @@ public class AATrackProvider {
                         Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
                         Object locator = locatorCls.getDeclaredConstructor(
                             new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrlToUse});
-                        Method rc = pictureManager.getClass().getMethod(
-                            "responseCoverArt", new Class[]{Long.class, int.class, ResourceLocator.class, boolean.class});
-                        rc.invoke(pictureManager, new Object[]{new Long(lastListRef), new Integer(sourceType), locator, new Boolean(true)});
-                        StringBuffer sbp = new StringBuffer("handleNowPlayingData: IPictureManager.responseCoverArt(listRef=");
-                        sbp.append(lastListRef);
-                        sbp.append(", sourceType=");
-                        sbp.append(sourceType);
-                        debugLog(sbp.toString());
+                        // Match responseCoverArt by name + 4 params (primitive long, not Long.class)
+                        Method rc = null;
+                        java.lang.reflect.Method[] allMethods = pictureManager.getClass().getMethods();
+                        for (int i = 0; i < allMethods.length; i++) {
+                            java.lang.reflect.Method m = allMethods[i];
+                            if ("responseCoverArt".equals(m.getName())
+                                && m.getParameterTypes().length == 4) {
+                                rc = m;
+                                break;
+                            }
+                        }
+                        if (rc != null) {
+                            rc.setAccessible(true);
+                            rc.invoke(pictureManager, new Object[]{new Long(lastListRef), new Integer(sourceType), locator, new Boolean(true)});
+                            StringBuffer sbp = new StringBuffer("handleNowPlayingData: IPictureManager.responseCoverArt succeeded (listRef=");
+                            sbp.append(lastListRef);
+                            sbp.append(", sourceType=");
+                            sbp.append(sourceType);
+                            sbp.append(")");
+                            debugLog(sbp.toString());
+                        } else {
+                            StringBuffer sbm = new StringBuffer("handleNowPlayingData: responseCoverArt not found on ");
+                            sbm.append(pictureManager.getClass().getName());
+                            sbm.append(". Available methods:");
+                            java.lang.reflect.Method[] am2 = pictureManager.getClass().getMethods();
+                            for (int i = 0; i < am2.length; i++) {
+                                sbm.append(" ");
+                                sbm.append(am2[i].getName());
+                                sbm.append("(");
+                                java.lang.Class[] pts = am2[i].getParameterTypes();
+                                for (int j = 0; j < pts.length; j++) {
+                                    if (j > 0) sbm.append(",");
+                                    sbm.append(pts[j].getSimpleName());
+                                }
+                                sbm.append(")");
+                            }
+                            debugLog(sbm.toString());
+                        }
+                    }
+                    // Register IPictureProvider proxy for on-demand requestPicture from cluster
+                    // (AbstractPictureManager.requestCoverArt looks up pictureProviders by type 0 hardcoded)
+                    if (pictureManager != null) {
+                        try {
+                            Class<?> ipcCls = forName("de.audi.app.combi.bap.app.kombipictures.IPictureProvider");
+                            ClassLoader cl = ipcCls.getClassLoader();
+                            final Object pm = pictureManager;
+                            final String coverUrl = coverUrlToUse;
+                            final long bapEntryID = lastListRef;
+                            final int sourceTypeForProxy = sourceType;
+                            Object proxy = Proxy.newProxyInstance(cl, new Class[]{ipcCls}, new InvocationHandler() {
+                                public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                                    String mn = method.getName();
+                                    if ("requestPicture".equals(mn)) {
+                                        long bapEntryID2 = 0;
+                                        int instanceId = 255;
+                                        if (args != null && args.length >= 1 && args[0] instanceof Long) {
+                                            bapEntryID2 = ((Long) args[0]).longValue();
+                                        }
+                                        if (args != null && args.length >= 2 && args[1] instanceof Integer) {
+                                            instanceId = ((Integer) args[1]).intValue();
+                                        }
+                                        StringBuffer sb = new StringBuffer("IPictureProvider.proxy.requestPicture bapEntryID=");
+                                        sb.append(bapEntryID2);
+                                        sb.append(" instanceId=");
+                                        sb.append(instanceId);
+                                        debugLog(sb.toString());
+                                        if (pm != null) {
+                                            try {
+                                                Class<?> locatorCls3 = forName("org.dsi.ifc.global.ResourceLocator");
+                                                Object locator3 = locatorCls3.getDeclaredConstructor(
+                                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrl});
+                                                Method rc2 = null;
+                                                java.lang.reflect.Method[] pmMethods = pm.getClass().getMethods();
+                                                for (int i = 0; i < pmMethods.length; i++) {
+                                                    java.lang.reflect.Method m = pmMethods[i];
+                                                    if ("responseCoverArt".equals(m.getName())
+                                                        && m.getParameterTypes().length == 4) {
+                                                        rc2 = m;
+                                                        break;
+                                                    }
+                                                }
+                                                if (rc2 != null) {
+                                                    rc2.setAccessible(true);
+                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(sourceTypeForProxy), locator3, new Boolean(false)});
+                                                    StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
+                                                    sb2.append(bapEntryID2);
+                                                    debugLog(sb2.toString());
+                                                }
+                                            } catch (Throwable t) {
+                                                StringBuffer sbx = new StringBuffer("IPictureProvider.proxy.responseCoverArt threw ");
+                                                sbx.append(t);
+                                                debugLog(sbx.toString());
+                                            }
+                                        }
+                                    }
+                                    return null;
+                                }
+                            });
+                            // Register under sourceType (e.g. 39) and type 0 (requestCoverArt hardcodes type 0)
+                            Method reg = pictureManager.getClass().getMethod(
+                                "registerPictureProvider", new Class[]{int.class, ipcCls});
+                            reg.invoke(pictureManager, new Object[]{new Integer(sourceType), proxy});
+                            reg.invoke(pictureManager, new Object[]{new Integer(0), proxy});
+                            StringBuffer sbReg = new StringBuffer("AATrackProvider: IPictureProvider proxy registered with type=");
+                            sbReg.append(sourceType);
+                            sbReg.append(" and type=0");
+                            debugLog(sbReg.toString());
+                        } catch (Throwable t) {
+                            StringBuffer sbx = new StringBuffer("AATrackProvider: registerPictureProviderProxy threw ");
+                            sbx.append(t);
+                            debugLog(sbx.toString());
+                        }
                     }
                     // Update AppConnectorMedia's pictureProvider mapping (provider type 0)
                     Object mediaConn = AAJavaBridge.getMediaConnector();
@@ -828,14 +934,118 @@ public class AATrackProvider {
                         Class<?> locatorCls = forName("org.dsi.ifc.global.ResourceLocator");
                         Object locator = locatorCls.getDeclaredConstructor(
                             new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrlToUse});
-                        Method rc = pictureManager.getClass().getMethod(
-                            "responseCoverArt", new Class[]{Long.class, int.class, ResourceLocator.class, boolean.class});
-                        rc.invoke(pictureManager, new Object[]{new Long(lastListRef), new Integer(sourceType), locator, new Boolean(true)});
-                        StringBuffer sbp = new StringBuffer("handleCoverArtUrl: IPictureManager.responseCoverArt(listRef=");
-                        sbp.append(lastListRef);
-                        sbp.append(", sourceType=");
-                        sbp.append(sourceType);
-                        debugLog(sbp.toString());
+                        // Match responseCoverArt by name + 4 params (primitive long, not Long.class)
+                        Method rc = null;
+                        java.lang.reflect.Method[] allMethods = pictureManager.getClass().getMethods();
+                        for (int i = 0; i < allMethods.length; i++) {
+                            java.lang.reflect.Method m = allMethods[i];
+                            if ("responseCoverArt".equals(m.getName())
+                                && m.getParameterTypes().length == 4) {
+                                rc = m;
+                                break;
+                            }
+                        }
+                        if (rc != null) {
+                            rc.setAccessible(true);
+                            rc.invoke(pictureManager, new Object[]{new Long(lastListRef), new Integer(sourceType), locator, new Boolean(true)});
+                            StringBuffer sbp = new StringBuffer("handleCoverArtUrl: IPictureManager.responseCoverArt succeeded (listRef=");
+                            sbp.append(lastListRef);
+                            sbp.append(", sourceType=");
+                            sbp.append(sourceType);
+                            sbp.append(")");
+                            debugLog(sbp.toString());
+                        } else {
+                            StringBuffer sbm = new StringBuffer("handleCoverArtUrl: responseCoverArt not found on ");
+                            sbm.append(pictureManager.getClass().getName());
+                            sbm.append(". Available methods:");
+                            java.lang.reflect.Method[] am2 = pictureManager.getClass().getMethods();
+                            for (int i = 0; i < am2.length; i++) {
+                                sbm.append(" ");
+                                sbm.append(am2[i].getName());
+                                sbm.append("(");
+                                java.lang.Class[] pts = am2[i].getParameterTypes();
+                                for (int j = 0; j < pts.length; j++) {
+                                    if (j > 0) sbm.append(",");
+                                    sbm.append(pts[j].getSimpleName());
+                                }
+                                sbm.append(")");
+                            }
+                            debugLog(sbm.toString());
+                        }
+                    }
+                    // Register IPictureProvider proxy for on-demand requestPicture from cluster
+                    // (AbstractPictureManager.requestCoverArt looks up pictureProviders by type 0 hardcoded)
+                    if (pictureManager != null) {
+                        try {
+                            Class<?> ipcCls = forName("de.audi.app.combi.bap.app.kombipictures.IPictureProvider");
+                            ClassLoader cl = ipcCls.getClassLoader();
+                            final Object pm = pictureManager;
+                            final String coverUrl = coverUrlToUse;
+                            final long bapEntryID = lastListRef;
+                            final int sourceTypeForProxy = sourceType;
+                            Object proxy = Proxy.newProxyInstance(cl, new Class[]{ipcCls}, new InvocationHandler() {
+                                public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+                                    String mn = method.getName();
+                                    if ("requestPicture".equals(mn)) {
+                                        long bapEntryID2 = 0;
+                                        int instanceId = 255;
+                                        if (args != null && args.length >= 1 && args[0] instanceof Long) {
+                                            bapEntryID2 = ((Long) args[0]).longValue();
+                                        }
+                                        if (args != null && args.length >= 2 && args[1] instanceof Integer) {
+                                            instanceId = ((Integer) args[1]).intValue();
+                                        }
+                                        StringBuffer sb = new StringBuffer("IPictureProvider.proxy.requestPicture bapEntryID=");
+                                        sb.append(bapEntryID2);
+                                        sb.append(" instanceId=");
+                                        sb.append(instanceId);
+                                        debugLog(sb.toString());
+                                        if (pm != null) {
+                                            try {
+                                                Class<?> locatorCls3 = forName("org.dsi.ifc.global.ResourceLocator");
+                                                Object locator3 = locatorCls3.getDeclaredConstructor(
+                                                    new Class[]{int.class, String.class}).newInstance(new Object[]{new Integer(0), coverUrl});
+                                                Method rc2 = null;
+                                                java.lang.reflect.Method[] pmMethods = pm.getClass().getMethods();
+                                                for (int i = 0; i < pmMethods.length; i++) {
+                                                    java.lang.reflect.Method m = pmMethods[i];
+                                                    if ("responseCoverArt".equals(m.getName())
+                                                        && m.getParameterTypes().length == 4) {
+                                                        rc2 = m;
+                                                        break;
+                                                    }
+                                                }
+                                                if (rc2 != null) {
+                                                    rc2.setAccessible(true);
+                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(sourceTypeForProxy), locator3, new Boolean(false)});
+                                                    StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
+                                                    sb2.append(bapEntryID2);
+                                                    debugLog(sb2.toString());
+                                                }
+                                            } catch (Throwable t) {
+                                                StringBuffer sbx = new StringBuffer("IPictureProvider.proxy.responseCoverArt threw ");
+                                                sbx.append(t);
+                                                debugLog(sbx.toString());
+                                            }
+                                        }
+                                    }
+                                    return null;
+                                }
+                            });
+                            // Register under sourceType (e.g. 39) and type 0 (requestCoverArt hardcodes type 0)
+                            Method reg = pictureManager.getClass().getMethod(
+                                "registerPictureProvider", new Class[]{int.class, ipcCls});
+                            reg.invoke(pictureManager, new Object[]{new Integer(sourceType), proxy});
+                            reg.invoke(pictureManager, new Object[]{new Integer(0), proxy});
+                            StringBuffer sbReg = new StringBuffer("AATrackProvider: IPictureProvider proxy registered with type=");
+                            sbReg.append(sourceType);
+                            sbReg.append(" and type=0");
+                            debugLog(sbReg.toString());
+                        } catch (Throwable t) {
+                            StringBuffer sbx = new StringBuffer("AATrackProvider: registerPictureProviderProxy threw ");
+                            sbx.append(t);
+                            debugLog(sbx.toString());
+                        }
                     }
                     // Update AppConnectorMedia's pictureProvider mapping (provider type 0)
                     Object mediaConn = AAJavaBridge.getMediaConnector();
