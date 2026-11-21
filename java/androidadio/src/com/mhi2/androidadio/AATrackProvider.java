@@ -379,21 +379,6 @@ public class AATrackProvider {
                 StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: file exists size=");
                 sb.append(f.length());
                 debugLog(sb.toString());
-                // Downscale if image exceeds ~64 KB (MIB2 MOST cover-art buffer limit)
-                if (f.length() > 65536) {
-                    String scaled = downscaleCoverArt(normalized, (int) lastListRef);
-                    if (scaled != null && scaled.length() > 0) {
-                        java.io.File sf = new java.io.File(scaled);
-                        if (sf.exists()) {
-                            StringBuffer sb2 = new StringBuffer("normalizeCoverArtUrl: downscaled to ");
-                            sb2.append(scaled);
-                            sb2.append(" size=");
-                            sb2.append(sf.length());
-                            debugLog(sb2.toString());
-                            return scaled;
-                        }
-                    }
-                }
             } else {
                 StringBuffer sbnf = new StringBuffer("normalizeCoverArtUrl: file does not exist: ");
                 sbnf.append(normalized);
@@ -405,62 +390,6 @@ public class AATrackProvider {
             debugLog(sb.toString());
         }
         return normalized;
-    }
-
-    private String downscaleCoverArt(String rawPath, int listRef) {
-        try {
-            Class<?> imageIOCls = Class.forName("javax.imageio.ImageIO");
-            Class<?> bufferedImageCls = Class.forName("java.awt.image.BufferedImage");
-            Class<?> fileCls = Class.forName("java.io.File");
-            Class<?> imageCls = Class.forName("java.awt.Image");
-            Class<?> imageIOCls2 = imageIOCls;
-            // ImageIO.read(File)
-            java.lang.reflect.Method readM = imageIOCls.getMethod("read", new Class[]{fileCls});
-            Object img = readM.invoke(null, new Object[]{new java.io.File(rawPath)});
-            if (img == null) return null;
-            // Get width/height
-            java.lang.reflect.Method getW = img.getClass().getMethod("getWidth", new Class[]{imageCls});
-            java.lang.reflect.Method getH = img.getClass().getMethod("getHeight", new Class[]{imageCls});
-            int w = ((Integer) getW.invoke(img, new Object[]{null})).intValue();
-            int h = ((Integer) getH.invoke(img, new Object[]{null})).intValue();
-            StringBuffer sb = new StringBuffer("downscaleCoverArt: original ");
-            sb.append(w);
-            sb.append("x");
-            sb.append(h);
-            debugLog(sb.toString());
-            int targetW = 200;
-            int targetH = 200;
-            // Create BufferedImage TYPE_INT_RGB
-            java.lang.reflect.Field rgbField = bufferedImageCls.getField("TYPE_INT_RGB");
-            int typeIntRgb = rgbField.getInt(null);
-            java.lang.reflect.Constructor<?> biCtor = bufferedImageCls.getConstructor(new Class[]{int.class, int.class, int.class});
-            Object scaled = biCtor.newInstance(new Object[]{new Integer(targetW), new Integer(targetH), new Integer(typeIntRgb)});
-            // Get Graphics2D from scaled image
-            java.lang.reflect.Method getGraphics = scaled.getClass().getMethod("getGraphics", new Class[0]);
-            Object g = getGraphics.invoke(scaled, new Object[0]);
-            // g.drawImage(img, 0, 0, targetW, targetH, null)
-            java.lang.reflect.Method drawImage = g.getClass().getMethod("drawImage", new Class[]{imageCls, int.class, int.class, int.class, int.class, imageCls});
-            drawImage.invoke(g, new Object[]{img, new Integer(0), new Integer(0), new Integer(targetW), new Integer(targetH), null});
-            // g.dispose()
-            java.lang.reflect.Method dispose = g.getClass().getMethod("dispose", new Class[0]);
-            dispose.invoke(g, new Object[0]);
-            // Write scaled image as JPEG
-            String outPath = new StringBuffer("/tmp/aa_vc_cover_").append(listRef).append(".jpg").toString();
-            java.lang.reflect.Method writeM = imageIOCls.getMethod("write", new Class[]{imageCls, String.class, fileCls});
-            writeM.invoke(null, new Object[]{scaled, "jpg", new java.io.File(outPath)});
-            java.io.File sf = new java.io.File(outPath);
-            if (sf.exists()) {
-                StringBuffer sb2 = new StringBuffer("downscaleCoverArt: converted size=");
-                sb2.append(sf.length());
-                debugLog(sb2.toString());
-                return outPath;
-            }
-        } catch (Throwable t) {
-            StringBuffer sb = new StringBuffer("downscaleCoverArt: threw ");
-            sb.append(t);
-            debugLog(sb.toString());
-        }
-        return null;
     }
 
     public void handleNowPlayingData(TrackData trackData, int instanceId) {
