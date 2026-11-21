@@ -228,6 +228,53 @@ zooms the CarPlay map on the cockpit, and the car's own map as before
 without CarPlay. Whether every navigation app follows the command as Apple
 Maps does is up to the app.
 
+### Cockpit map view (Audi A6/A7 C7.5)
+
+The player replaces the picture of the cockpit's **map view** (context 73).
+The navigation tab of the A6/A7 C7.5 cockpit has three views, chosen in the
+cockpit's own menu (OK on the left thumbwheel in the nav tab) and kept across
+reboots: map, route map (KDK, context 75, 800x252, only during an Audi route)
+and compass (no video at all). Stock `ClusterViewMode` falls back from
+compass to the route map whenever an Audi route runs. On an RS7 C7.5
+(`MHI2_ER_AU57x_K3663`, cluster coded MOST) the tab had never been set to
+map: the cockpit showed the compass with CarPlay running, and went blank when
+the player pulled it onto context 73 while it was laid out for the route
+map. The stock map choice is also refused outright on a unit not coded for a
+MOST cluster (`ClusterViewMode.setCurrentViewMode`, SysConst 67).
+
+`ClusterMapGfxKeep.jar` (`java/gfxkeep`) replaces one tiny event class,
+`UpdateGfxState` (same members), created for every cockpit graphics report;
+the first one, about 20 s after start-up, starts a watcher thread. While
+`/tmp/mibr-carplay111.state` says `streaming` and `carplay_cluster.sh` runs,
+the watcher remembers the tab's view, sets it to map (choice model 51, the
+model the cockpit's screen state machine `CombiD4STNaviSMM` follows) and runs
+the stock `GfxStreamController.switchViewMode(MAP)`, which is what the stock
+map choice does after its coding check. If something moves the tab away it
+does that again (at most every 3 s, 30 times a session). 4 s after the
+CarPlay map has gone (the player has put the stock map back by then) the
+remembered view goes back through the stock validation
+(`getNewValidViewMode`: the route map if an Audi route runs). Stock classes
+are reached by reflection only, as in the wheel zoom. It also passes a
+cockpit "graphics lost" report (GfxState 0) on as available while the
+CarPlay map is being swapped; the RS7 never sent one, so that part is not
+car-tested.
+
+Added only on a train marked `gfxkeep` in `profiles.conf` whose
+`/ifs/lsd.jxe` is the 44688282-byte MU1425 build;
+`CLUSTERMAP_CARPLAY_GFX_KEEP=0` leaves it out, uninstall removes it, and
+`touch /tmp/clustermap-gfxkeep-off` stops it until the next boot.
+`tests/gfxkeep_logic_test.sh` runs it against stand-ins of the stock classes
+(`tests/gfxkeep_fakes`) in another class loader. Every step, the unit's
+cluster coding and the stock stream status go to
+`/tmp/clustermap-gfxstate.log`, which **Save logs to SD** copies. Car-tested
+on the RS7 (2026-11-22, wired iPhone, an Audi route running):
+
+```text
+26117 cockpit map guard running (mib-cluster-map): cluster variant=1 (1 = MOST), cluster map=1, view=COMPASS
+51965 CarPlay map up: view was KDK, cluster to MAP
+179381 CarPlay map gone: cluster back to KDK (was KDK)
+```
+
 ### Delay
 
 The iPhone sends a keyframe only when asked (2 in 5540 pictures in one

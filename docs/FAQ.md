@@ -121,6 +121,11 @@ The update menu needs developer mode on Audi (see the
   installer adds (M.I.B.'s build; the toolbox's VW build does not fit this
   unit), a CarPlay route (Waze) stays on the cockpit. The steering-wheel
   roller zooms the CarPlay map ([CarPlay](CarPlay.md#steering-wheel-zoom-audi-a6a7-c75)).
+- **RS7 C7.5 `AU57x_K3663`**: CarPlay on the cockpit once the nav tab is put
+  in map view while the CarPlay map is up (`ClusterMapGfxKeep.jar`, added by
+  the installer): its tab was on the compass, or the route map during an
+  Audi route, and showed the compass or a blank tab
+  ([CarPlay](CarPlay.md#cockpit-map-view-audi-a6a7-c75)).
 - **A6 C7.5** has the same firmware and works too (#68; a 2016 facelift out
   of the box on v1.2.1; #114 and another A7 `K3663_1`, #140, on v1.2.6; an
   A6 Avant C7.5 `K3663_1` with CarPlay too, #147; a 2015 A6 `K3663_1`
