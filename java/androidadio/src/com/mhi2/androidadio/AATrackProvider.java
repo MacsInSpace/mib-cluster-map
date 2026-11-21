@@ -594,13 +594,30 @@ public class AATrackProvider {
                                     if (status22 != null) {
                                         java.lang.reflect.Field fhField = status22.getClass().getField("fsgHandle");
                                         fhField.setInt(status22, (int) lastListRef);
-                                        Method sendStatusIfChanged = func22.getClass().getMethod("sendStatusIfChanged", new Class[]{status22.getClass()});
-                                        sendStatusIfChanged.setAccessible(true);
-                                        sendStatusIfChanged.invoke(func22, new Object[]{status22});
-                                        StringBuffer sbfh = new StringBuffer("handleNowPlayingData: set fsgHandle=");
-                                        sbfh.append(lastListRef);
-                                        sbfh.append(" on CurrentStation_Handle_Status and sent");
-                                        debugLog(sbfh.toString());
+                                        // Match sendStatusIfChanged by name + 1 param (takes StatusProperty,
+                                        // not concrete CurrentStation_Handle_Status subclass)
+                                        Method sendStatusIfChanged = null;
+                                        java.lang.reflect.Method[] fsgMethods = func22.getClass().getMethods();
+                                        for (int i = 0; i < fsgMethods.length; i++) {
+                                            java.lang.reflect.Method m = fsgMethods[i];
+                                            if ("sendStatusIfChanged".equals(m.getName())
+                                                && m.getParameterTypes().length == 1) {
+                                                sendStatusIfChanged = m;
+                                                break;
+                                            }
+                                        }
+                                        if (sendStatusIfChanged != null) {
+                                            sendStatusIfChanged.setAccessible(true);
+                                            sendStatusIfChanged.invoke(func22, new Object[]{status22});
+                                            StringBuffer sbfh = new StringBuffer("handleNowPlayingData: set fsgHandle=");
+                                            sbfh.append(lastListRef);
+                                            sbfh.append(" on CurrentStation_Handle_Status and sent");
+                                            debugLog(sbfh.toString());
+                                        } else {
+                                            StringBuffer sbx = new StringBuffer("handleNowPlayingData: sendStatusIfChanged not found on ");
+                                            sbx.append(func22.getClass().getName());
+                                            debugLog(sbx.toString());
+                                        }
                                     }
                                 }
                             } catch (Throwable t) {
@@ -735,9 +752,11 @@ public class AATrackProvider {
                                                     rc2.setAccessible(true);
                                                     // Respond with bapEntryID2 (even if 65535) so Virtual
                                                     // Cockpit matches cover art to its requested entry
-                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(AATrackProvider.this.currentSourceType), locator3, new Boolean(true)});
+                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(instanceId), locator3, new Boolean(true)});
                                                     StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
                                                     sb2.append(bapEntryID2);
+                                                    sb2.append(" sourceType=");
+                                                    sb2.append(instanceId);
                                                     debugLog(sb2.toString());
                                                 }
                                             } catch (Throwable t) {
@@ -948,13 +967,30 @@ public class AATrackProvider {
                                     if (status22 != null) {
                                         java.lang.reflect.Field fhField = status22.getClass().getField("fsgHandle");
                                         fhField.setInt(status22, (int) lastListRef);
-                                        Method sendStatusIfChanged = func22.getClass().getMethod("sendStatusIfChanged", new Class[]{status22.getClass()});
-                                        sendStatusIfChanged.setAccessible(true);
-                                        sendStatusIfChanged.invoke(func22, new Object[]{status22});
-                                        StringBuffer sbfh = new StringBuffer("handleCoverArtUrl: set fsgHandle=");
-                                        sbfh.append(lastListRef);
-                                        sbfh.append(" on CurrentStation_Handle_Status and sent");
-                                        debugLog(sbfh.toString());
+                                        // Match sendStatusIfChanged by name + 1 param (takes StatusProperty,
+                                        // not concrete CurrentStation_Handle_Status subclass)
+                                        Method sendStatusIfChanged = null;
+                                        java.lang.reflect.Method[] fsgMethods = func22.getClass().getMethods();
+                                        for (int i = 0; i < fsgMethods.length; i++) {
+                                            java.lang.reflect.Method m = fsgMethods[i];
+                                            if ("sendStatusIfChanged".equals(m.getName())
+                                                && m.getParameterTypes().length == 1) {
+                                                sendStatusIfChanged = m;
+                                                break;
+                                            }
+                                        }
+                                        if (sendStatusIfChanged != null) {
+                                            sendStatusIfChanged.setAccessible(true);
+                                            sendStatusIfChanged.invoke(func22, new Object[]{status22});
+                                            StringBuffer sbfh = new StringBuffer("handleCoverArtUrl: set fsgHandle=");
+                                            sbfh.append(lastListRef);
+                                            sbfh.append(" on CurrentStation_Handle_Status and sent");
+                                            debugLog(sbfh.toString());
+                                        } else {
+                                            StringBuffer sbx = new StringBuffer("handleCoverArtUrl: sendStatusIfChanged not found on ");
+                                            sbx.append(func22.getClass().getName());
+                                            debugLog(sbx.toString());
+                                        }
                                     }
                                 }
                             } catch (Throwable t) {
@@ -1089,9 +1125,11 @@ public class AATrackProvider {
                                                     rc2.setAccessible(true);
                                                     // Respond with bapEntryID2 (even if 65535) so Virtual
                                                     // Cockpit matches cover art to its requested entry
-                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(AATrackProvider.this.currentSourceType), locator3, new Boolean(true)});
+                                                    rc2.invoke(pm, new Object[]{new Long(bapEntryID2), new Integer(instanceId), locator3, new Boolean(true)});
                                                     StringBuffer sb2 = new StringBuffer("IPictureProvider.proxy.responseCoverArt called bapEntryID=");
                                                     sb2.append(bapEntryID2);
+                                                    sb2.append(" sourceType=");
+                                                    sb2.append(instanceId);
                                                     debugLog(sb2.toString());
                                                 }
                                             } catch (Throwable t) {
