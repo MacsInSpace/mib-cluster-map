@@ -2,6 +2,7 @@ package com.mhi2.androidadio;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationHandler;
@@ -339,12 +340,50 @@ public class AATrackProvider {
                 int picId = (int)(crcVal & 0x7FFFFFFFL);
                 if (picId == 0) picId = 1;
                 currentPicId = picId;
+                // Audi MHI2's DSIKombiPictureServer reads cover art from
+                // /var/app/icab/tmp/37/coverart.png (not /tmp/). Copy the PNG
+                // there atomically when /var/app/icab/tmp exists, otherwise
+                // fall back to the /tmp path.
+                String destPath = chosen;
+                File icabTmp = new File("/var/app/icab/tmp");
+                if (icabTmp.exists()) {
+                    File destDir = new File(icabTmp, "37");
+                    destDir.mkdirs();
+                    File destTmp = new File(destDir, "aa_cover.tmp");
+                    File dest = new File(destDir, "aa_cover.png");
+                    FileOutputStream fos = new FileOutputStream(destTmp);
+                    FileInputStream src = new FileInputStream(f);
+                    byte[] cbuf = new byte[8192];
+                    int cn;
+                    while ((cn = src.read(cbuf)) > 0) {
+                        fos.write(cbuf, 0, cn);
+                    }
+                    src.close();
+                    fos.close();
+                    if (destTmp.renameTo(dest)) {
+                        destPath = dest.getAbsolutePath();
+                        StringBuffer sbd = new StringBuffer("normalizeCoverArtUrl: copied to ");
+                        sbd.append(destPath);
+                        sbd.append(" exists=");
+                        sbd.append(dest.exists());
+                        sbd.append(" size=");
+                        sbd.append(dest.length());
+                        debugLog(sbd.toString());
+                    } else {
+                        StringBuffer sbd = new StringBuffer("normalizeCoverArtUrl: renameTo failed, falling back to ");
+                        sbd.append(chosen);
+                        debugLog(sbd.toString());
+                    }
+                }
+                currentCoverPath = destPath;
                 StringBuffer sb = new StringBuffer("normalizeCoverArtUrl: chosen=");
                 sb.append(chosen);
                 sb.append(" size=");
                 sb.append(f.length());
                 sb.append(" picId=");
                 sb.append(picId);
+                sb.append(" coverPath=");
+                sb.append(destPath);
                 debugLog(sb.toString());
             } else {
                 StringBuffer sbnf = new StringBuffer("normalizeCoverArtUrl: file does not exist or empty: ");
@@ -356,7 +395,7 @@ public class AATrackProvider {
             sb.append(t);
             debugLog(sb.toString());
         }
-        return chosen;
+        return currentCoverPath;
     }
 
     private int readSourceType() {
@@ -611,9 +650,7 @@ public class AATrackProvider {
                 debugLog(sbx.toString());
             }
         }
-        coverUrl = lastCoverUrl;
-        // Always refresh currentPicId from lastCoverUrl (may have been set by handleCoverArtUrl)
-        normalizeCoverArtUrl(lastCoverUrl);
+        coverUrl = normalizeCoverArtUrl(lastCoverUrl);
         // Read live activeSource.sourceType from BAP Function 16
         readSourceType();
         StringBuffer sb3 = new StringBuffer("handleNowPlayingData: title='");
@@ -698,7 +735,7 @@ public class AATrackProvider {
         if (url == null) url = "";
         boolean changed = !url.equals(lastCoverUrl);
         lastCoverUrl = url;
-        normalizeCoverArtUrl(lastCoverUrl);
+        String coverPath = normalizeCoverArtUrl(lastCoverUrl);
         // Read live activeSource.sourceType from BAP Function 16
         readSourceType();
         StringBuffer sb3 = new StringBuffer("handleCoverArtUrl: url='");
@@ -747,7 +784,7 @@ public class AATrackProvider {
             } else if (!changed && currentPicId != 0) {
                 listRef = lastListRef > 0 && lastListRef < 65535 ? lastListRef : 1;
             }
-            sendCurrentStation(info, effectivePicId(lastCoverUrl), lastCoverUrl, listRef);
+            sendCurrentStation(info, effectivePicId(coverPath), coverPath, listRef);
             // Register IPictureProvider proxy once (AbstractPictureManager.requestCoverArt
             // looks up pictureProviders by type 0 hardcoded).
             if (pictureManager != null && !pictureProviderRegistered) {
