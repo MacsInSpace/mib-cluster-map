@@ -104,7 +104,12 @@ cat $OUT/context_check.txt >> $OUT/dmdt_gs.txt 2>/dev/null
 # CarPlay map: the supervisor, its player, and harman-f's hook state.
 mkdir -p $OUT/carplay
 cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log \
-   /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status /tmp/clustermap-wheelzoom.log /tmp/clustermap-gfxstate.log $OUT/carplay/ 2>/dev/null
+   /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status \
+   /tmp/clustermap-wheelzoom.log /tmp/clustermap-gfxstate.log /tmp/clustermap-rgd.log \
+   /tmp/clustermap-rgd.state /dev/shmem/iap2.log /etc/mm/iap2.cfg \
+   /mnt/system/etc/scripts/startncm.sh /mnt/system/etc/scripts/stopncm.sh \
+   /mnt/system/etc/usblauncher_otg.lua /ramdisk/pps/device/usb_ctrl1 \
+   /mnt/app/armle/lib/dll/ipod-drvr-iap2.stock.so $OUT/carplay/ 2>/dev/null
 grep -n -e dio_manager -e libcarplay -e ALTSCREEN111 /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/carplay/config_lines.txt 2>&1
 grep -n carplay0 /mnt/system/etc/pf*.conf > $OUT/carplay/firewall_lines.txt 2>&1
 # Crash archives the unit's dumper keeps (pidin: dumper -d /mnt/ota/system/core).

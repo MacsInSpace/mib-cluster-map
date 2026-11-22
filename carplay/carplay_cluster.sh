@@ -55,14 +55,57 @@ stop_player() {
 
 cleanup() {
     stop_player "supervisor exit"
+    # The iPhone has just been unplugged: write down who is still running, so a
+    # mm-ipod that did not exit (and then blocks the next CarPlay connection)
+    # is on the card without Green Menu -> Save logs to SD.
+    pidin ar > /tmp/clustermap-pidin-exit.txt 2>/dev/null
+    sync_live_logs_now
+    # Again a little later: by then mm-ipod should be gone.
+    ( sleep 20
+      pidin ar > /tmp/clustermap-pidin-after.txt 2>/dev/null
+      sync_live_logs_now ) >/dev/null 2>&1 &
     [ "`cat $PIDFILE 2>/dev/null`" = $$ ] && rm -f "$PIDFILE"
 }
 trap cleanup 0
 trap 'exit 0' 1 2 15
 
+# Mirror live RAM logs to the SD card (if inserted in sda0/sdb0) every 15s so
+# drive diagnostics are preserved even if the car is turned off without running
+# Green Menu -> Save logs to SD.
+# Run in a background subshell and skip if savelogs.sh/collect_logs.sh is running
+# so we never block dio_manager teardown or race with Green Menu log collection.
+SYNC_TICK=0
+sync_live_logs_now() {
+    [ -f /tmp/clustermap-savelogs.lock ] && return
+    for SD in /fs/sda0 /fs/sdb0; do
+        if [ -d "$SD/ClusterMap" ]; then
+            mount -uw "$SD" 2>/dev/null
+            mkdir -p "$SD/ClusterMap/live_logs" 2>/dev/null
+            cp /tmp/clustermap-gfxstate.log /tmp/clustermap-rgd.log /tmp/clustermap-rgd.state \
+               /tmp/clustermap-wheelzoom.log /tmp/carplay_cluster.log /tmp/stream-player-carplay.log \
+               /tmp/mibr-carplay111.state /tmp/altscreen111.log /tmp/mibr-alt111-gen2.status \
+               /tmp/clustermap-pidin-exit.txt /tmp/clustermap-pidin-after.txt \
+               /dev/shmem/iap2.log "$SD/ClusterMap/live_logs/" 2>/dev/null
+            break
+        fi
+    done
+}
+sync_live_logs() {
+    [ -f /tmp/clustermap-savelogs.lock ] && return
+    ( sync_live_logs_now ) >/dev/null 2>&1 &
+}
+
 log "started for dio_manager $OWNER"
+# Snapshots of the previous unplug: not this one's, so they go first.
+rm -f /tmp/clustermap-pidin-exit.txt /tmp/clustermap-pidin-after.txt 2>/dev/null
+sync_live_logs
 FAILS=0
 while kill -0 "$OWNER" 2>/dev/null; do
+    SYNC_TICK=`expr $SYNC_TICK + 1`
+    if [ $SYNC_TICK -ge 15 ]; then
+        SYNC_TICK=0
+        sync_live_logs
+    fi
     CUR=`cat "$STATE" 2>/dev/null`
     if [ "$CUR" = streaming ]; then
         if ! player_running; then

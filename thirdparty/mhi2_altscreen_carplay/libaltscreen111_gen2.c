@@ -2544,7 +2544,10 @@ static void gen2_control_projection_on(void)
 static void gen2_control_release(void)
 {
     uint64_t s;
-    int stop_handed_off = 0;
+    int stop_handed_off = 0, client;
+    pthread_mutex_lock(&g_lock);
+    client = g_alt_client;
+    pthread_mutex_unlock(&g_lock);
     pthread_mutex_lock(&g2_core_lock);
     s=g2_control_session;
     alt111_resync_cancel(&g2_resync, ALT111_RESYNC_CANCEL_PROJECTION);
@@ -2555,15 +2558,14 @@ static void gen2_control_release(void)
     /*
      * Do not confuse SendCommand() queueing with the controller response.
      * During teardown we cannot wait indefinitely for the HTTP completion,
-     * but we do wait until either:
-     *   - stopUI has completed successfully (may_be_visible == 0), or
-     *   - the STOP request has at least been handed to AirPlay's HTTP client.
-     * A later callback is generation-checked by the core and may go stale
-     * after alt111_control_end(), which is intentional.
+     * and if this teardown is a full-session disconnect (or kConnectionErr = -6753
+     * where the USB/NCM cable was unplugged), the HTTP socket to the iPhone is
+     * already dead and waiting 500 ms for stopUI blocks dio_manager's shutdown
+     * thread past smartphone_integrator's TIMEOUT_SHUTDOWN watchdog!
      */
-    if(s){
+    if(s && client >= 0){
         unsigned waitn;
-        for(waitn=0; waitn<100; ++waitn){
+        for(waitn=0; waitn<6; ++waitn){
             pthread_mutex_lock(&g2_core_lock);
             if(!g2_control.may_be_visible){
                 stop_handed_off = 1;
@@ -3557,9 +3559,9 @@ static void mibr_session_teardown(AirPlayReceiverSessionRef s, CFDictionaryRef r
 
     if(full_session) {
         logf_u2("GEN2 TEARDOWN whole-session -> private111 cleanup");
-        gen2_control_release();
         gen2_set_command_ready(0);
         stop_alt_receiver();
+        gen2_control_release();
         clear_video_observer();
         publish_state("idle");
     } else if(has_main) {

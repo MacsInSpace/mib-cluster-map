@@ -1200,6 +1200,11 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
                 sub(/\[/, "[" injection)
                 patched=1
             }
+            if (in_cp) {
+                sub(/"stopTimeout"[ 	]*:[ 	]*3000/, "\"stopTimeout\":8000")
+                sub(/"restartDelay"[ 	]*:[ 	]*2000/, "\"restartDelay\":3000")
+            }
+            if (in_cp && patched && $0 ~ /^[ 	]*\}/) in_cp=0
             print
         }
         END { if (!patched) exit 3 }
@@ -1786,6 +1791,78 @@ else
     case "$TRAIN" in
         *_AU57x_*) echo "CarPlay map: cockpit graphics guard not installed, $GK_WHY." ;;
     esac
+fi
+
+# ---- CarPlay route guidance: turn-by-turn on the HUD/cockpit (AU57x) --------
+# ipod-drvr-iap2.so is a small proxy around the unit's stock iAP2 driver
+# (preserved beside it as ipod-drvr-iap2.stock.so) that advertises iAP2
+# RouteGuidanceDisplayComponent (0x5200..0x5204) and writes active maneuver
+# updates to /tmp/clustermap-rgd.state for ClusterMapGfxKeep.jar to forward to
+# the AU57x HUD and cluster. CLUSTERMAP_CARPLAY_RGD=0 turns it off and puts the
+# stock driver back.
+RGD_CONF=`sed -n 's/^CLUSTERMAP_CARPLAY_RGD=\([a-z0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+IAP2_DLL=$APP_MOUNT/armle/lib/dll/ipod-drvr-iap2.so
+IAP2_STOCK=$APP_MOUNT/armle/lib/dll/ipod-drvr-iap2.stock.so
+IAP2_SRC=$CARD_ROOT/carplay/ipod-drvr-iap2.so
+IAP2_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_rgd_added
+RGD_WHY=
+if [ "$RGD_CONF" = 0 ]; then
+    RGD_WHY="turned off (CLUSTERMAP_CARPLAY_RGD=0)"
+elif [ -n "$GK_WHY" ]; then
+    RGD_WHY="$GK_WHY"
+elif [ ! -r "$IAP2_SRC" ]; then
+    RGD_WHY="its file is not in this package"
+elif [ ! -r "$IAP2_DLL" ] && [ ! -r "$IAP2_STOCK" ]; then
+    RGD_WHY="this unit has no $IAP2_DLL"
+fi
+if [ -z "$RGD_WHY" ]; then
+    RGD_OK=0
+    if mount -uw "$APP_MOUNT" 2>/dev/null; then
+        if [ ! -r "$IAP2_STOCK" ]; then
+            if grep -q CLUSTERMAP_RGD_PROXY "$IAP2_DLL" 2>/dev/null; then
+                echo "WARNING: $IAP2_DLL is already the proxy and $IAP2_STOCK is missing; leaving it untouched." >&2
+            elif cp "$IAP2_DLL" "$IAP2_STOCK.new" 2>/dev/null &&
+                 [ "`file_size "$IAP2_DLL"`" = "`file_size "$IAP2_STOCK.new"`" ] &&
+                 chmod 755 "$IAP2_STOCK.new" 2>/dev/null &&
+                 mv "$IAP2_STOCK.new" "$IAP2_STOCK" 2>/dev/null; then
+                echo "Saved untouched iAP2 driver: $IAP2_STOCK"
+            else
+                rm -f "$IAP2_STOCK.new" 2>/dev/null || true
+            fi
+        fi
+        if [ -r "$IAP2_STOCK" ] && ! grep -q CLUSTERMAP_RGD_PROXY "$IAP2_STOCK" 2>/dev/null; then
+            if cp "$IAP2_SRC" "$IAP2_DLL.new" 2>/dev/null &&
+               [ "`file_size "$IAP2_SRC"`" = "`file_size "$IAP2_DLL.new"`" ] &&
+               chmod 755 "$IAP2_DLL.new" 2>/dev/null &&
+               mv "$IAP2_DLL.new" "$IAP2_DLL" 2>/dev/null; then
+                : > "$IAP2_MARKER"
+                rm -f "$PRELOAD_WRITE_DIR/carplay_rgd_off" 2>/dev/null || true
+                RGD_OK=1
+            else
+                rm -f "$IAP2_DLL.new" 2>/dev/null || true
+            fi
+        fi
+        mount -ur "$APP_MOUNT" 2>/dev/null || true
+    fi
+    if [ "$RGD_OK" -eq 1 ]; then
+        echo "CarPlay map: HUD route guidance proxy on ($IAP2_DLL -> $IAP2_STOCK)."
+    else
+        echo "WARNING: could not install CarPlay HUD route guidance proxy; stock iAP2 driver kept." >&2
+    fi
+elif [ -r "$IAP2_STOCK" ] && ! grep -q CLUSTERMAP_RGD_PROXY "$IAP2_STOCK" 2>/dev/null; then
+    if mount -uw "$APP_MOUNT" 2>/dev/null; then
+        if cp "$IAP2_STOCK" "$IAP2_DLL.restore" 2>/dev/null &&
+           [ "`file_size "$IAP2_STOCK"`" = "`file_size "$IAP2_DLL.restore"`" ] &&
+           chmod 755 "$IAP2_DLL.restore" 2>/dev/null &&
+           mv "$IAP2_DLL.restore" "$IAP2_DLL" 2>/dev/null; then
+            rm -f "$IAP2_STOCK" "$IAP2_MARKER" 2>/dev/null || true
+            echo "CarPlay map: HUD route guidance proxy removed, $RGD_WHY."
+        else
+            rm -f "$IAP2_DLL.restore" 2>/dev/null || true
+        fi
+        mount -ur "$APP_MOUNT" 2>/dev/null || true
+    fi
 fi
 
 # ---- CarPlay map: keep it when the iPhone starts a route --------------------
