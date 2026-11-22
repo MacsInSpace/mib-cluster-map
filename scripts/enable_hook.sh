@@ -653,13 +653,6 @@ if ! frame_write_conf "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" \
     HD1080=0
     frame_geometry "$MAP_W" "$MAP_H" 0 0 0
 fi
-# A frame step saved by the player's HD recovery (#169) belongs to the old
-# settings: a fresh install starts again at the frame chosen above.
-if [ -f "$PRELOAD_WRITE_DIR/hd_step" ]; then
-    if rm -f "$PRELOAD_WRITE_DIR/hd_step"; then
-        echo "HD recovery: the saved smaller frame was cleared; starting at the chosen frame again."
-    fi
-fi
 if [ "$FRAME_MODE" = 1080p ] || [ "$FRAME_MODE" = 720p ]; then
     echo "Android Auto: ${FRAME_W}x${FRAME_H} with ${MARGIN_W}x${MARGIN_H} margins, leaving the ${MAP_W}x${MAP_H} cockpit window to show 1:1 (test mode)."
 elif [ "$FULL_FRAME" = 1 ]; then
@@ -706,23 +699,6 @@ if [ "$CONF_DECODER" = auto ]; then
     else
         rm -f "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new"
         echo "WARNING: could not fill in the decoder setting; the player uses software." >&2
-    fi
-fi
-# GAL_PLAYER_PRIORITY_CAP=auto (the shipped value): 12 on a train with the
-# "prioritycap" word, 0 (off) everywhere else. An owner's number is kept. If
-# this fails the line stays auto, which the player reads as off.
-CONF_PRIOCAP=`sed -n 's/^GAL_PLAYER_PRIORITY_CAP=\([^ 	]*\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | head -1`
-if [ "$CONF_PRIOCAP" = auto ]; then
-    if train_has "$PROFILES" "$TRAIN" prioritycap; then AUTO_PRIOCAP=12; else AUTO_PRIOCAP=0; fi
-    if sed "s/^GAL_PLAYER_PRIORITY_CAP=auto[ 	]*$/GAL_PLAYER_PRIORITY_CAP=$AUTO_PRIOCAP/" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" \
-           > "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" &&
-       mv "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf"; then
-        if [ "$AUTO_PRIOCAP" != 0 ]; then
-            echo "Player priority: capped at $AUTO_PRIOCAP, the tested default on $TRAIN (GAL_PLAYER_PRIORITY_CAP=0 turns it off)."
-        fi
-    else
-        rm -f "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new"
-        echo "WARNING: could not fill in the player priority setting; it stays off." >&2
     fi
 fi
 # Audi A4 B9 (AUG22) shows its cockpit map in context 72, not 70 (#14). The
@@ -1224,6 +1200,11 @@ if [ "$CARPLAY_OK" -eq 1 ]; then
                 sub(/\[/, "[" injection)
                 patched=1
             }
+            if (in_cp) {
+                sub(/"stopTimeout"[ 	]*:[ 	]*3000/, "\"stopTimeout\":8000")
+                sub(/"restartDelay"[ 	]*:[ 	]*2000/, "\"restartDelay\":3000")
+            }
+            if (in_cp && patched && $0 ~ /^[ 	]*\}/) in_cp=0
             print
         }
         END { if (!patched) exit 3 }
@@ -1377,15 +1358,6 @@ NAVIGNORE_ASKED=`sed -n 's/^CLUSTERMAP_ADD_NAVIGNORE=\([01]\)[ 	]*$/\1/p' \
 # the Audi build from M.I.B., so there it is added when the owner asks.
 NAVIGNORE_NEVER=0
 if train_has "$PROFILES" "$TRAIN" nonavignore; then NAVIGNORE_NEVER=1; fi
-# An Audi A6/A7 C7.5 train with no line in profiles.conf (one that installs
-# through a GAL_PROFILE_TRIAL line): same interface as K3663 and K3341, where
-# NavActiveIgnore and, for CarPlay, the hidden route keep the map during a
-# route. Three owners lost the map at "Go" without them (#127 P3236, P3634,
-# #168 P3327).
-AU57X_UNLISTED=0
-case "$TRAIN" in
-    *_AU57x_*) if ! train_listed "$PROFILES" "$TRAIN"; then AU57X_UNLISTED=1; fi ;;
-esac
 # Which build: the toolbox's patches VW classes (de.vw.mib.asl.*), most of
 # which the A6/A7 C7.5 interface does not have; there the Audi build M.I.B.
 # installs (harman-f; thirdparty/navactiveignore-audi) goes in instead,
@@ -1471,9 +1443,6 @@ else
         if train_has "$PROFILES" "$TRAIN" navignore; then NAV_OK=1; fi
         if [ "$NAV_OK" -eq 0 ] && [ "$NAVIGNORE_ASKED" = 1 ]; then
             NAV_OK=1; NAV_WHY="asked for by CLUSTERMAP_ADD_NAVIGNORE=1 on $TRAIN"
-        fi
-        if [ "$NAV_OK" -eq 0 ] && [ "$AU57X_UNLISTED" -eq 1 ]; then
-            NAV_OK=1; NAV_WHY="A6/A7 C7.5 firmware $TRAIN, as on K3663 and K3341"
         fi
         if [ "$NAV_OK" -eq 1 ]; then
             echo "Java check: NavActiveIgnore is not loaded; adding the $NAVIGNORE_BUILD build ($NAV_WHY)."
@@ -1782,17 +1751,16 @@ fi
 # Audi route. While the CarPlay map is up the watcher puts the tab in MAP view
 # the stock way (GfxStreamController.switchViewMode); 4 s after it ends it
 # puts the tab back to the view it was in. Every step goes to
-# /tmp/clustermap-gfxstate.log. Added when the owner asks for it
-# (CLUSTERMAP_CARPLAY_GFX_KEEP=1; car-tested on one RS7 so far, so off by
-# default) where profiles.conf says "gfxkeep" AND lsd.jxe is the build it was
-# checked against.
-GK=`sed -n 's/^CLUSTERMAP_CARPLAY_GFX_KEEP=\([a-z0-9]*\)[ 	]*$/\1/p' \
+# /tmp/clustermap-gfxstate.log. Added where profiles.conf says "gfxkeep" AND
+# lsd.jxe is the build it was checked against; CLUSTERMAP_CARPLAY_GFX_KEEP=0
+# leaves it out.
+GK=`sed -n 's/^CLUSTERMAP_CARPLAY_GFX_KEEP=\([a-z0-9]*\)[ \t]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 GK_JAR=ClusterMapGfxKeep.jar
 GK_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_gfxkeep_added
 GK_WHY=
-if [ "$GK" != 1 ]; then
-    GK_WHY="off (CLUSTERMAP_CARPLAY_GFX_KEEP=1 turns it on)"
+if [ "$GK" = 0 ]; then
+    GK_WHY="turned off (CLUSTERMAP_CARPLAY_GFX_KEEP=0)"
 elif [ "$CARPLAY_OK" -ne 1 ]; then
     GK_WHY="the CarPlay map is not installed"
 elif ! train_has "$PROFILES" "$TRAIN" gfxkeep; then
@@ -1825,6 +1793,78 @@ else
     esac
 fi
 
+# ---- CarPlay route guidance: turn-by-turn on the HUD/cockpit (AU57x) --------
+# ipod-drvr-iap2.so is a small proxy around the unit's stock iAP2 driver
+# (preserved beside it as ipod-drvr-iap2.stock.so) that advertises iAP2
+# RouteGuidanceDisplayComponent (0x5200..0x5204) and writes active maneuver
+# updates to /tmp/clustermap-rgd.state for ClusterMapGfxKeep.jar to forward to
+# the AU57x HUD and cluster. CLUSTERMAP_CARPLAY_RGD=0 turns it off and puts the
+# stock driver back.
+RGD_CONF=`sed -n 's/^CLUSTERMAP_CARPLAY_RGD=\([a-z0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+IAP2_DLL=$APP_MOUNT/armle/lib/dll/ipod-drvr-iap2.so
+IAP2_STOCK=$APP_MOUNT/armle/lib/dll/ipod-drvr-iap2.stock.so
+IAP2_SRC=$CARD_ROOT/carplay/ipod-drvr-iap2.so
+IAP2_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_rgd_added
+RGD_WHY=
+if [ "$RGD_CONF" = 0 ]; then
+    RGD_WHY="turned off (CLUSTERMAP_CARPLAY_RGD=0)"
+elif [ -n "$GK_WHY" ]; then
+    RGD_WHY="$GK_WHY"
+elif [ ! -r "$IAP2_SRC" ]; then
+    RGD_WHY="its file is not in this package"
+elif [ ! -r "$IAP2_DLL" ] && [ ! -r "$IAP2_STOCK" ]; then
+    RGD_WHY="this unit has no $IAP2_DLL"
+fi
+if [ -z "$RGD_WHY" ]; then
+    RGD_OK=0
+    if mount -uw "$APP_MOUNT" 2>/dev/null; then
+        if [ ! -r "$IAP2_STOCK" ]; then
+            if grep -q CLUSTERMAP_RGD_PROXY "$IAP2_DLL" 2>/dev/null; then
+                echo "WARNING: $IAP2_DLL is already the proxy and $IAP2_STOCK is missing; leaving it untouched." >&2
+            elif cp "$IAP2_DLL" "$IAP2_STOCK.new" 2>/dev/null &&
+                 [ "`file_size "$IAP2_DLL"`" = "`file_size "$IAP2_STOCK.new"`" ] &&
+                 chmod 755 "$IAP2_STOCK.new" 2>/dev/null &&
+                 mv "$IAP2_STOCK.new" "$IAP2_STOCK" 2>/dev/null; then
+                echo "Saved untouched iAP2 driver: $IAP2_STOCK"
+            else
+                rm -f "$IAP2_STOCK.new" 2>/dev/null || true
+            fi
+        fi
+        if [ -r "$IAP2_STOCK" ] && ! grep -q CLUSTERMAP_RGD_PROXY "$IAP2_STOCK" 2>/dev/null; then
+            if cp "$IAP2_SRC" "$IAP2_DLL.new" 2>/dev/null &&
+               [ "`file_size "$IAP2_SRC"`" = "`file_size "$IAP2_DLL.new"`" ] &&
+               chmod 755 "$IAP2_DLL.new" 2>/dev/null &&
+               mv "$IAP2_DLL.new" "$IAP2_DLL" 2>/dev/null; then
+                : > "$IAP2_MARKER"
+                rm -f "$PRELOAD_WRITE_DIR/carplay_rgd_off" 2>/dev/null || true
+                RGD_OK=1
+            else
+                rm -f "$IAP2_DLL.new" 2>/dev/null || true
+            fi
+        fi
+        mount -ur "$APP_MOUNT" 2>/dev/null || true
+    fi
+    if [ "$RGD_OK" -eq 1 ]; then
+        echo "CarPlay map: HUD route guidance proxy on ($IAP2_DLL -> $IAP2_STOCK)."
+    else
+        echo "WARNING: could not install CarPlay HUD route guidance proxy; stock iAP2 driver kept." >&2
+    fi
+elif [ -r "$IAP2_STOCK" ] && ! grep -q CLUSTERMAP_RGD_PROXY "$IAP2_STOCK" 2>/dev/null; then
+    if mount -uw "$APP_MOUNT" 2>/dev/null; then
+        if cp "$IAP2_STOCK" "$IAP2_DLL.restore" 2>/dev/null &&
+           [ "`file_size "$IAP2_STOCK"`" = "`file_size "$IAP2_DLL.restore"`" ] &&
+           chmod 755 "$IAP2_DLL.restore" 2>/dev/null &&
+           mv "$IAP2_DLL.restore" "$IAP2_DLL" 2>/dev/null; then
+            rm -f "$IAP2_STOCK" "$IAP2_MARKER" 2>/dev/null || true
+            echo "CarPlay map: HUD route guidance proxy removed, $RGD_WHY."
+        else
+            rm -f "$IAP2_DLL.restore" 2>/dev/null || true
+        fi
+        mount -ur "$APP_MOUNT" 2>/dev/null || true
+    fi
+fi
+
 # ---- CarPlay map: keep it when the iPhone starts a route --------------------
 # CLUSTERMAP_CARPLAY_HIDE_NAV=1: the CarPlay hook does not pass on to the car
 # that the iPhone has started a route (libcarplay_cluster.so reads the marker
@@ -1840,10 +1880,6 @@ HIDE_NAV_WHY="CLUSTERMAP_CARPLAY_HIDE_NAV=1"
 if [ -z "$HIDE_NAV" ] && train_has "$PROFILES" "$TRAIN" hidenav; then
     HIDE_NAV=1
     HIDE_NAV_WHY="the default on $TRAIN; CLUSTERMAP_CARPLAY_HIDE_NAV=0 turns it off"
-fi
-if [ -z "$HIDE_NAV" ] && [ "${AU57X_UNLISTED:-0}" -eq 1 ]; then
-    HIDE_NAV=1
-    HIDE_NAV_WHY="the default on A6/A7 C7.5 firmware without its own line (#168); CLUSTERMAP_CARPLAY_HIDE_NAV=0 turns it off"
 fi
 if mount -uw "$APP_MOUNT" 2>/dev/null; then
     if [ "$HIDE_NAV" = 1 ] && [ "$CARPLAY_OK" -eq 1 ]; then

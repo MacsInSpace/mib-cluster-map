@@ -24,7 +24,7 @@ command -v javap >/dev/null && command -v jar >/dev/null || {
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/classes"
-OURS=('de/audi/tghu/navi/app/cluster/UpdateGfxState.class' 'local/clustermap/GfxKeep.class')
+OURS=('de/audi/tghu/navi/app/cluster/UpdateGfxState.class' 'local/clustermap/GfxKeep.class' 'local/clustermap/ManeuverMapper.class' 'local/clustermap/HudTelemetry.class')
 
 if [ -n "${IBM_JDK_DIR:-}" ]; then
     [ -x "$IBM_JDK_DIR/bin/javac" ] || { echo "ERROR: no javac in IBM_JDK_DIR=$IBM_JDK_DIR"; exit 1; }

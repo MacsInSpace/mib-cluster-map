@@ -153,13 +153,28 @@ echo "  restored from: $RESTORE_SOURCE"
 # disable in a row).
 if [ -d "$PRELOAD_WRITE_DIR" ] || [ -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" ] ||
    [ -f "$APP_MOUNT/navigation/stream-player" ] ||
-   [ -f "$APP_MOUNT/navigation/opengl-render-qnx.clustermap-off" ]; then
+   [ -f "$APP_MOUNT/navigation/opengl-render-qnx.clustermap-off" ] ||
+   [ -f "$APP_MOUNT/armle/lib/dll/ipod-drvr-iap2.stock.so" ]; then
     if mount -uw "$APP_MOUNT" 2>/dev/null; then
         APP_WRITABLE=1
         rm -f "$APP_MOUNT/eso/lib/libdmdt_flush.so" 2>/dev/null || true
         # The CarPlay map's safe area, read only by its hook.
         rm -f "$APP_MOUNT/root/mibr-carplay111-safearea.conf" 2>/dev/null || true
         rm -f "$APP_MOUNT/root/mibr-carplay111-nav-query.enabled" "$APP_MOUNT/root/mibr-carplay111-nav."* 2>/dev/null || true
+        # Restore the untouched iAP2 driver if the HUD route-guidance proxy was installed.
+        IAP2_DLL="$APP_MOUNT/armle/lib/dll/ipod-drvr-iap2.so"
+        IAP2_STOCK="$APP_MOUNT/armle/lib/dll/ipod-drvr-iap2.stock.so"
+        if [ -f "$IAP2_STOCK" ] && ! grep -q CLUSTERMAP_RGD_PROXY "$IAP2_STOCK" 2>/dev/null; then
+            if cp "$IAP2_STOCK" "$IAP2_DLL.restore" 2>/dev/null &&
+               chmod 755 "$IAP2_DLL.restore" 2>/dev/null &&
+               mv "$IAP2_DLL.restore" "$IAP2_DLL" 2>/dev/null; then
+                rm -f "$IAP2_STOCK" /mnt/app/eso/hmi/lsd/.aacluster_rgd_added 2>/dev/null || true
+                echo "  put back: $IAP2_DLL (untouched iAP2 driver)"
+            else
+                rm -f "$IAP2_DLL.restore" 2>/dev/null || true
+                echo "  warning: could not restore $IAP2_DLL from $IAP2_STOCK" >&2
+            fi
+        fi
         # The older cluster renderer the install switched off (enable_hook.sh):
         # back as it was, started again by its own startup line at the next boot.
         if [ -f "$APP_MOUNT/navigation/opengl-render-qnx.clustermap-off" ] &&

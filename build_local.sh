@@ -154,6 +154,7 @@ package() {
   cp "$ROOT/build/nvprobe" "$ROOT/tools/nvprobe/clip_800x480.h264" "$ROOT/tools/nvprobe/clip_800x480.expect" "$D/hwcheck/"
   mkdir -p "$D/carplay"
   cp "$ROOT/build/libcarplay_cluster.so" "$ROOT/carplay/carplay_cluster.sh" "$D/carplay/"
+  [ -f "$ROOT/build/ipod-drvr-iap2.so" ] && cp "$ROOT/build/ipod-drvr-iap2.so" "$D/carplay/"
   cp "$ROOT/build/ClusterMapWheelZoom.jar" "$ROOT/build/ClusterMapNavAsiaZoom.jar" "$ROOT/build/ClusterMapGfxKeep.jar" "$D/carplay/"
   cp "$ROOT/thirdparty/mhi2_altscreen_carplay/LICENSE" "$D/carplay/mhi2_altscreen_carplay.LICENSE"
   # The install scripts treat their own folder as the package root.
@@ -211,7 +212,11 @@ package() {
      "$ROOT/build/hd_frame_insets_test" >/dev/null || { echo "REJECTED: tests/hd_frame_insets_test.c failed"; exit 1; }
   bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/GEM/*.sh "$D"/final/*.sh "$D"/carplay/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
   [ -z "$bad" ] || { echo "REJECTED: CR or non-ASCII in: $bad"; exit 1; }
-  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check hwcheck/nvprobe hwcheck/clip_800x480.h264 profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar carplay/ClusterMapNavAsiaZoom.jar carplay/ClusterMapGfxKeep.jar > SHA256SUMS.txt)
+  # The iAP2 route-guidance proxy is only in the package when it was built
+  # (carplay/iap2_rgd/build.sh), so it is listed only when it is there.
+  SUMMED="libgal_hook.so stream-player profile_check hwcheck/nvprobe hwcheck/clip_800x480.h264 profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar carplay/ClusterMapNavAsiaZoom.jar carplay/ClusterMapGfxKeep.jar"
+  if [ -f "$D/carplay/ipod-drvr-iap2.so" ]; then SUMMED="$SUMMED carplay/ipod-drvr-iap2.so"; fi
+  (cd "$D" && shasum -a 256 $SUMMED > SHA256SUMS.txt)
   python3 "$ROOT/tools/make_metainfo.py" "$S" "${RELEASE_VERSION:-$BUILD_ID}"
   VER=${RELEASE_VERSION:-$BUILD_ID}
   Z="$ROOT/dist/mib-cluster-map_$VER.zip"

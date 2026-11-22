@@ -103,44 +103,15 @@ grep stream-player $OUT/pidin_ar.txt >/dev/null 2>&1 && PLAYER_UP=yes
 cat $OUT/context_check.txt >> $OUT/dmdt_gs.txt 2>/dev/null
 # CarPlay map: the supervisor, its player, and harman-f's hook state.
 mkdir -p $OUT/carplay
-cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log /tmp/altscreen111.log.1 \
-   /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status /tmp/clustermap-wheelzoom.log /tmp/clustermap-gfxstate.log $OUT/carplay/ 2>/dev/null
+cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log \
+   /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status \
+   /tmp/clustermap-wheelzoom.log /tmp/clustermap-gfxstate.log /tmp/clustermap-rgd.log \
+   /tmp/clustermap-rgd.state /dev/shmem/iap2.log /etc/mm/iap2.cfg \
+   /mnt/system/etc/scripts/startncm.sh /mnt/system/etc/scripts/stopncm.sh \
+   /mnt/system/etc/usblauncher_otg.lua /ramdisk/pps/device/usb_ctrl1 \
+   /mnt/app/armle/lib/dll/ipod-drvr-iap2.stock.so $OUT/carplay/ 2>/dev/null
 grep -n -e dio_manager -e libcarplay -e ALTSCREEN111 /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/carplay/config_lines.txt 2>&1
 grep -n carplay0 /mnt/system/etc/pf*.conf > $OUT/carplay/firewall_lines.txt 2>&1
-# CarPlay cover (#19, #62): the unit's iAP2 stack asks the iPhone for the
-# artwork (iap2.cfg [nowplaying] ArtworkFileTransferIdentifier) and publishes
-# now-playing to PPS, but DSICarplay never sent a cover to the cockpit jar.
-# Read-only: where the artwork lands. Best taken while a CarPlay track plays.
-# Plain sh, ls, sed and cat: find is not on every unit.
-cover_paths()
-{
-    D=
-    while read -r L; do
-        case "$L" in
-            */*:) D=${L%:} ;;
-            *[Ii][Aa][Pp]*|*[Nn]ow[Pp]lay*|*[Aa]rtwork*|*[Ii][Pp]od*|*[Cc]ar[Pp]lay*|*[Cc]over*|*.jpg|*.jpeg|*.png)
-                echo "$D/$L" ;;
-        esac
-    done
-}
-{
-    echo "--- PPS entries about the phone's media"
-    ls -R /pps 2>/dev/null | sed -n 1,4000p | cover_paths | sed -n 1,200p
-    echo "--- image or artwork files in memory"
-    ls -R /tmp /dev/shmem /var/tmp 2>/dev/null | sed -n 1,4000p | cover_paths | sed -n 1,200p
-} > $OUT/carplay/cover_paths.txt 2>&1
-{
-    for P in `sed -n 's|^\(/pps/.*\)$|\1|p' $OUT/carplay/cover_paths.txt | sed -n 1,40p`; do
-        if [ -f "$P" ]; then
-            echo "=== $P"
-            sed -n 1,80p "$P" 2>&1
-        fi
-    done
-    echo "=== image files"
-    for P in `sed -n '/^\/pps\//d; /^\//p' $OUT/carplay/cover_paths.txt | sed -n 1,40p`; do
-        if [ -f "$P" ]; then ls -l "$P" 2>&1; fi
-    done
-} > $OUT/carplay/cover_pps.txt 2>&1
 # Crash archives the unit's dumper keeps (pidin: dumper -d /mnt/ota/system/core).
 # List them all, and copy the newest one of dio_manager (the CarPlay program,
 # #111: CarPlay stops at start-up with NavActiveIgnore) and of gal (Android

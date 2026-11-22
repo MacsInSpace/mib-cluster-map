@@ -259,9 +259,9 @@ cockpit "graphics lost" report (GfxState 0) on as available while the
 CarPlay map is being swapped; the RS7 never sent one, so that part is not
 car-tested.
 
-Off by default (car-tested on one RS7 so far): `CLUSTERMAP_CARPLAY_GFX_KEEP=1`
-adds it, and only on a train marked `gfxkeep` in `profiles.conf` whose
-`/ifs/lsd.jxe` is the 44688282-byte MU1425 build. Uninstall removes it, and
+Added only on a train marked `gfxkeep` in `profiles.conf` whose
+`/ifs/lsd.jxe` is the 44688282-byte MU1425 build;
+`CLUSTERMAP_CARPLAY_GFX_KEEP=0` leaves it out, uninstall removes it, and
 `touch /tmp/clustermap-gfxkeep-off` stops it until the next boot.
 `tests/gfxkeep_logic_test.sh` runs it against stand-ins of the stock classes
 (`tests/gfxkeep_fakes`) in another class loader. Every step, the unit's
