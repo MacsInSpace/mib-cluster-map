@@ -845,6 +845,11 @@ static void gal_hook_set_owner_pid(void)
     (void)setenv("GAL_HOOK_OWNER_PID", value, 1);
 }
 
+#ifdef WIRELESS_BENCH
+/* Test builds only (./build_local.sh wireless-bench). */
+#include "wireless_bench.c"
+#endif
+
 /* QNX loads shared objects without requiring a custom entry point. */
 __attribute__((constructor))
 static void gal_hook_constructor(void)
@@ -867,6 +872,9 @@ static void gal_hook_constructor(void)
         return;
     }
     (void)gal_hook_init(NULL);
+#ifdef WIRELESS_BENCH
+    wb_start();
+#endif
 }
 
 __attribute__((destructor))

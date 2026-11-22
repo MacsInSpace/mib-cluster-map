@@ -6,6 +6,8 @@
 #   ./build_local.sh hook       only libgal_hook.so + libdmdt_flush.so
 #   ./build_local.sh player     only stream-player (builds ffmpeg-mini on first use)
 #   ./build_local.sh java       only the steering-wheel zoom jars (host JDK 8 or newer)
+#   ./build_local.sh wireless-bench  TEST ONLY: the package with the wireless bench
+#                               hook (experiments/wireless_bench), as a separate zip
 #
 # Output: dist/sdcard/ (copy its CONTENTS to the SD card root) and a release zip in dist/.
 set -euo pipefail
@@ -61,6 +63,43 @@ build_hook() {
     $P-gcc -O1 -Wall -Wextra tools/nvprobe/nvprobe.c -o build/nvprobe
     $P-strip -s build/nvprobe
   '
+}
+
+# The wireless bench hook (experiments/wireless_bench/README.md): its own
+# output folder, so a normal package never picks it up.
+build_hook_bench() {
+  need_image
+  run "$ENVSETUP"'
+    set -e
+    mkdir -p build/bench
+    $P-gcc -O2 -Wall -Wextra -shared -fPIC -I./src -I./experiments/wireless_bench -DWIRELESS_BENCH \
+        -DGAL_HOOK_BUILD="\"$BUILD_ID-wireless-bench\"" \
+        ./src/*.c -Wl,--exclude-libs,ALL -lsocket -o build/bench/libgal_hook.so
+    $P-strip --strip-debug build/bench/libgal_hook.so
+    bad=$($P-nm -D --defined-only build/bench/libgal_hook.so | awk "{print \$3}" | \
+          grep -Ev "^(_ZN|gal_hook_|fc_|vc_|hook_fix_enabled|_init|_fini|__bss|_edata|_end|__end__|_bss_end__|__bss_start__|__bss_end__|__data_start|__exidx_start|__exidx_end|_btext|_stack)" || true)
+    [ -z "$bad" ] || { echo "REJECTED: unexpected exports: $bad"; exit 1; }
+  '
+}
+
+# A normal package, then the bench hook and its scripts swapped in, zipped
+# under its own name. GAL_WIRELESS_BENCH=1 is in this card's settings only.
+package_bench() {
+  local D="$ROOT/dist/sdcard/ClusterMap" B="$ROOT/experiments/wireless_bench"
+  local VER=${RELEASE_VERSION:-$BUILD_ID}
+  cp "$ROOT/build/bench/libgal_hook.so" "$D/libgal_hook.so"
+  cp "$B/bench_firewall.sh" "$D/"
+  printf '\n# Wireless bench test (experiments/wireless_bench): TEST BUILD ONLY.\nGAL_WIRELESS_BENCH=1\n' >> "$D/gal_dualscreen.conf"
+  printf '\n# Wireless bench test (experiments/wireless_bench): TEST BUILD ONLY.\nGAL_WIRELESS_BENCH=1\n' >> "$D/scripts/gal_dualscreen.default.conf"
+  printf '%s\n' "$VER-wireless-bench" > "$D/scripts/package_version.txt"
+  python3 "$ROOT/tools/unit_shell_lint.py" "$D" || { echo "REJECTED: lint"; exit 1; }
+  python3 "$ROOT/tools/unit_tool_options.py" "$D" || { echo "REJECTED: tool options"; exit 1; }
+  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check hwcheck/nvprobe hwcheck/clip_800x480.h264 profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar carplay/ClusterMapNavAsiaZoom.jar carplay/ClusterMapGfxKeep.jar > SHA256SUMS.txt)
+  python3 "$ROOT/tools/make_metainfo.py" "$ROOT/dist/sdcard" "$VER-wireless-bench"
+  local Z="$ROOT/dist/mib-cluster-map_$VER-wireless-bench.zip"
+  rm -f "$ROOT"/dist/*.zip "$ROOT"/dist/*.sha256
+  (cd "$ROOT/dist/sdcard" && zip -qr -X "$Z" ClusterMap Custom metainfo2.txt Swdlautorun.txt -x '*.DS_Store' -x '._*')
+  echo "TEST BUILD (not for release): $Z"
 }
 
 build_player() {
@@ -168,7 +207,7 @@ package() {
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" \
      "$ROOT/scripts/lib_unit.sh" "$ROOT/scripts/window_fix.sh" \
      "$ROOT/scripts/lib_cluster_frame.sh" "$ROOT/scripts/full_frame.sh" "$ROOT/scripts/menu_switch.sh" \
-     "$ROOT/scripts/lib_keep_settings.sh" "$ROOT/scripts/unit_probe.sh" "$D/scripts/"
+     "$ROOT/scripts/lib_keep_settings.sh" "$ROOT/scripts/unit_probe.sh" "$ROOT/scripts/wireless_probe.sh" "$D/scripts/"
   cp "$ROOT"/greenmenu/GEM/*.sh "$D/GEM/"
   cp "$ROOT/greenmenu/cluster-map.esd" "$S/Custom/GreenMenu/"
   # Software-update route: the same screen, copied to the unit by the update
@@ -228,6 +267,7 @@ case "$WHAT" in
   java) build_java ;;
   all) build_hook; build_player; build_java; package ;;
   package) package ;;
+  wireless-bench) build_hook; build_hook_bench; build_player; build_java; package; package_bench ;;
   simtest) sh "$ROOT/tests/unit_sim/run.sh" "$ROOT/dist/sdcard" ;;
-  *) echo "usage: $0 [all|hook|player|java|package|simtest]"; exit 2 ;;
+  *) echo "usage: $0 [all|hook|player|java|package|simtest|wireless-bench]"; exit 2 ;;
 esac

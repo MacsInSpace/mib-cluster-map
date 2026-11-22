@@ -141,6 +141,11 @@ cover_paths()
         if [ -f "$P" ]; then ls -l "$P" 2>&1; fi
     done
 } > $OUT/carplay/cover_pps.txt 2>&1
+# Wireless groundwork (Android Auto and CarPlay without a cable): what this
+# unit has for it, read-only, with names and keys hidden.
+if [ -r "$HERE/scripts/wireless_probe.sh" ]; then
+    sh "$HERE/scripts/wireless_probe.sh" "$OUT/wireless" > /dev/null 2>&1 || :
+fi
 # Crash archives the unit's dumper keeps (pidin: dumper -d /mnt/ota/system/core).
 # List them all, and copy the newest one of dio_manager (the CarPlay program,
 # #111: CarPlay stops at start-up with NavActiveIgnore) and of gal (Android
