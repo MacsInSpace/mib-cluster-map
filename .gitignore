@@ -19,8 +19,10 @@ logs/
 *.pcapng
 
 # Audi MIB2 artifacts - never commit lsd.jar or lsd.jxe (car-specific, 43 MB)
+TRANSFER/
 thirdparty/lsd.jar
 thirdparty/*/lsd.jar
+mib-cluster-map-aa-install-audi-au37x.zip
 *.jxe
 
 # IDE & OS metadata
