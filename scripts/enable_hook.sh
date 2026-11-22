@@ -1377,6 +1377,15 @@ NAVIGNORE_ASKED=`sed -n 's/^CLUSTERMAP_ADD_NAVIGNORE=\([01]\)[ 	]*$/\1/p' \
 # the Audi build from M.I.B., so there it is added when the owner asks.
 NAVIGNORE_NEVER=0
 if train_has "$PROFILES" "$TRAIN" nonavignore; then NAVIGNORE_NEVER=1; fi
+# An Audi A6/A7 C7.5 train with no line in profiles.conf (one that installs
+# through a GAL_PROFILE_TRIAL line): same interface as K3663 and K3341, where
+# NavActiveIgnore and, for CarPlay, the hidden route keep the map during a
+# route. Three owners lost the map at "Go" without them (#127 P3236, P3634,
+# #168 P3327).
+AU57X_UNLISTED=0
+case "$TRAIN" in
+    *_AU57x_*) if ! train_listed "$PROFILES" "$TRAIN"; then AU57X_UNLISTED=1; fi ;;
+esac
 # Which build: the toolbox's patches VW classes (de.vw.mib.asl.*), most of
 # which the A6/A7 C7.5 interface does not have; there the Audi build M.I.B.
 # installs (harman-f; thirdparty/navactiveignore-audi) goes in instead,
@@ -1462,6 +1471,9 @@ else
         if train_has "$PROFILES" "$TRAIN" navignore; then NAV_OK=1; fi
         if [ "$NAV_OK" -eq 0 ] && [ "$NAVIGNORE_ASKED" = 1 ]; then
             NAV_OK=1; NAV_WHY="asked for by CLUSTERMAP_ADD_NAVIGNORE=1 on $TRAIN"
+        fi
+        if [ "$NAV_OK" -eq 0 ] && [ "$AU57X_UNLISTED" -eq 1 ]; then
+            NAV_OK=1; NAV_WHY="A6/A7 C7.5 firmware $TRAIN, as on K3663 and K3341"
         fi
         if [ "$NAV_OK" -eq 1 ]; then
             echo "Java check: NavActiveIgnore is not loaded; adding the $NAVIGNORE_BUILD build ($NAV_WHY)."
@@ -1774,6 +1786,10 @@ HIDE_NAV_WHY="CLUSTERMAP_CARPLAY_HIDE_NAV=1"
 if [ -z "$HIDE_NAV" ] && train_has "$PROFILES" "$TRAIN" hidenav; then
     HIDE_NAV=1
     HIDE_NAV_WHY="the default on $TRAIN; CLUSTERMAP_CARPLAY_HIDE_NAV=0 turns it off"
+fi
+if [ -z "$HIDE_NAV" ] && [ "${AU57X_UNLISTED:-0}" -eq 1 ]; then
+    HIDE_NAV=1
+    HIDE_NAV_WHY="the default on A6/A7 C7.5 firmware without its own line (#168); CLUSTERMAP_CARPLAY_HIDE_NAV=0 turns it off"
 fi
 if mount -uw "$APP_MOUNT" 2>/dev/null; then
     if [ "$HIDE_NAV" = 1 ] && [ "$CARPLAY_OK" -eq 1 ]; then
