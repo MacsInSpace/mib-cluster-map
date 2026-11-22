@@ -343,13 +343,144 @@ static void capture_mirror_send(const uint8_t *p, size_t n,
                                 const struct alt111_output_ticket *ticket);
 static int start_capture_server(void);
 
+/*
+ * Logging off the AirPlay control path. Ported from kamgurgul/mib2q-carplay
+ * (GPL-3.0, commit df6e9d7, 2026-11-17), which found it through a wireless
+ * dongle: the FLIGHT traces wrote ~25 lines per modesChanged, each one an
+ * open/write/close on a loaded unit (3-30 ms), so the car's answer to the
+ * dongle's screen SETUP came 0.8-1.1 s late; the dongle waits ~0.5 s and
+ * then takes the screen back. Here a CarPlay session through a Carlinkit
+ * adapter ended every ~1m40 with 949 such lines in the log (#73).
+ *
+ * - FLIGHT traces (all but MODES_CHANGED and stream[) only when
+ *   /tmp/carplay_verbose or /mnt/app/carplay_verbose exists.
+ * - Callers queue one bounded line; a writer thread, started with the gen2
+ *   workers, does the file I/O. Before that, and in a forked child, lines
+ *   are written in place as before. A full queue drops the oldest lines and
+ *   says how many.
+ * - The log is kept under 512 KB: /tmp is /dev/shmem, which has no
+ *   rename(), so it is copied to .1 and truncated.
+ */
+#define U2_LOG_MAX_BYTES (512L * 1024L)
+#define U2_LOG_LINE_MAX  768
+#define U2_LOG_QUEUE_CAP 256u
+#define U2_LOG_BATCH_MAX 8192
+
+static int u2_verbose(void)
+{
+    static time_t checked;
+    static int on;
+    time_t now = time(NULL);
+    if (now != checked) {
+        checked = now;
+        on = access("/tmp/carplay_verbose", F_OK) == 0 || access("/mnt/app/carplay_verbose", F_OK) == 0;
+    }
+    return on;
+}
+
+static int u2_line_is_flight_trace(const char *fmt)
+{
+    if (strncmp(fmt, "GEN2 FLIGHT ", 12) != 0) return 0;
+    return strncmp(fmt + 12, "MODES_CHANGED", 13) != 0 && strncmp(fmt + 12, "stream[", 7) != 0;
+}
+
+static void u2_log_rotate(void)
+{
+    char old[512], chunk[4096];
+    int in, out, fd, k;
+    ssize_t r;
+    k = snprintf(old, sizeof(old), "%s.1", g_log_path);
+    if (k < 0 || (size_t)k >= sizeof(old)) return;
+    if (rename(g_log_path, old) == 0) return;
+    (void)unlink(old);
+    in = open(g_log_path, O_RDONLY);
+    out = open(old, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (in >= 0 && out >= 0) {
+        while ((r = read(in, chunk, sizeof(chunk))) > 0)
+            if (write(out, chunk, (size_t)r) != r) break;
+    }
+    if (in >= 0) close(in);
+    if (out >= 0) close(out);
+    fd = open(g_log_path, O_WRONLY | O_TRUNC);
+    if (fd >= 0) close(fd);
+}
+
+static void u2_log_append_file(const char *buf, size_t n)
+{
+    struct stat st;
+    int fd = open(g_log_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd >= 0 && fstat(fd, &st) == 0 && st.st_size > U2_LOG_MAX_BYTES) {
+        close(fd);
+        u2_log_rotate();
+        fd = open(g_log_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    }
+    if (fd >= 0) { (void)write(fd, buf, n); close(fd); }
+}
+
+struct u2_log_line {
+    unsigned short len;
+    char data[U2_LOG_LINE_MAX];
+};
+static pthread_mutex_t g_u2_log_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t g_u2_log_cond = PTHREAD_COND_INITIALIZER;
+static struct u2_log_line g_u2_log_queue[U2_LOG_QUEUE_CAP];
+static unsigned g_u2_log_head, g_u2_log_count, g_u2_log_dropped;
+/* Set once the writer runs; a forked child has another pid and writes in
+ * place without touching the lock (it may have been held across the fork). */
+static volatile pid_t g_u2_log_writer_pid;
+
+static void *u2_log_writer(void *arg)
+{
+    static char batch[U2_LOG_BATCH_MAX];
+    (void)arg;
+    for (;;) {
+        size_t n = 0;
+        unsigned dropped;
+        pthread_mutex_lock(&g_u2_log_lock);
+        while (g_u2_log_count == 0)
+            pthread_cond_wait(&g_u2_log_cond, &g_u2_log_lock);
+        dropped = g_u2_log_dropped;
+        g_u2_log_dropped = 0;
+        while (g_u2_log_count > 0 &&
+               n + g_u2_log_queue[g_u2_log_head].len <= sizeof(batch)) {
+            const struct u2_log_line *l = &g_u2_log_queue[g_u2_log_head];
+            memcpy(batch + n, l->data, l->len);
+            n += l->len;
+            g_u2_log_head = (g_u2_log_head + 1u) % U2_LOG_QUEUE_CAP;
+            --g_u2_log_count;
+        }
+        pthread_mutex_unlock(&g_u2_log_lock);
+        if (dropped) {
+            char note[96];
+            struct timespec ts;
+            int k;
+            clock_gettime(CLOCK_REALTIME, &ts);
+            k = snprintf(note, sizeof(note), "%ld.%03ld [altscreen111] log queue full: %u lines dropped\n",
+                         (long)ts.tv_sec, ts.tv_nsec / 1000000L, dropped);
+            if (k > 0 && (size_t)k < sizeof(note)) u2_log_append_file(note, (size_t)k);
+        }
+        if (n) u2_log_append_file(batch, n);
+    }
+    return NULL;
+}
+
+/* From gen2_start_workers only. On failure logging stays synchronous. */
+static void u2_log_start_writer(void)
+{
+    pthread_t t;
+    if (g_u2_log_writer_pid) return;
+    if (pthread_create(&t, NULL, u2_log_writer, NULL) != 0) return;
+    pthread_detach(t);
+    g_u2_log_writer_pid = getpid();
+}
+
 static void logf_u2(const char *fmt, ...)
 {
-    char buf[768];
-    int fd;
+    char buf[U2_LOG_LINE_MAX];
     int n;
     va_list ap;
     struct timespec ts;
+    if (u2_line_is_flight_trace(fmt) && !u2_verbose()) return;
     clock_gettime(CLOCK_REALTIME, &ts);
     n = snprintf(buf, sizeof(buf), "%ld.%03ld [altscreen111] ", (long)ts.tv_sec, ts.tv_nsec / 1000000L);
     if (n < 0) return;
@@ -359,8 +490,23 @@ static void logf_u2(const char *fmt, ...)
     if (n < 0) return;
     if ((size_t)n >= sizeof(buf) - 2) n = (int)sizeof(buf) - 2;
     buf[n++] = '\n';
-    fd = open(g_log_path, O_WRONLY | O_CREAT | O_APPEND, 0644);
-    if (fd >= 0) { (void)write(fd, buf, (size_t)n); close(fd); }
+    if (g_u2_log_writer_pid && g_u2_log_writer_pid == getpid()) {
+        struct u2_log_line *slot;
+        pthread_mutex_lock(&g_u2_log_lock);
+        if (g_u2_log_count == U2_LOG_QUEUE_CAP) {
+            g_u2_log_head = (g_u2_log_head + 1u) % U2_LOG_QUEUE_CAP;
+            --g_u2_log_count;
+            ++g_u2_log_dropped;
+        }
+        slot = &g_u2_log_queue[(g_u2_log_head + g_u2_log_count) % U2_LOG_QUEUE_CAP];
+        memcpy(slot->data, buf, (size_t)n);
+        slot->len = (unsigned short)n;
+        ++g_u2_log_count;
+        pthread_cond_signal(&g_u2_log_cond);
+        pthread_mutex_unlock(&g_u2_log_lock);
+        return;
+    }
+    u2_log_append_file(buf, (size_t)n);
 }
 
 static uint64_t monotonic_ms(void)
@@ -3008,6 +3154,7 @@ static void *gen2_control_worker(void *arg)
 static int gen2_start_workers(void)
 {
     if(g2_workers_started)return 0;
+    u2_log_start_writer();
     if(pthread_create(&g2_control_thread,NULL,gen2_control_worker,NULL)!=0)return -1;
     pthread_detach(g2_control_thread);
     if(pthread_create(&g2_output_thread,NULL,gen2_output_worker,NULL)!=0)return -1;
