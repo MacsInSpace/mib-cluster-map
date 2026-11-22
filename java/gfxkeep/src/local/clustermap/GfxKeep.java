@@ -134,12 +134,12 @@ public final class GfxKeep implements Runnable {
                 forcing = true;
                 reforces = 0;
                 previous = getView();
-                log(now, "CarPlay map up: view was " + viewName(previous) + ", cluster to MAP");
+                log(now, new StringBuffer("CarPlay map up: view was ").append(viewName(previous)).append(", cluster to MAP").toString());
                 force();
                 lastForce = now;
             } else if (now - lastForce >= REFORCE_EVERY_MS && reforces < REFORCE_MAX && !onMap()) {
                 reforces++;
-                log(now, "cluster left MAP (view " + viewName(getView()) + "): back to MAP, " + reforces + " of " + REFORCE_MAX);
+                log(now, new StringBuffer("cluster left MAP (view ").append(viewName(getView())).append("): back to MAP, ").append(String.valueOf(reforces)).append(" of ").append(String.valueOf(REFORCE_MAX)).toString());
                 force();
                 lastForce = now;
             }
@@ -182,7 +182,7 @@ public final class GfxKeep implements Runnable {
         }
         streetView(valid == 3);
         switchViewMode(valid);
-        log(now, "CarPlay map gone: cluster back to " + viewName(valid) + " (was " + viewName(want) + ")");
+        log(now, new StringBuffer("CarPlay map gone: cluster back to ").append(viewName(valid)).append(" (was ").append(viewName(want)).append(")").toString());
         logStatus();
     }
 
