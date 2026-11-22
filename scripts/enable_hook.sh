@@ -653,6 +653,13 @@ if ! frame_write_conf "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" \
     HD1080=0
     frame_geometry "$MAP_W" "$MAP_H" 0 0 0
 fi
+# A frame step saved by the player's HD recovery (#169) belongs to the old
+# settings: a fresh install starts again at the frame chosen above.
+if [ -f "$PRELOAD_WRITE_DIR/hd_step" ]; then
+    if rm -f "$PRELOAD_WRITE_DIR/hd_step"; then
+        echo "HD recovery: the saved smaller frame was cleared; starting at the chosen frame again."
+    fi
+fi
 if [ "$FRAME_MODE" = 1080p ] || [ "$FRAME_MODE" = 720p ]; then
     echo "Android Auto: ${FRAME_W}x${FRAME_H} with ${MARGIN_W}x${MARGIN_H} margins, leaving the ${MAP_W}x${MAP_H} cockpit window to show 1:1 (test mode)."
 elif [ "$FULL_FRAME" = 1 ]; then
@@ -699,6 +706,23 @@ if [ "$CONF_DECODER" = auto ]; then
     else
         rm -f "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new"
         echo "WARNING: could not fill in the decoder setting; the player uses software." >&2
+    fi
+fi
+# GAL_PLAYER_PRIORITY_CAP=auto (the shipped value): 12 on a train with the
+# "prioritycap" word, 0 (off) everywhere else. An owner's number is kept. If
+# this fails the line stays auto, which the player reads as off.
+CONF_PRIOCAP=`sed -n 's/^GAL_PLAYER_PRIORITY_CAP=\([^ 	]*\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | head -1`
+if [ "$CONF_PRIOCAP" = auto ]; then
+    if train_has "$PROFILES" "$TRAIN" prioritycap; then AUTO_PRIOCAP=12; else AUTO_PRIOCAP=0; fi
+    if sed "s/^GAL_PLAYER_PRIORITY_CAP=auto[ 	]*$/GAL_PLAYER_PRIORITY_CAP=$AUTO_PRIOCAP/" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" \
+           > "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" &&
+       mv "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new" "$PRELOAD_WRITE_DIR/gal_dualscreen.conf"; then
+        if [ "$AUTO_PRIOCAP" != 0 ]; then
+            echo "Player priority: capped at $AUTO_PRIOCAP, the tested default on $TRAIN (GAL_PLAYER_PRIORITY_CAP=0 turns it off)."
+        fi
+    else
+        rm -f "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new"
+        echo "WARNING: could not fill in the player priority setting; it stays off." >&2
     fi
 fi
 # Audi A4 B9 (AUG22) shows its cockpit map in context 72, not 70 (#14). The

@@ -284,6 +284,7 @@ static int g_marginW = 0, g_marginH = 0;
 static int g_cropTop = 0, g_cropBottom = 0;
 static int g_pixelAspectE4 = 10000;
 static int g_priority = 0;      /* GAL_PLAYER_PRIORITY, 0 = as spawned */
+static int g_priorityCap = 0;   /* GAL_PLAYER_PRIORITY_CAP, 0 = off: lower to this if above */
 /* GAL_PLAYER_NEON (default 1), and the marker a crash leaves: while it is
  * there (until the next reboot) the player decodes without NEON. */
 static bool g_neonAllowed = true;
@@ -739,6 +740,14 @@ static void context_check_tick(uint64_t) {}
  */
 #define NVSS_OFF_MARKER "/tmp/stream-player.hwdecode.off"
 static bool g_hwDecoder = false;          /* GAL_PLAYER_DECODER=hw */
+/* CLUSTERMAP_HD_RECOVERY (#169): what a second decoder failure on a 720p or
+ * 1080p frame does. 0 stock (car's map until reboot), 1 nextboot (and the
+ * next gal start is one size smaller), 2 restart (gal restarts now, smaller). */
+enum { HD_RECOVERY_STOCK = 0, HD_RECOVERY_NEXTBOOT = 1, HD_RECOVERY_RESTART = 2 };
+static int g_hdRecovery = HD_RECOVERY_NEXTBOOT;
+static bool g_hdRestartGal = false;       /* set by hd_recover(), done at exit */
+#define HD_FAILED_MARKER "/tmp/clustermap-hd.failed"
+#define HD_STEP_PATH "/mnt/app/eso/lib/gal_dualscreen/hd_step"
 static unsigned g_nvssOutput = 1;         /* GAL_PLAYER_NVSS_OUTPUT: 1 as aberbic's cluster path; gal uses 0 (LVDS) for the centre screen */
 static bool g_nvssActive = false;
 
@@ -750,6 +759,11 @@ typedef char nvss_open_size_check[sizeof(NvssOpenParams) == 24 ? 1 : -1];
 typedef char nvss_input_layout_check[offsetof(NvssInput, timestamp) == 8 ? 1 : -1];
 
 static const uint32_t kNvssTimeout = 0x80000006u;   /* "try again": gal retries it (retryCount 5) */
+/* BUFFER_NOT_CONSUMED: no free buffer in the decoder's pool (#169: 1080p on an
+ * A4 B9 after 3-4 minutes, "Timed Out while getting buffer from pool"). The
+ * same code leaves the centre screen black (#125). Retried once, later. */
+static const uint32_t kNvssNoBuffer = 0x80000003u;
+static const int kNvssNoBufferWaitMs = 100;
 static const int kNvssWaitMs = 35;
 static const unsigned kNvssMaxRetries = 5;
 
@@ -863,13 +877,21 @@ static int nvss_decode(const uint8_t* data, int size) {
     memset(&in, 0, sizeof(in));
     in.data = (void*)data; in.length = (uint32_t)size; in.timestamp = UINT64_MAX;   /* no timestamp scheduling */
     unsigned retries = 0;
+    bool noBufferRetried = false;
     int rc;
     for (;;) {
         rc = p_nvssDecode(g_nvssHandle, &in, kNvssWaitMs);
+        if ((uint32_t)rc == kNvssNoBuffer && !noBufferRetried && g_running) {
+            noBufferRetried = true;
+            LOG("hwdecode: no free decoder buffer (0x%x); retrying in %d ms", (unsigned)rc, kNvssNoBufferWaitMs);
+            usleep(kNvssNoBufferWaitMs * 1000);
+            continue;
+        }
         if ((uint32_t)rc != kNvssTimeout || retries >= kNvssMaxRetries || !g_running) break;
         retries++;
         usleep(1000);
     }
+    if (rc == 0 && noBufferRetried) LOG("hwdecode: the retry worked");
     if (rc != 0) {
         LOGE("hwdecode: NvSSVideoDecode=0x%x after %u retries", (unsigned)rc, retries);
         return -1;
@@ -897,6 +919,74 @@ static int nvss_decode(const uint8_t*, int) { return -1; }
 static void nvss_close() {}
 static void nvss_disable_for_boot(const char*) {}
 #endif
+
+/* The frame this player was started for has failed on this boot already. */
+static bool hd_failed_this_boot(int w, int h) {
+    char buf[32] = {0};
+    int fd = open(HD_FAILED_MARKER, O_RDONLY);
+    if (fd < 0) return false;
+    ssize_t n = read(fd, buf, sizeof(buf) - 1);
+    close(fd);
+    int fw = 0, fh = 0;
+    return n > 0 && sscanf(buf, "%dx%d", &fw, &fh) == 2 && fw == w && fh == h;
+}
+
+/* Second decoder failure on a 720p/1080p frame: no software HD (172 % CPU,
+ * it once took Android Auto down, #169). The car's map comes back when the
+ * player ends; later players on this boot stay idle for this frame. */
+static void hd_recover(int w, int h, const char* why) {
+    char buf[32];
+    int n = snprintf(buf, sizeof(buf), "%dx%d\n", w, h);
+    int fd = open(HD_FAILED_MARKER, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    if (fd >= 0) { (void)write(fd, buf, (size_t)n); close(fd); }
+    const char* step = w > 1280 ? "720" : "480";
+    LOGE("hwdecode: %dx%d failed twice (%s); the car's map until reboot (CLUSTERMAP_HD_RECOVERY=%s)",
+         w, h, why, g_hdRecovery == HD_RECOVERY_STOCK ? "stock" :
+                    g_hdRecovery == HD_RECOVERY_RESTART ? "restart" : "nextboot");
+    if (g_hdRecovery == HD_RECOVERY_STOCK) return;
+    /* The install folder is on /mnt/app, read-only in use: as the green menu does. */
+    int rcw = system("mount -uw /mnt/app 2>/dev/null");
+    fd = open(HD_STEP_PATH, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    bool saved = false;
+    if (fd >= 0) {
+        char line[8];
+        int ln = snprintf(line, sizeof(line), "%s\n", step);
+        saved = write(fd, line, (size_t)ln) == ln;
+        close(fd);
+    }
+    if (rcw == 0) (void)system("mount -ur /mnt/app 2>/dev/null");
+    if (!saved) {
+        LOGE("hwdecode: could not save the smaller frame to %s; staying on the car's map", HD_STEP_PATH);
+        return;
+    }
+    if (g_hdRecovery == HD_RECOVERY_RESTART) {
+        LOG("hwdecode: saved frame step %s; restarting Android Auto (gal) when the player ends", step);
+        g_hdRestartGal = true;
+    } else {
+        LOG("hwdecode: saved frame step %s; the next boot starts at that size", step);
+    }
+}
+
+/* restart mode: end gal, our parent; the unit restarts it (#169 saw that take
+ * ~15 s after a crash), and the hook then reads the smaller frame. Only when
+ * the parent really is gal. */
+static void hd_restart_gal() {
+#ifdef __QNX__
+    pid_t parent = getppid();
+    char path[64], exe[256] = {0};
+    snprintf(path, sizeof(path), "/proc/%d/exefile", (int)parent);
+    int fd = open(path, O_RDONLY);
+    if (fd >= 0) { (void)read(fd, exe, sizeof(exe) - 1); close(fd); }
+    const char* base = strrchr(exe, '/');
+    base = base ? base + 1 : exe;
+    if (parent <= 1 || strncmp(base, "gal", 3) != 0) {
+        LOGE("hwdecode: restart asked, but the parent (%d, '%s') is not gal; not restarting", (int)parent, exe);
+        return;
+    }
+    LOG("hwdecode: restarting Android Auto: ending gal (pid %d, %s)", (int)parent, exe);
+    kill(parent, SIGKILL);
+#endif
+}
 
 // ---------------- Hardware decode into memory (NvMedia) ----------------
 /*
@@ -1843,7 +1933,11 @@ static void* DecoderThreadFunc(void* arg) {
                     }
                     uint64_t t_dec_start = now_us();
                     if (nvss_decode(packet->data, packet->size) != 0) {
-                        nvss_disable_for_boot(g_decodedFrameCount ? "decode failed" : "first decode failed");
+                        if (g_streamFrameWidth > 800 || g_streamFrameHeight > 480)
+                            hd_recover(g_streamFrameWidth, g_streamFrameHeight,
+                                       g_decodedFrameCount ? "decode failed" : "first decode failed");
+                        else
+                            nvss_disable_for_boot(g_decodedFrameCount ? "decode failed" : "first decode failed");
                         g_running = false;
                         pthread_cond_broadcast(&g_frameCond);
                         break;
@@ -2233,6 +2327,13 @@ static void load_player_config() {
             } else if (strcmp(key, "GAL_PLAYER_PRIORITY") == 0) {
                 int p = atoi(val);
                 if (p >= 0 && p <= 20) g_priority = p;
+            } else if (strcmp(key, "CLUSTERMAP_HD_RECOVERY") == 0) {
+                if (strcmp(val, "stock") == 0) g_hdRecovery = HD_RECOVERY_STOCK;
+                else if (strcmp(val, "restart") == 0) g_hdRecovery = HD_RECOVERY_RESTART;
+                else g_hdRecovery = HD_RECOVERY_NEXTBOOT;
+            } else if (strcmp(key, "GAL_PLAYER_PRIORITY_CAP") == 0) {
+                int p = atoi(val);              /* "auto" left by a failed install reads as 0, off */
+                if (p >= 0 && p <= 20) g_priorityCap = p;
             }
         }
         fclose(f);
@@ -2402,7 +2503,7 @@ static void ack_settle(bool pictureWaiting) {
  */
 static void apply_player_priority() {
 #ifdef __QNX__
-    if (g_priority <= 0) return;
+    if (g_priority <= 0 && g_priorityCap <= 0) return;
     struct sched_param param;
     int policy = 0;
     if (pthread_getschedparam(pthread_self(), &policy, &param) != 0) {
@@ -2410,6 +2511,22 @@ static void apply_player_priority() {
         return;
     }
     int was = param.sched_priority;
+    /* GAL_PLAYER_PRIORITY_CAP: under the display driver's buffer threads
+     * (nvdisp presync/dequeue run at 15; the player inherits 16 from gal).
+     * Above them, a busy player can keep the centre decoder from getting a
+     * free buffer when its video restarts: BUFFER_NOT_CONSUMED, black centre
+     * screen (#125: 8 of 19 restarts at 16, 1 of 11 at 12). */
+    if (g_priorityCap > 0) {
+        if (was <= g_priorityCap) {
+            LOG("priority: %d, already at or below GAL_PLAYER_PRIORITY_CAP=%d", was, g_priorityCap);
+            return;
+        }
+        param.sched_priority = g_priorityCap;
+        int rcCap = pthread_setschedparam(pthread_self(), policy, &param);
+        if (rcCap != 0) LOGE("priority: %d -> %d failed (%d)", was, g_priorityCap, rcCap);
+        else LOG("priority: %d -> %d (GAL_PLAYER_PRIORITY_CAP)", was, g_priorityCap);
+        return;
+    }
     if (was >= g_priority) {
         LOG("priority: %d, already at or above GAL_PLAYER_PRIORITY=%d", was, g_priority);
         return;
@@ -2546,6 +2663,15 @@ int main(int argc, char* argv[]) {
             windowWidth, windowHeight);
         g_hwDecoder = false;
     }
+    if (hdStream && hd_failed_this_boot(g_streamFrameWidth, g_streamFrameHeight)) {
+        /* No software HD after a hardware failure (#169): leave the car's
+         * map, draw nothing, ACK nothing, until gal ends this player. */
+        LOG("hwdecode: %dx%d already failed on this boot; leaving the car's map (CLUSTERMAP_HD_RECOVERY)",
+            g_streamFrameWidth, g_streamFrameHeight);
+        while (g_running) usleep(500000);
+        LOG("stream-player terminated cleanly");
+        return 0;
+    }
     if (g_hwDecoder && nvss_open(
             g_streamFrameWidth, g_streamFrameHeight, windowWidth, windowHeight,
             hdStream ? g_marginW : 0, hdStream ? g_marginH : 0)) {
@@ -2594,6 +2720,10 @@ int main(int argc, char* argv[]) {
         LOG("shutting down: waiting for decoder thread");
         pthread_join(hwThread, NULL);
         nvss_close();
+        if (g_hdRestartGal) {
+            sleep(1);              /* the car's map is back (execute_final_commands) */
+            hd_restart_gal();
+        }
         LOG("stream-player terminated cleanly");
         return 0;
     }

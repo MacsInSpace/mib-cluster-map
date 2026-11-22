@@ -485,6 +485,70 @@ static void load_config_file(void)
                   chosen, applied, already, rejected, truncated);
 }
 
+/*
+ * HD frame recovery (CLUSTERMAP_HD_RECOVERY, #169). When the unit's decoder
+ * fails twice on a 1080p or 720p cockpit frame, the player saves the next
+ * smaller frame in HD_STEP_FILE ("720" or "480"). The cockpit's video sink is
+ * built once, when gal starts, so the smaller frame applies from the next gal
+ * start: the next boot (nextboot) or straight away when the player restarts
+ * gal (restart). The installer stores each smaller frame's geometry as
+ * GAL_HD_STEP_720 / GAL_HD_STEP_480 = WxH:MWxMH:ASPECT_E4, computed for this
+ * cockpit window like the frame it chose. Reinstalling deletes the step
+ * file.
+ */
+#define HD_STEP_FILE "/eso/lib/gal_dualscreen/hd_step"
+
+static int parse_hd_step(const char *value, unsigned *w, unsigned *h,
+                         unsigned *mw, unsigned *mh, unsigned *par)
+{
+    if (value == NULL ||
+        sscanf(value, "%ux%u:%ux%u:%u", w, h, mw, mh, par) != 5) return 0;
+    if (!((*w == 800u && *h == 480u) || (*w == 1280u && *h == 720u))) return 0;
+    if (*mw >= *w || *mh >= *h || *par == 0u || *par > 80000u) return 0;
+    return 1;
+}
+
+static void apply_hd_step(void)
+{
+    char buf[16];
+    unsigned step, w, h, mw, mh, par;
+    const char *key;
+    FILE *f;
+
+    if (g_config.width <= 800u && g_config.height <= 480u) return;
+    f = fopen(HD_STEP_FILE, "r");
+    if (f == NULL) return;
+    if (fgets(buf, (int)sizeof(buf), f) == NULL) buf[0] = '\0';
+    fclose(f);
+    step = (unsigned)strtoul(buf, NULL, 10);
+    if (step == 720u && g_config.width == 1920u) key = "GAL_HD_STEP_720";
+    else if (step == 480u || (step == 720u && g_config.width == 1280u)) key = "GAL_HD_STEP_480";
+    else {
+        gal_hook_logf("event=config.hd_step result=ignored step=%s frame=%ux%u",
+                      buf, g_config.width, g_config.height);
+        return;
+    }
+    if (!parse_hd_step(getenv(key), &w, &h, &mw, &mh, &par) &&
+        strcmp(key, "GAL_HD_STEP_720") == 0) {
+        key = "GAL_HD_STEP_480";   /* window too large for 720p: straight to 800x480 */
+    }
+    if (!parse_hd_step(getenv(key), &w, &h, &mw, &mh, &par)) {
+        /* No stored geometry (an install from before v1.2.10): try the
+         * standard frame's values once more rather than guess. */
+        gal_hook_logf("event=config.hd_step result=no_geometry step=%u key=%s frame=%ux%u",
+                      step, key, g_config.width, g_config.height);
+        return;
+    }
+    gal_hook_logf("event=config.hd_step result=applied step=%u frame=%ux%u->%ux%u margins=%ux%u->%ux%u pixel_aspect_e4=%u",
+                  step, g_config.width, g_config.height, w, h,
+                  g_config.margin_width, g_config.margin_height, mw, mh, par);
+    g_config.width = w;
+    g_config.height = h;
+    g_config.margin_width = mw;
+    g_config.margin_height = mh;
+    g_config.pixel_aspect_ratio_e4 = par;
+}
+
 int gal_hook_init(const gal_secondary_config *config)
 {
     const char *value;
@@ -546,6 +610,7 @@ int gal_hook_init(const gal_secondary_config *config)
     } else {
         load_environment();
     }
+    apply_hd_step();
     /*
      * DPI and insets are set for the margin band. With pixels wider than tall
      * (CLUSTERMAP_FULL_FRAME) the phone draws a wider display of square
