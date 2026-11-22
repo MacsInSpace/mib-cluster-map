@@ -1166,7 +1166,16 @@ static int nvm_cb_decode(void*, void* pd) {
     bitstream[0] = nvm_r32(pd, 0x38);
     bitstream[1] = nvm_r32(pd, 0x34);
     int rc = p_nvmDecoderRender(g_nvmDecoder, cur->surface, pic, 1, bitstream);
-    if (rc != 0) { LOG("hwdecode: NvMediaVideoDecoderRender=0x%x", (unsigned)rc); g_nvmFailed = true; return 0; }
+    if (rc != 0) {
+        /* 7: the decoder hardware belongs to another NvMedia device, gal's
+         * centre-screen one (fifthBro/mh2p-cluster found a second device gets
+         * 7 on every picture). The caller turns hardware off for this boot,
+         * so the next player decodes in software. */
+        if (rc == 7) LOGE("hwdecode: NvMediaVideoDecoderRender=7: the decoder is held by the centre screen's device; software decode for this boot");
+        else LOG("hwdecode: NvMediaVideoDecoderRender=0x%x", (unsigned)rc);
+        g_nvmFailed = true;
+        return 0;
+    }
     return 1;
 }
 
