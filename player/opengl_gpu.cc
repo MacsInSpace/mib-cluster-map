@@ -1426,6 +1426,8 @@ static void check_program(GLuint prog, const char* name) {
     }
 }
 
+#include "splash.h"
+
 void InitGL() {
     GLuint vs = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vs, 1, &vertexShaderSource, NULL);
@@ -2336,6 +2338,9 @@ static void load_player_config() {
             } else if (strcmp(key, "GAL_PLAYER_PRIORITY") == 0) {
                 int p = atoi(val);
                 if (p >= 0 && p <= 20) g_priority = p;
+            } else if (strcmp(key, "CLUSTERMAP_SPLASH") == 0) {
+                /* 0: no start-up splash (player/splash.h). */
+                g_splashOn = atoi(val) != 0;
             } else if (strcmp(key, "CLUSTERMAP_HD_RECOVERY") == 0) {
                 if (strcmp(val, "stock") == 0) g_hdRecovery = HD_RECOVERY_STOCK;
                 else if (strcmp(val, "restart") == 0) g_hdRecovery = HD_RECOVERY_RESTART;
@@ -2845,6 +2850,7 @@ int main(int argc, char* argv[]) {
 #endif
 
     InitGL();
+    splash_init();
     ack_connect();
 
     // Pre-fill slot 0 with a blank black frame (Y=16, U=128, V=128)
@@ -2913,7 +2919,8 @@ int main(int argc, char* argv[]) {
             uint64_t timeSinceRenderUs = frameStartUs - s_lastRenderUs;
 
             // Idle render bypass: when stationary, only render on heartbeat keepalive (~333ms at 3Hz)
-            if (isIdle && heartbeatIntervalUs > 0 && s_lastRenderUs > 0 && timeSinceRenderUs < heartbeatIntervalUs) {
+            if (isIdle && heartbeatIntervalUs > 0 && s_lastRenderUs > 0 && timeSinceRenderUs < heartbeatIntervalUs &&
+                !splash_active()) {
                 pthread_mutex_unlock(&g_frameMutex);
                 continue; // Skip texture upload & swap; previous surface stays presented cleanly
             }
@@ -3006,6 +3013,7 @@ int main(int argc, char* argv[]) {
                 if (s_noDrawWarn++ < 3)
                     LOGE("render: SHADER PATH FAILED -- GPU YUV requires shaders! (Screen is blank)");
             }
+            splash_draw(windowWidth, windowHeight, now_us());
 
 #ifdef __QNX__
             if (!eglSwapBuffers(eglDisplay, eglSurface)) {
