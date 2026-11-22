@@ -1782,16 +1782,17 @@ fi
 # Audi route. While the CarPlay map is up the watcher puts the tab in MAP view
 # the stock way (GfxStreamController.switchViewMode); 4 s after it ends it
 # puts the tab back to the view it was in. Every step goes to
-# /tmp/clustermap-gfxstate.log. Added where profiles.conf says "gfxkeep" AND
-# lsd.jxe is the build it was checked against; CLUSTERMAP_CARPLAY_GFX_KEEP=0
-# leaves it out.
-GK=`sed -n 's/^CLUSTERMAP_CARPLAY_GFX_KEEP=\([a-z0-9]*\)[ \t]*$/\1/p' \
+# /tmp/clustermap-gfxstate.log. Added when the owner asks for it
+# (CLUSTERMAP_CARPLAY_GFX_KEEP=1; car-tested on one RS7 so far, so off by
+# default) where profiles.conf says "gfxkeep" AND lsd.jxe is the build it was
+# checked against.
+GK=`sed -n 's/^CLUSTERMAP_CARPLAY_GFX_KEEP=\([a-z0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 GK_JAR=ClusterMapGfxKeep.jar
 GK_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_gfxkeep_added
 GK_WHY=
-if [ "$GK" = 0 ]; then
-    GK_WHY="turned off (CLUSTERMAP_CARPLAY_GFX_KEEP=0)"
+if [ "$GK" != 1 ]; then
+    GK_WHY="off (CLUSTERMAP_CARPLAY_GFX_KEEP=1 turns it on)"
 elif [ "$CARPLAY_OK" -ne 1 ]; then
     GK_WHY="the CarPlay map is not installed"
 elif ! train_has "$PROFILES" "$TRAIN" gfxkeep; then
