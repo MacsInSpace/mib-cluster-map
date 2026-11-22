@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="176" viewBox="0 0 300 176">
+  <!-- Orbit spinner (the owner's splash-icon-4), 100 px, without its dot:
+       the player draws the green dot and turns it. Outer ring lightened from
+       #5F5E5A so it reads on the cockpit in daylight. -->
+  <g transform="translate(100,4) scale(2.0833333)">
+    <circle cx="24" cy="24" r="17" fill="none" stroke="#8A8984" stroke-width="1.8" stroke-dasharray="2 4"/>
+    <circle cx="24" cy="24" r="8" fill="none" stroke="#e8e8e8" stroke-width="2.5"/>
+  </g>
+  <text x="150" y="133" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="18" fill="#e8e8e8">MacsInSpace/Mib-Cluster-Map</text>
+  <text x="150" y="163" text-anchor="middle" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="20" font-weight="bold" fill="#5DCAA5">Free</text>
+</svg>

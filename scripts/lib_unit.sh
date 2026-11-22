@@ -13,6 +13,18 @@ train_has()
     return 1
 }
 
+# train_listed <profiles.conf> <train>: some "train" line matches this train.
+train_listed()
+{
+    while read -r KEY SUB REST; do
+        [ "$KEY" = train ] || continue
+        case "$2" in
+            *$SUB*) return 0 ;;
+        esac
+    done < "$1"
+    return 1
+}
+
 # unit_make <profiles.conf> <train>: sets CAR_MAKE, CAR_WINDOW, CAR_DPI,
 # CAR_INSETS and CAR_CONTEXT from the first "make" line whose pattern matches.
 unit_make()

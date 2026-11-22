@@ -96,8 +96,22 @@ frame_write_conf()
     if [ "$HD1080" = 1 ]; then HD720=0; fi
     if [ "$HD1080" = 1 ] && ! frame_hd_ok "$2" "$3" 1920 1080; then HD1080=0; fi
     if [ "$HD720" = 1 ] && ! frame_hd_ok "$2" "$3" 1280 720; then HD720=0; fi
+    # The smaller frames' geometry for this window, for the hook's HD
+    # recovery (CLUSTERMAP_HD_RECOVERY, #169): WxH:MWxMH:ASPECT_E4.
+    HD_STEP_720=
+    HD_STEP_480=
+    if [ "$HD1080" = 1 ] && frame_hd_ok "$2" "$3" 1280 720; then
+        frame_geometry "$2" "$3" 0 1 0
+        HD_STEP_720="${FRAME_W}x${FRAME_H}:${MARGIN_W}x${MARGIN_H}:$PIXEL_ASPECT_E4"
+    fi
+    if [ "$HD1080" = 1 ] || [ "$HD720" = 1 ]; then
+        frame_geometry "$2" "$3" "$4" 0 0
+        HD_STEP_480="${FRAME_W}x${FRAME_H}:${MARGIN_W}x${MARGIN_H}:$PIXEL_ASPECT_E4"
+    fi
     frame_geometry "$2" "$3" "$4" "$HD720" "$HD1080"
     sed -e '/^[ 	]*GAL_PLAYER_WINDOW[ 	]*=/d' \
+        -e '/^[ 	]*GAL_HD_STEP_720[ 	]*=/d' \
+        -e '/^[ 	]*GAL_HD_STEP_480[ 	]*=/d' \
         -e '/^[ 	]*GAL_SECONDARY_WIDTH[ 	]*=/d' \
         -e '/^[ 	]*GAL_SECONDARY_HEIGHT[ 	]*=/d' \
         -e '/^[ 	]*GAL_SECONDARY_MARGINS[ 	]*=/d' \
@@ -117,7 +131,9 @@ frame_write_conf()
       echo "GAL_SECONDARY_PIXEL_ASPECT_RATIO_E4=$PIXEL_ASPECT_E4"
       echo "CLUSTERMAP_FULL_FRAME=$4"
       echo "CLUSTERMAP_720P=$HD720"
-      echo "CLUSTERMAP_1080P=$HD1080"; } >> "$1.new" 2>/dev/null &&
+      echo "CLUSTERMAP_1080P=$HD1080"
+      if [ -n "$HD_STEP_720" ]; then echo "GAL_HD_STEP_720=$HD_STEP_720"; fi
+      if [ -n "$HD_STEP_480" ]; then echo "GAL_HD_STEP_480=$HD_STEP_480"; fi; } >> "$1.new" 2>/dev/null &&
     mv "$1.new" "$1" 2>/dev/null || { rm -f "$1.new" 2>/dev/null; return 1; }
     chmod 644 "$1" 2>/dev/null
     return 0
