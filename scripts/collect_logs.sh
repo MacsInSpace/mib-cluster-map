@@ -60,11 +60,6 @@ fi
         done
     done
 } > $OUT/tool_versions.txt 2>&1
-# The same checks the simulator runs (tests/unit_sim/probe_compare.sh).
-if [ -r "$HERE/scripts/unit_probe.sh" ]; then
-    sh "$HERE/scripts/unit_probe.sh" "$OUT/probe_work" > $OUT/tool_probe.txt 2>&1 || :
-    rm -rf "$OUT/probe_work" 2>/dev/null
-fi
 # The cockpit display (window 33) only appears in 'gs' while the cockpit is in
 # map view. Say so in the file, so a capture taken in another view is not read
 # as a unit that cannot show a map. Audi uses context 72 (profiles.conf).
@@ -158,6 +153,44 @@ for CORE_OF in dio_manager gal.core; do
         echo "not copied (over 8 MB): $CORE ($CORE_SIZE bytes)" >> $OUT/core_listing.txt
     fi
 done
+# The two probes run last, each limited to PROBE_SECS, so a check that hangs
+# on some unit costs only its own file, never the logs above: v1.2.10's tool
+# probe stopped Save logs before the CarPlay files on a K3342 and a P3236
+# (#62). Without sleep there is no way to time them, so they are left out.
+PROBE_SECS=20
+# limited NAME COMMAND...: run COMMAND in the background, stop it after
+# PROBE_SECS, and say so in limits.txt.
+limited()
+{
+    LN=$1; shift
+    ${1+"$@"} &
+    LP=$!
+    LI=0
+    while kill -0 $LP 2>/dev/null; do
+        if [ $LI -ge $PROBE_SECS ]; then
+            kill -9 $LP 2>/dev/null
+            echo "$LN: stopped after $PROBE_SECS s" >> $OUT/limits.txt
+            break
+        fi
+        sleep 1
+        LI=`expr $LI + 1`
+    done
+    wait $LP 2>/dev/null || :
+}
+if command -v sleep >/dev/null 2>&1; then
+    # The same checks the simulator runs (tests/unit_sim/probe_compare.sh).
+    if [ -r "$HERE/scripts/unit_probe.sh" ]; then
+        limited tool_probe sh "$HERE/scripts/unit_probe.sh" "$OUT/probe_work" > $OUT/tool_probe.txt 2>&1
+        rm -rf "$OUT/probe_work" 2>/dev/null
+    fi
+    # Wireless groundwork (Android Auto and CarPlay without a cable): what
+    # this unit has for it, read-only, with names and keys hidden.
+    if [ -r "$HERE/scripts/wireless_probe.sh" ]; then
+        limited wireless_probe sh "$HERE/scripts/wireless_probe.sh" "$OUT/wireless" > /dev/null 2>&1
+    fi
+else
+    echo "probes skipped: no sleep command to time them" >> $OUT/limits.txt
+fi
 sync 2>/dev/null
 ls -l $OUT
 echo "Done: ClusterMap/run_logs/$N. Wait a few seconds, then take the SD card to the laptop."

@@ -91,7 +91,7 @@ x s_strip          'A=a/b/c.sh; echo ${A##*/} ${A%/*} ${A%.sh} ${A#a/}'
 x s_subst          'A=abc; echo ${A/b/x}'
 x s_substr         'A=abc; echo ${A:1:1}'
 x s_ansi_c         "echo \$'a\\tb'"
-x s_herestring     'cat <<< hi'
+# s_herestring (cat <<< hi) left out: it hung Save logs on a K3342 and a P3236 (#62).
 x s_heredoc_tab    'cat <<-E
 	tabbed
 	E'

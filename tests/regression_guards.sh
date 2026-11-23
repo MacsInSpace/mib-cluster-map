@@ -95,5 +95,22 @@ done > /tmp/.guard6.$$
 if [ -s /tmp/.guard6.$$ ]; then cat /tmp/.guard6.$$ >&2; bad "block ending in [ test ] && ... under set -e"; fi
 rm -f /tmp/.guard6.$$
 
+# 7. #62 (v1.2.10): Save logs stopped inside the tool probe on a K3342 and a
+#    P3236 (the here-string test hung), so the CarPlay files were never
+#    copied. The probes run last and only under the time limit, and the
+#    here-string test stays out.
+grep -q '^x s_herestring' scripts/unit_probe.sh &&
+    bad "unit_probe.sh runs the here-string test again (it hung Save logs, #62)"
+for p in unit_probe.sh wireless_probe.sh; do
+    grep -n "scripts/$p" scripts/collect_logs.sh | grep -v '^[0-9]*:[ 	]*#' | grep -v -e '-r "' |
+        grep -v 'limited ' | grep -q . &&
+        bad "collect_logs.sh runs $p without the time limit (#62)"
+done
+LAST_PROBE=`grep -n 'limited [a-z_]* sh' scripts/collect_logs.sh | tail -1 | cut -d: -f1`
+LAST_CP=`grep -n '^[ 	]*cp ' scripts/collect_logs.sh | tail -1 | cut -d: -f1`
+if [ -z "$LAST_PROBE" ] || [ -z "$LAST_CP" ] || [ "$LAST_PROBE" -lt "$LAST_CP" ]; then
+    bad "collect_logs.sh: the probes must run after the last copy (#62)"
+fi
+
 [ $FAIL = 0 ] && echo "regression guards ok"
 exit $FAIL
