@@ -2187,6 +2187,48 @@ static int payload_is_annex_b(const void *payload, unsigned bytes)
 }
 
 /*
+ * #184: is the sink's session still there to take an ACK? ackFrames sends
+ * through the router at sink+0x08, and MessageRouter::queueOutgoing passes
+ * it on to the ChannelManager the router holds (ldr r0, [r0, #0x4fc] on
+ * every receiver seen, P4521's and VWG11's). When the phone goes away (a
+ * pepsonEL MA1 adapter dropping, P4526 on v1.2.10), gal clears that pointer
+ * while the player can still hand back ACKs; the next ackFrames locked a
+ * mutex at NULL+0x808 and gal died (4 cores, SIGSEGV in pthread_mutex_lock
+ * under Autolock). The offset is read from queueOutgoing's own instruction,
+ * so a receiver laid out differently only loses this check, nothing else.
+ * This narrows the window rather than closing it: gal's teardown is not
+ * ordered against this thread.
+ */
+static int g_router_cm_off = -2;    /* -2 not looked up, -1 not found */
+
+static int ack_session_alive(void *sink)
+{
+    uint32_t router;
+
+    if (g_router_cm_off == -2) {
+        static void *queue_outgoing;
+        unsigned i;
+        g_router_cm_off = -1;
+        (void)resolve_symbol("_ZN13MessageRouter13queueOutgoingEhPvj", &queue_outgoing);
+        if (queue_outgoing != NULL && ((uintptr_t)queue_outgoing & 3u) == 0u) {
+            for (i = 0u; i < 6u; ++i) {
+                uint32_t w = load_u32(queue_outgoing, 4u * i);
+                if ((w & 0xfffff000u) == 0xe5900000u) {  /* ldr r0, [r0, #imm] */
+                    g_router_cm_off = (int)(w & 0xfffu);
+                    break;
+                }
+            }
+        }
+        gal_hook_logf("event=own.ack.guard result=%s router_channel_manager=%d",
+                      g_router_cm_off >= 0 ? "armed" : "unavailable", g_router_cm_off);
+    }
+    if (g_router_cm_off < 0) return 1;
+    router = load_u32(sink, 0x08);
+    if (router == 0u) return 0;
+    return load_u32((const void *)(uintptr_t)router, (size_t)g_router_cm_off) != 0u;
+}
+
+/*
  * Tell the phone the frame was consumed. GAL normally issues this from its
  * render path, so a secondary that bypasses GAL's renderer must do it
  * itself or the phone stops sending -- the ~17s teardown seen on-car, with
@@ -2243,7 +2285,15 @@ static void ack_secondary_frame(void *sink)
          * returning 0, which are different things.
          */
         int rc;
+        static unsigned long dropped;
         fc_write_lock();
+        if (!ack_session_alive(sink)) {
+            fc_write_unlock();
+            if (++dropped <= 3ul || dropped % 300ul == 0ul)
+                gal_hook_logf("event=own.ack result=dropped reason=session_gone count=%lu session=%d",
+                              dropped, session);
+            return;
+        }
         rc = g_ack_frames(sink, session, 1u);
         fc_write_unlock();
         ++g_secondary_acks;
