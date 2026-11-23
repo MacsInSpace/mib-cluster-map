@@ -28,7 +28,7 @@ the real firmware itself and installs only what fits, or nothing.
 | VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | `K3342`, `K3332`, `P3301` (`S2125`: update to `K3342` first) | `K3342`, `K3332` |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | `P4708`, `P4709`, and the arrows on both | `P4709` |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | `P4526`, `P4523` | `P4526` |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU`, `MHI2_US_AU` | A4 B9 / Q5 FY `K3346`, A3/S3 8V `P5089`, `P5153`, `P4203`, A6/A7 C7.5 `K3663`, US A7 `K3341` | A6/A7 C7.5 `K3663` |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU`, `MHI2_US_AU` | A4 B9 / Q5 FY `K3346`, A3/S3 8V `P5089`, `P5153`, `P4203`, A6/A7 C7.5 `K3663`, `P3236`, US A7 `K3341`; Q2 `P3243` installs (map seen, not yet on a route) | A6/A7 C7.5 `K3663`, US `K3341`, `P3327`, `P3237` |
 | VW Discover Pro, Japan | `MHI2_JP_VW48x_` | Trial on `P0953` | |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) | |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies | |
@@ -133,8 +133,11 @@ The update menu needs developer mode on Audi (see the
 - **US A7 C7.5 `MHI2_US_AU57x_K3341`** works with Android Auto (same window
   and context; the map stays on a route with the Audi NavActiveIgnore, which
   the installer adds; CarPlay not tried).
-- **Pre-facelift A6 C7 `AU57x_P3236`**: not supported yet; a trial line from
-  its files is being tried (#127, #122).
+- **A6/A7 C7.5 `AU57x_P3236`** works since v1.2.11: the map stays on the
+  cockpit through Google Maps routes with the Audi NavActiveIgnore, which the
+  installer adds (#127). CarPlay not tried yet.
+- **US A6/A7 C7.5 `AU57x_P3237`**: the CarPlay map works, with the iPhone's
+  route hidden from the car as on `P3327` (#176). Android Auto not tried yet.
 - **A6 C7 `AU57x_P3634`**: not supported, but its owner updated the unit to
   `K3663_1` and everything works there (#142); the same may suit `P3236`.
 

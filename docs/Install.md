@@ -95,6 +95,13 @@ Leave the green menu and open it again.
 Open it with MENU (hold) > `Testmode` > `Green Developer Menu` >
 **`ClusterMap`**:
 
+The green menu only opens once developer mode is switched on in the unit's
+coding (address 5F, with VCDS, OBDeleven or the like).
+On some Audis it opens another way: on an A3 8V, go into the Settings menu
+first, then hold both steering-wheel paddles (nav and radio) up for 5 s (#157).
+Neither route 1 nor uninstalling needs the green menu: route 1 installs from
+the card, and the `UNINSTALL` marker on the card removes everything.
+
 | Entry | What it does |
 |---|---|
 | 1. Status and compatibility check | Firmware train, verdict, what is installed, Java patches |
@@ -260,9 +267,9 @@ it must start at the beginning of the line, with no `#` in front.
 | `CLUSTERMAP_CARPLAY_SPEEDLIMIT`, `_COMPASS`, `_ETA`, `_CARD_POSITION` | unset | to turn CarPlay's speed limit, compass or arrival time on the cockpit on or off (`yes`/`no`), or move its card (`left`, `right`, `top`, or `iphone` to let the iPhone decide). Unset, the iPhone decides, except on SEAT, where the card goes to the top (it keeps the car centred during a route, #19) |
 | `CLUSTERMAP_CARPLAY_WHEEL_ZOOM` | auto | Audi A6/A7 C7.5 (`K3663`) only: the steering-wheel roller zooms the CarPlay map on the cockpit (auto). `reverse` if it zooms the wrong way round, `0` to leave the roller to the car's map. Added only on the exact interface build it was made for; see docs/CarPlay.md |
 | `CLUSTERMAP_CARPLAY_WHEEL_ZOOM_ID` | `82137` | Chinese A6/A7 C7.5 (`K1006_2`) only: the roller's id. Change it only if `/tmp/clustermap-wheelzoom.log` shows the roller with another id |
-| `CLUSTERMAP_SPLASH` | on | The project's mark (orbit spinner, "MacsInSpace/Mib-Cluster-Map", "Free") for about 1.5 s when the cockpit switches to the phone's map, then a fade into the map. Not with Audi's hardware decoder (NvSS). `0` turns it off |
+| `CLUSTERMAP_SPLASH` | on | The project's mark (orbit spinner, "MacsInSpace/Mib-Cluster-Map", "Free") for about 2.5 s when the cockpit switches to the phone's map, then a fade into the map. Not with Audi's hardware decoder (NvSS). `0` turns it off |
 | `CLUSTERMAP_CARPLAY_GFX_KEEP` | off | Audi A6/A7 C7.5 (`K3663`) only: `1` puts the cockpit's nav tab in map view (from compass or the route map) while the CarPlay map is up and back afterwards. Car-tested on one RS7. Added only on the exact interface build it was made for; see docs/CarPlay.md |
-| `CLUSTERMAP_CARPLAY_HIDE_NAV` | 0 (1 on `VWG11`, `P3327` and A6/A7 C7.5 firmware without its own line) | CarPlay: the cockpit leaves the map when the iPhone starts a route and returns when it ends (US `P3662`, #10). 1 stops the car being told the iPhone is navigating. Car-tested on a VW `K3342` (#111). On VW Discover Pro 8 in units (`VWG11`) it is on by itself since v1.2.6, because NavActiveIgnore cannot be used with CarPlay there; 0 turns it off |
+| `CLUSTERMAP_CARPLAY_HIDE_NAV` | 0 (1 on `VWG11`, `P3327`, `P3237` and A6/A7 C7.5 firmware without its own line) | CarPlay: the cockpit leaves the map when the iPhone starts a route and returns when it ends (US `P3662`, #10). 1 stops the car being told the iPhone is navigating. Car-tested on a VW `K3342` (#111). On VW Discover Pro 8 in units (`VWG11`) it is on by itself since v1.2.6, because NavActiveIgnore cannot be used with CarPlay there; 0 turns it off |
 | `GAL_PLAYER_DECODER` | auto | `auto` is `hw` on the trains where it is car-tested (`P4521`) and `sw` on every other. `sw` is the software decoder, which works everywhere. `hw` uses the unit's own video decoder and frees most of a processor core. It first tries to have the decoder draw straight to the cockpit (one Audi A3); where the cockpit output cannot take that (VW, Skoda), it decodes into memory and draws as before. If neither opens, the player uses software; if it fails while decoding, it stays off until the next reboot. Tested on a Golf (`P4521`). On any other car run **Hardware decoder check** (`ClusterMapSupport`) first: it says `usable` or `not usable` and changes nothing. Also a menu switch: `ClusterMapOptions` |
 | `GAL_ACK_EVERY_FRAME` | 0 | the cockpit map runs a second or more behind the centre screen (most with 720p, #125). 1 makes the player acknowledge every picture, so the phone never runs ahead of the decoder (AMDFX60's Skoda fork: 34-308 ms instead of about 2 s). With it, the phone may have 4 pictures in flight instead of 8 (`GAL_SECONDARY_MAX_UNACKED`, 1 to 16). Not yet car-tested here |
 | `GAL_PLAYER_HW_HD` | 0 | VW, Skoda, SEAT with `hw`: the 720p and 1080p pictures are decoded in software, because the unit's decoder working into memory at 720p blacked out a Skoda's centre screen each time Android Auto came back to it (#145). 1 uses `hw` for them too. Audi's direct path is not affected |
@@ -333,7 +340,7 @@ phone names and Bluetooth addresses.
 | CarPlay works on the centre screen through a wireless adapter, but the cockpit keeps the car's map | Try a cable. Many adapters never open the iPhone's second screen, which the cockpit map needs ([CarPlay](CarPlay.md#wireless-adapters)) |
 | A wireless adapter connects, then drops every few seconds | In the adapter's own app: automatic standby **off**, VAG crash fix **off** (that fix is for VAG *Technisat* units, not Harman), adapter firmware up to date (#12, #35) |
 | The phone keeps disconnecting | Save logs, uninstall, reboot, open an issue |
-| The map appears, then goes blank when a route starts, or the cluster says "navigation on mobile device is active" | `NavActiveIgnore` is not loaded. The installer adds it on `P4521`, `K4525`, `P4512`, US `P3662`, Skoda `P4526`, SEAT `P4709` and the Audi A6/A7 C7.5 `K3663` (the Audi build). On any other firmware set `CLUSTERMAP_ADD_NAVIGNORE=1` and install again, or apply it from the MIB2 Toolbox (**Customization > Navigation > Ignore navigation-active status**). Check SSH works first — see [Safety and recovery](#safety-and-recovery) |
+| The map appears, then goes blank when a route starts, or the cluster says "navigation on mobile device is active" | `NavActiveIgnore` is not loaded. The installer adds it on `P4521`, `K4525`, `P4512`, US `P3662`, Skoda `P4526`, SEAT `P4709`, the Audi A6/A7 C7.5 (`K3663`, `K3341`, `P3236`, `P3237`, `P3327` and any A6/A7 C7.5 train without its own line) and the Q2 `P3243` (the Audi build). On any other firmware set `CLUSTERMAP_ADD_NAVIGNORE=1` and install again, or apply it from the MIB2 Toolbox (**Customization > Navigation > Ignore navigation-active status**). Check SSH works first — see [Safety and recovery](#safety-and-recovery) |
 | The map appears, then goes blank when a route starts, with `NavActiveIgnore` loaded | Run the install again: something re-enabled the turn-arrows jar |
 | Black cluster with `GAL_PLAYER_DECODER=hw` | `GAL_PLAYER_NVSS_OUTPUT=0`, or back to `sw` |
 | The centre screen stays black after a reboot | See below |

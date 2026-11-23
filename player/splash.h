@@ -21,7 +21,7 @@ static uint64_t g_splashStartUs = 0;
 static GLuint g_splashProg = 0, g_splashArtTex = 0, g_splashDotTex = 0, g_splashBlankTex = 0;
 static GLint g_splashPos = -1, g_splashUv = -1, g_splashTexLoc = -1, g_splashTintLoc = -1;
 
-#define SPLASH_HOLD_US 1500000ULL
+#define SPLASH_HOLD_US 2500000ULL
 #define SPLASH_FADE_US 400000ULL
 #define SPLASH_TURN_US 1500000.0          /* one turn of the dot, as in the SVG */
 #define SPLASH_DOT_TEX 32
