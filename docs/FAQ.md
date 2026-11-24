@@ -232,7 +232,24 @@ Two places:
   and **install again** (then reboot). Editing the file alone changes
   nothing on the unit.
 
-Every setting is listed in the [Install guide](Install.md#settings).
+Every setting is explained on the [Settings](Settings.md) page, grouped by
+what it fixes.
+
+</details>
+
+<details>
+<summary><b>Why are there so many settings?</b></summary>
+
+Because the cars differ. The cockpit's map window is 800×480 on most VWs,
+1010×376 on SEAT and Skoda, 1440×455 on many Audis and 800×298 on the A6/A7,
+with different dials around it. Android Auto and CarPlay size their text and
+cards from numbers the car gives them, and those have to be tuned per cockpit
+on the road. Some fixes help one car and break another, and new features stay
+off until owners have tested them.
+
+You don't need to touch them: most ship as `auto`, which the installer fills
+in with the values owners of your car have tested. The
+[Settings](Settings.md) page explains each one, grouped by what it fixes.
 
 </details>
 

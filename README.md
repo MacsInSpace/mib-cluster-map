@@ -82,8 +82,15 @@ uninstall on the first screen, and three screens under it:
 | `ClusterMapSupport` | Files for porting, the turn-arrows switch, the hardware decoder check, performance figures in the log |
 
 Anything else is a line in `ClusterMap/gal_dualscreen.conf`: change it, then
-install again. Every setting, the values owners settled on, and the green
-menu and SSH routes are in the [Install guide](docs/Install.md).
+install again. **Why there are settings:** the cockpits differ (800×480 on
+most VWs, 1010×376 on SEAT and Skoda, 1440×455 on many Audis, 800×298 on the
+A6/A7, each with different dials), the phones size their maps from numbers
+the car gives them, and some fixes suit only some cars. So everything ships
+as `auto` (the values owners of your car have tested) or switched off. The
+[Settings](docs/Settings.md) page explains each one, grouped by what it
+fixes; the file on the card uses the same sections. The values owners
+settled on, and the green menu and SSH routes, are in the
+[Install guide](docs/Install.md).
 
 **Updating:** install the new release over the old one; your settings are
 kept. **Uninstall:** green menu > `ClusterMap` > **Uninstall and restore
@@ -116,6 +123,7 @@ step-by-step for porting your own car.
 |---|---|
 | [FAQ](docs/FAQ.md) | Supported cars, updating, common problems, what it can and cannot do |
 | [Install guide](docs/Install.md) | Install routes, the menu, settings, logs, safety and recovery, getting your unit added |
+| [Settings](docs/Settings.md) | Every setting, why it exists, and when to change it |
 | [CarPlay](docs/CarPlay.md) | The CarPlay map: design, status, testing |
 | [Development](docs/Development.md) | How it works, what was learned, adding a firmware, building |
 | [Native wireless](docs/research/wireless.md) | Why the unit itself won't do wireless Android Auto or CarPlay (2.4 GHz only), and the tests |
