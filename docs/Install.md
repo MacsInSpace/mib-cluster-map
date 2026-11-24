@@ -244,7 +244,7 @@ it must start at the beginning of the line, with no `#` in front.
 | `CLUSTERMAP_KEEP_SETTINGS` | unset (keep) | you want a clean install. Each install remembers the lines you changed in `gal_dualscreen.conf` and puts them back at the next install wherever the new card still has the shipped default; a line changed on the new card wins, and `update_result.txt` lists what was kept. When you install the same release again, a setting you have edited on the card since the last install is used as the card has it, so a line you switch off stays off. `0` installs only the card's settings: use it once if a setting from an older release keeps coming back. Settings from v1.1.0 and betas before v1.1.1-beta19 are not carried over. The uninstall forgets them |
 | `CLUSTERMAP_FULL_FRAME` | auto | the map looks soft on a wide window (SEAT, Skoda, Audi). 1 has the phone draw on the whole 800×480 frame with wide pixels instead of leaving margins: more detail, same layout. Also a green-menu switch ("Sharper map"), so it can be tried in the car. From AMDFX60's fork, car-tested on his Skoda Superb (#56). `auto` is 1 where owners settled on it (VW 1010×376, the Tiguan cockpit) and 0 elsewhere |
 | `CLUSTERMAP_720P` | 0 | experimentally request a 1280×720 secondary stream with margins leaving the cockpit window's pixels. Off by default; available as a green-menu test; the phone/unit may reject it |
-| `CLUSTERMAP_1080P` | 0 | experimentally request a 1920×1080 secondary stream, for example 1440×455 with margins 480×625. Mutually exclusive with 720p and takes precedence over `CLUSTERMAP_FULL_FRAME` |
+| `CLUSTERMAP_1080P` | auto | request a 1920×1080 secondary stream, for example 1440×455 with margins 480×625. Mutually exclusive with 720p and takes precedence over `CLUSTERMAP_FULL_FRAME`. `auto` is 1 on the Audi A3/S3/RS3 8V `P5089` (with the hardware decoder, DPI 160 and insets `50,100,75,75`, since v1.2.12) and 0 elsewhere; 0 turns it off there |
 | `GAL_PLAYER_NEON` | unset | 0 decodes without the processor's NEON instructions, as up to v1.2.3 (slower). The player does that by itself until the next reboot after a crash; set 0 only if the map keeps dropping back to the car's own |
 | `GAL_PLAYER_REASSERT` | unset | the phone's map shows for a moment, then the car's own map comes back while the phone is still connected (#105). The player checks once a minute which window the cockpit shows and logs it; 1 makes it switch to the phone's picture again when the unit has put its own map back (at most ten times a session). Not car-tested |
 | `GAL_PLAYER_PRIORITY` | unset | the cluster map stutters when the unit is busy. 12 raises the player a little above the default 10; it never lowers it. Not car-tested |
@@ -268,6 +268,7 @@ it must start at the beginning of the line, with no `#` in front.
 | `CLUSTERMAP_CARPLAY_WHEEL_ZOOM` | auto | Audi A6/A7 C7.5 (`K3663`) only: the steering-wheel roller zooms the CarPlay map on the cockpit (auto). `reverse` if it zooms the wrong way round, `0` to leave the roller to the car's map. Added only on the exact interface build it was made for; see docs/CarPlay.md |
 | `CLUSTERMAP_CARPLAY_WHEEL_ZOOM_ID` | `82137` | Chinese A6/A7 C7.5 (`K1006_2`) only: the roller's id. Change it only if `/tmp/clustermap-wheelzoom.log` shows the roller with another id |
 | `CLUSTERMAP_SPLASH` | on | The project's mark (orbit spinner, "MacsInSpace/Mib-Cluster-Map", "Free") for about 2.5 s when the cockpit switches to the phone's map, then a fade into the map. Not with Audi's hardware decoder (NvSS). `0` turns it off |
+| `CLUSTERMAP_AU37X_COVER` | off | Audi A3 8V (`P5089`) only: `1` shows Android Auto's cover art, title, artist, album and playback time on the cockpit's media tab (kashavsehra, #195; car-tested on his A3). Added only on the exact interface build it was made for; it adds one entry to the centre screen's start-up file, with a backup, and uninstall takes it out |
 | `CLUSTERMAP_CARPLAY_GFX_KEEP` | off | Audi A6/A7 C7.5 (`K3663`) only: `1` puts the cockpit's nav tab in map view (from compass or the route map) while the CarPlay map is up and back afterwards. Car-tested on one RS7. Added only on the exact interface build it was made for; see docs/CarPlay.md |
 | `CLUSTERMAP_CARPLAY_HIDE_NAV` | 0 (1 on `VWG11`, `P3327`, `P3237` and A6/A7 C7.5 firmware without its own line) | CarPlay: the cockpit leaves the map when the iPhone starts a route and returns when it ends (US `P3662`, #10). 1 stops the car being told the iPhone is navigating. Car-tested on a VW `K3342` (#111). On VW Discover Pro 8 in units (`VWG11`) it is on by itself since v1.2.6, because NavActiveIgnore cannot be used with CarPlay there; 0 turns it off |
 | `GAL_PLAYER_DECODER` | auto | `auto` is `hw` on the trains where it is car-tested (`P4521`) and `sw` on every other. `sw` is the software decoder, which works everywhere. `hw` uses the unit's own video decoder and frees most of a processor core. It first tries to have the decoder draw straight to the cockpit (one Audi A3); where the cockpit output cannot take that (VW, Skoda), it decodes into memory and draws as before. If neither opens, the player uses software; if it fails while decoding, it stays off until the next reboot. Tested on a Golf (`P4521`). On any other car run **Hardware decoder check** (`ClusterMapSupport`) first: it says `usable` or `not usable` and changes nothing. Also a menu switch: `ClusterMapOptions` |
@@ -297,10 +298,12 @@ on `auto` follows it without editing anything.
 | Audi A4 B9 1440×455 (`K3346`), *auto* | 140 | `40,40,127,127` | mariuszhejnold-arch, #14 |
 | Audi Q5 FY 1440×455 (`K3346`), *auto* | 140 | `40,40,127,127` | pioottr20, #96 (context 72) |
 | Audi Q5 FY, smaller card, car above the bottom bar | 100 | `40,90,127,127` | pioottr20, #96 |
-| Audi A3/S3 8V 1440×455 (`P5089`, `P5153`), *auto* | 100 | `60,150,10,10` | kashavsehra, #51 and #78 (tuned with **Sharper map ON**; smaller cards, car centred; context 70) |
+| Audi A3/S3/RS3 8V 1440×455 (`P5089`), 1080p, *auto* since v1.2.12 | 160 | `50,100,75,75` | kashavsehra and getmarch1, #192 (1080p, hardware decoder) |
+| Audi A3/S3 8V 1440×455 (`P5089` without 1080p, `P5153`), *auto* | 100 | `60,150,10,10` | kashavsehra, #51 and #78 (tuned with **Sharper map ON**; smaller cards, car centred; context 70) |
 | Audi A3/S3 8V, the values before v1.2.0 | 140 | `40,40,127,127` | kashavsehra, #51 |
 | Audi A7 C7.5 800×298 (`K3663`), *auto* | 125 | `40,40,127,127` | Seif, by email (context 73) |
 | Audi A6 C7.5 facelift (`K3663`), *auto* | 125 | `40,40,127,127` | nkady, #68 (v1.2.1, out of the box) |
+| Audi Q2 1440×455 (`P3243`), *auto* since v1.2.12 | 125 | `40,40,127,127` | window from paulandrei2006's logs, #157; values not tuned yet (context 70) |
 | VW 12.3 in, ETA card showing (`K4525`) | 138 | `52,82,127,127` | totocastellano-cmd, #20 and #12 (`53,83,127,127` on a second car: the same within a pixel) |
 | VW 12.3 in Passat B8 2019 (`K4525`), ETA card showing, with `GAL_SECONDARY_UI_THEME=0` | 138 | `56,73,127,127` | danielszyszko-ui, #41 |
 | VW Golf (`P4521`), ETA card showing, Google Maps and Waze, *auto* for VW | 138 | `52,82,127,127` | tvarszegi1, #8, road-tested |
@@ -315,6 +318,13 @@ GAL_PLAYER_NVSS_OUTPUT=1
 GAL_SECONDARY_DPI=160
 GAL_SECONDARY_INSETS=45,85,75,75
 ```
+
+Since v1.2.12 the A3 8V `P5089` gets this by itself, with insets `50,100,75,75`.
+
+**Insets with Sharper map (full frame) on a 1440×455 Audi:** the first 114 lines top
+and bottom count as the old margin band, so a top or bottom inset of 114 or less
+comes out as 0 and changing it does nothing (#96). Use a larger value, or
+`CLUSTERMAP_FULL_FRAME=0`. The installer says so when it happens.
 
 `GAL_PLAYER_DECODER=hw` with `GAL_PLAYER_NVSS_OUTPUT=1` is Audi-only; Skoda
 reports output 1 as `0x0`.

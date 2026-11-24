@@ -35,6 +35,7 @@ APP=${LSD_JAR_TEST_APP:-/mnt/app}
 app_rw() { [ -n "${LSD_JAR_TEST_APP:-}" ] || mount -uw $APP; }
 app_ro() { [ -n "${LSD_JAR_TEST_APP:-}" ] || mount -ur $APP 2>/dev/null || true; }
 LSD_DIR=$APP/eso/hmi/lsd
+JARS_DIR=$LSD_DIR/jars
 LSD=$LSD_DIR/lsd.sh
 NEW=$LSD_DIR/lsd.sh.jar_new
 ACTION=${1:-}
@@ -57,6 +58,12 @@ JARS_OFF=$LSD_DIR/jars_off
 AUTOJARS=0
 if grep -q 'find \$BASE_DIR/lsd/jars' "$LSD"; then AUTOJARS=1; fi
 LINE="BOOTCLASSPATH=\"\$BOOTCLASSPATH -Xbootclasspath/p:\$BASE_DIR/lsd/jars/$NAME\""
+# AU37x BOOTPREPEND pattern: -Xbootclasspath/p:$JARS_DIR/$NAME must come
+# AFTER -Xbootclasspath:$BOOTCLASSPATH on the $J9 launch line, because
+# -Xbootclasspath:$BOOTCLASSPATH overwrites any earlier -Xbootclasspath/p:.
+BPCP_LINE="-Xbootclasspath:\$BOOTCLASSPATH -Xbootclasspath/p:$JARS_DIR/$NAME"
+# Legacy VMOPTIONS line from an earlier (broken) install to clean up.
+VMOPT_LINE="VMOPTIONS=\"\$VMOPTIONS -Xbootclasspath/p:$JARS_DIR/$NAME\""
 # AU57x layout (see the top): the jar's own line, and the lsd.jxe line it
 # must come before to replace classes in it.
 JXECP=0
@@ -66,6 +73,17 @@ if [ "$AUTOJARS" -eq 0 ] && grep -q 'Xbootclasspath:\$BOOTCLASSPATH' "$LSD" &&
    awk -v j="$JXE_LINE" '$0 == j { f = 1 } END { exit f ? 0 : 1 }' "$LSD"; then
     JXECP=1
 fi
+# AU37x layout (AUTOJARS=1): lsd.sh loads every jar in jars/ on BOOTCLASSPATH,
+# but lsd.jxe's classes win over those. A jar that replaces a stock class
+# (only the cover-art hook, #195) is also put on the $J9 launch line with
+# -Xbootclasspath/p:, after -Xbootclasspath:$BOOTCLASSPATH. Every other jar
+# (NavActiveIgnore) is only copied, and lsd.sh stays as it is.
+PREPEND_JARS=${LSD_JAR_TEST_PREPEND:-AAcoverart_hook.jar}
+BOOTPREPEND=0
+case " $PREPEND_JARS " in
+    *" $NAME "*)
+        if [ "$AUTOJARS" -eq 1 ] && grep -q '\$J9 ' "$LSD" && grep -q '\-jxe:' "$LSD"; then BOOTPREPEND=1; fi ;;
+esac
 
 # The entries of every patch line, one per line. Lines that are commented out
 # are skipped: J9 never sees them.
@@ -87,7 +105,14 @@ jxe_loaded()
 }
 loaded()
 {
-    if [ "$AUTOJARS" -eq 1 ]; then [ -f "$JAR" ]; return; fi
+    if [ "$AUTOJARS" -eq 1 ]; then
+        if [ "$BOOTPREPEND" -eq 1 ]; then
+            [ -f "$JAR" ] || return 1
+            awk -v v="$BPCP_LINE" 'index($0, v) { f = 1; exit } END { exit f ? 0 : 1 }' "$LSD"
+            return
+        fi
+        [ -f "$JAR" ]; return
+    fi
     if [ "$JXECP" -eq 1 ] && jxe_loaded "$LSD"; then return 0; fi
     entries "$LSD" | is_ours
 }
@@ -119,6 +144,38 @@ check_new_jxecp()
     return 0
 }
 
+# AU37x: the new file must still have the $J9 launch line with -jxe:,
+# the legacy VMOPTIONS line removed, and all other lines unchanged.
+# For "add", -Xbootclasspath/p:$JARS_DIR/$NAME must be on the $J9 line
+# after -Xbootclasspath:$BOOTCLASSPATH. For "remove", it must not be.
+check_new_bootprepend()
+{
+    BP_OP=${1:-add}
+    [ "`wc -l < "$NEW"`" -gt 50 ] || { echo "Result looks truncated; lsd.sh not changed" >&2; return 1; }
+    grep -q '\$J9 ' "$NEW" || { echo "Java launch line missing; lsd.sh not changed" >&2; return 1; }
+    grep -q '\-jxe:' "$NEW" || { echo "lsd.jxe launch line missing; lsd.sh not changed" >&2; return 1; }
+    if [ "$BP_OP" = add ]; then
+        awk -v v="$BPCP_LINE" 'index($0, v) { f = 1; exit } END { exit f ? 0 : 1 }' "$NEW" || { echo "BOOTPREPEND line missing; lsd.sh not changed" >&2; return 1; }
+        # Verify BPCP_LINE comes after -Xbootclasspath:$BOOTCLASSPATH on the same line
+        awk -v b="$BPCP_LINE" '
+            /\$J9 / {
+                i = index($0, "-Xbootclasspath:$BOOTCLASSPATH")
+                j = index($0, "-Xbootclasspath/p:")
+                if (i == 0 || j == 0 || j <= i) bad = 1
+            }
+            END { exit bad ? 1 : 0 }' "$NEW" || { echo "BOOTPREPEND not after -Xbootclasspath on $J9 line; lsd.sh not changed" >&2; return 1; }
+    fi
+    awk -v v="$VMOPT_LINE" 'index($0, v) { f = 1; exit } END { exit f ? 0 : 1 }' "$NEW" && { echo "Legacy VMOPTIONS line still present; lsd.sh not changed" >&2; return 1; }
+    awk -v v="$VMOPT_LINE" '
+        FNR == 1 { file++ }
+        $0 == v { next }
+        /\$J9 / { next }
+        file == 1 { a[++n] = $0; next }
+        { if (a[++m] != $0) bad = 1 }
+        END { exit (bad || m != n) ? 1 : 0 }' "$LSD" "$NEW" || { echo "Other lines changed unexpectedly; lsd.sh not changed" >&2; return 1; }
+    return 0
+}
+
 swap_in()
 {
     cp "$LSD" "$LSD.before_$TAG"
@@ -134,6 +191,26 @@ case "$ACTION" in
         if ! loaded; then echo "$NAME is not loaded; nothing to remove."; exit 0; fi
         if [ "$AUTOJARS" -eq 1 ]; then
             app_rw; WRITABLE=1
+            if [ "$BOOTPREPEND" -eq 1 ] && awk -v v="$BPCP_LINE" 'index($0, v) { f = 1; exit } END { exit f ? 0 : 1 }' "$LSD"; then
+                # Remove -Xbootclasspath/p:$JARS_DIR/$NAME from the $J9 line,
+                # keeping -Xbootclasspath:$BOOTCLASSPATH intact.
+                awk -v p="$JARS_DIR/$NAME" '
+                    /\$J9 / {
+                        s = "-Xbootclasspath:$BOOTCLASSPATH -Xbootclasspath/p:" p
+                        i = index($0, s)
+                        if (i > 0) {
+                            $0 = substr($0, 1, i - 1) "-Xbootclasspath:$BOOTCLASSPATH" substr($0, i + length(s))
+                        }
+                    }
+                    { print }
+                ' "$LSD" > "$NEW"
+                # Also remove any legacy VMOPTIONS line from an earlier install.
+                awk -v v="$VMOPT_LINE" 'index($0, v) == 0 { print }' "$NEW" > "$NEW.tmp"
+                mv "$NEW.tmp" "$NEW"
+                check_new_bootprepend remove || exit 1
+                swap_in
+                echo "Removed -Xbootclasspath/p: for $NAME. Previous file: $LSD.before_$TAG"
+            fi
             mkdir -p "$JARS_OFF"
             mv "$JAR" "$JARS_OFF/$NAME"
             sync
@@ -198,7 +275,33 @@ case "$ACTION" in
         fi
         [ -r "$JAR" ] || { echo "Missing $JAR and no source file to copy" >&2; exit 1; }
         if [ "$AUTOJARS" -eq 1 ]; then
-            echo "$NAME is in $LSD_DIR/jars/, which this lsd.sh loads by itself; lsd.sh not changed."
+            if [ "$BOOTPREPEND" -eq 1 ]; then
+                app_rw; WRITABLE=1
+                if ! awk -v v="$BPCP_LINE" 'index($0, v) { f = 1; exit } END { exit f ? 0 : 1 }' "$LSD"; then
+                    # Add -Xbootclasspath/p:$JARS_DIR/$NAME after -Xbootclasspath:$BOOTCLASSPATH
+                    # on the $J9 launch line (NOT on VMOPTIONS, which comes before it).
+                    awk -v p="$JARS_DIR/$NAME" '
+                        /\$J9 / {
+                            s = "-Xbootclasspath:$BOOTCLASSPATH"
+                            i = index($0, s)
+                            if (i > 0) {
+                                end = i + length(s)
+                                $0 = substr($0, 1, end - 1) " -Xbootclasspath/p:" p substr($0, end)
+                            }
+                        }
+                        { print }
+                    ' "$LSD" > "$NEW"
+                    # Also remove any legacy VMOPTIONS line from an earlier install.
+                    awk -v v="$VMOPT_LINE" 'index($0, v) == 0 { print }' "$NEW" > "$NEW.tmp"
+                    mv "$NEW.tmp" "$NEW"
+                    check_new_bootprepend add || exit 1
+                    swap_in
+                    echo "Added -Xbootclasspath/p: for $NAME after -Xbootclasspath:\$BOOTCLASSPATH. Previous file: $LSD.before_$TAG"
+                else
+                    echo "$NAME already prepended via -Xbootclasspath/p:; lsd.sh not changed."
+                fi
+            fi
+            echo "$NAME is in $LSD_DIR/jars/, which this lsd.sh loads by itself."
             exit 0
         fi
         if loaded; then echo "$NAME is already loaded; nothing to add."; exit 0; fi

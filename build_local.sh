@@ -137,6 +137,9 @@ build_java() {
   # The AU57x cockpit map view for the CarPlay map (java/gfxkeep):
   # tests/gfxkeep_logic_test.sh runs it against stand-ins of the stock classes.
   "$ROOT/java/gfxkeep/build.sh" "$ROOT/build"
+  # The A3 8V Android Auto cover art (java/androidadio, #195), built against
+  # stand-ins of the stock classes, so no firmware file is needed.
+  "$ROOT/java/androidadio/build.sh" "$ROOT/build"
   "$ROOT/tests/gfxkeep_logic_test.sh" "$ROOT/build/ClusterMapGfxKeep.jar" >/dev/null ||
     { echo "REJECTED: tests/gfxkeep_logic_test.sh failed"; exit 1; }
 }
@@ -154,7 +157,7 @@ package() {
   cp "$ROOT/build/nvprobe" "$ROOT/tools/nvprobe/clip_800x480.h264" "$ROOT/tools/nvprobe/clip_800x480.expect" "$D/hwcheck/"
   mkdir -p "$D/carplay"
   cp "$ROOT/build/libcarplay_cluster.so" "$ROOT/carplay/carplay_cluster.sh" "$D/carplay/"
-  cp "$ROOT/build/ClusterMapWheelZoom.jar" "$ROOT/build/ClusterMapNavAsiaZoom.jar" "$ROOT/build/ClusterMapGfxKeep.jar" "$D/carplay/"
+  cp "$ROOT/build/ClusterMapWheelZoom.jar" "$ROOT/build/ClusterMapNavAsiaZoom.jar" "$ROOT/build/ClusterMapGfxKeep.jar" "$ROOT/build/AAcoverart_hook.jar" "$D/carplay/"
   cp "$ROOT/thirdparty/mhi2_altscreen_carplay/LICENSE" "$D/carplay/mhi2_altscreen_carplay.LICENSE"
   # The install scripts treat their own folder as the package root.
   cp "$ROOT"/scripts/enable_hook.sh "$ROOT"/scripts/disable_hook.sh "$ROOT"/scripts/collect_logs.sh \
@@ -168,7 +171,7 @@ package() {
   cp "$ROOT/scripts/lib_app_mount.sh" "$ROOT/scripts/hook_status.sh" "$ROOT/scripts/lib_resolve_hook_log.sh" \
      "$ROOT/scripts/lib_unit.sh" "$ROOT/scripts/window_fix.sh" \
      "$ROOT/scripts/lib_cluster_frame.sh" "$ROOT/scripts/full_frame.sh" "$ROOT/scripts/menu_switch.sh" \
-     "$ROOT/scripts/lib_keep_settings.sh" "$ROOT/scripts/unit_probe.sh" "$ROOT/scripts/wireless_probe.sh" "$D/scripts/"
+     "$ROOT/scripts/lib_keep_settings.sh" "$ROOT/scripts/unit_probe.sh" "$D/scripts/"
   cp "$ROOT"/greenmenu/GEM/*.sh "$D/GEM/"
   cp "$ROOT/greenmenu/cluster-map.esd" "$S/Custom/GreenMenu/"
   # Software-update route: the same screen, copied to the unit by the update
@@ -211,7 +214,7 @@ package() {
      "$ROOT/build/hd_frame_insets_test" >/dev/null || { echo "REJECTED: tests/hd_frame_insets_test.c failed"; exit 1; }
   bad=$(perl -ne 'if (/\r|[^\x00-\x7F]/) { print "$ARGV\n"; close ARGV }' "$D"/*.sh "$D"/scripts/*.sh "$D"/GEM/*.sh "$D"/final/*.sh "$D"/carplay/*.sh "$S"/Custom/GreenMenu/*.esd "$D"/gal_dualscreen.conf | sort -u)
   [ -z "$bad" ] || { echo "REJECTED: CR or non-ASCII in: $bad"; exit 1; }
-  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check hwcheck/nvprobe hwcheck/clip_800x480.h264 profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar carplay/ClusterMapNavAsiaZoom.jar carplay/ClusterMapGfxKeep.jar > SHA256SUMS.txt)
+  (cd "$D" && shasum -a 256 libgal_hook.so stream-player profile_check hwcheck/nvprobe hwcheck/clip_800x480.h264 profiles.conf lib/libdmdt_flush.so carplay/libcarplay_cluster.so carplay/ClusterMapWheelZoom.jar carplay/ClusterMapNavAsiaZoom.jar carplay/ClusterMapGfxKeep.jar carplay/AAcoverart_hook.jar > SHA256SUMS.txt)
   python3 "$ROOT/tools/make_metainfo.py" "$S" "${RELEASE_VERSION:-$BUILD_ID}"
   VER=${RELEASE_VERSION:-$BUILD_ID}
   Z="$ROOT/dist/mib-cluster-map_$VER.zip"

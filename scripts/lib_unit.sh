@@ -63,6 +63,22 @@ unit_make_window()
     return 1
 }
 
+# unit_make_1080 <profiles.conf> <train> <WxH>: CAR_DPI and CAR_INSETS from
+# the first "make1080" line whose pattern matches and whose window is WxH, the
+# values owners settled on with the 1080p frame. Returns 1, changing nothing,
+# when there is none.
+unit_make_1080()
+{
+    while read -r MK_KEY MK_PAT MK_NAME MK_WIN MK_DPI MK_INS MK_CTX MK_MORE; do
+        [ "$MK_KEY" = make1080 ] && [ "$MK_WIN" = "$3" ] || continue
+        case "$2" in
+            $MK_PAT) CAR_DPI=$MK_DPI; CAR_INSETS=$MK_INS
+                  return 0 ;;
+        esac
+    done < "$1"
+    return 1
+}
+
 # unit_gal_check <package folder>: compare this unit's gal with profiles.conf.
 # Sets PROBE_OUT (what it found, kept for the logs) and PROBE_MATCH (profile
 # name). The card may not allow running programs, so it runs from /tmp.

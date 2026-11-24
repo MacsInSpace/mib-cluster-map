@@ -45,7 +45,15 @@ done
 #    is active must be at its documented default.
 [ "`sed -n 's/^CLUSTERMAP_FULL_FRAME=//p' config/gal_dualscreen.conf | tail -1`" = auto ] ||
     bad "config/gal_dualscreen.conf must ship CLUSTERMAP_FULL_FRAME=auto (on only where a make line says fullframe)"
-for k in CLUSTERMAP_720P CLUSTERMAP_1080P CLUSTERMAP_ADD_NAVIGNORE GAL_FIX_STREAM_TIMING GAL_PLAYER_STATS; do
+[ "`sed -n 's/^CLUSTERMAP_1080P=//p' config/gal_dualscreen.conf | tail -1`" = auto ] ||
+    bad "config/gal_dualscreen.conf must ship CLUSTERMAP_1080P=auto (on only where a train says hd1080)"
+# 1080p by default only on a train owners drove with it, and with the decoder.
+for t in `grep '^train ' config/profiles.conf | grep ' hd1080' | awk '{print $2}'`; do
+    grep -qx "$t" tests/hwdecode.allow || bad "$t has hd1080 without a car-tested hwdecode"
+done
+[ "`grep '^train ' config/profiles.conf | grep -c ' hd1080'`" = 1 ] ||
+    bad "a train gained or lost the hd1080 word: it needs car tests (P5089 only so far)"
+for k in CLUSTERMAP_720P CLUSTERMAP_ADD_NAVIGNORE GAL_FIX_STREAM_TIMING GAL_PLAYER_STATS; do
     v=`sed -n "s/^$k=\(.*\)$/\1/p" config/gal_dualscreen.conf | tail -1`
     [ -z "$v" ] || [ "$v" = 0 ] || bad "config/gal_dualscreen.conf ships $k=$v; it has to ship 0"
 done
@@ -61,6 +69,15 @@ for t in `cat tests/hwdecode.allow`; do
     grep "^train $t " config/profiles.conf | grep -q ' hwdecode' || bad "tests/hwdecode.allow lists $t, which has no hwdecode word"
 done
 grep -q 'strcmp(val, "hw") == 0' player/opengl_gpu.cc || bad "the player must read anything but hw (auto too) as software"
+# #195: the A3 cover art ships off, only on the train it was made for, and
+# only its own jar may edit lsd.sh on AU37x (never NavActiveIgnore).
+grep -q '^#CLUSTERMAP_AU37X_COVER=1$' config/gal_dualscreen.conf && ! grep -q '^CLUSTERMAP_AU37X_COVER=' config/gal_dualscreen.conf ||
+    bad "config/gal_dualscreen.conf must ship CLUSTERMAP_AU37X_COVER commented out"
+[ "`grep '^train ' config/profiles.conf | grep ' aacover' | awk '{print $2}'`" = MHI2_ER_AU37x_P5089 ] ||
+    bad "aacover is only for MHI2_ER_AU37x_P5089 until another car tests it"
+grep -q '^PREPEND_JARS=${LSD_JAR_TEST_PREPEND:-AAcoverart_hook.jar}$' scripts/lsd_jar.sh ||
+    bad "lsd_jar.sh may edit an AU37x lsd.sh for the cover-art jar only"
+grep -q 'AAcoverart_hook.jar' build_local.sh || bad "build_local.sh does not pack AAcoverart_hook.jar"
 
 # 5. Every script the menu names has to exist, and so does whatever those
 #    scripts call from the package's scripts folder (a menu entry whose
@@ -101,16 +118,24 @@ rm -f /tmp/.guard6.$$
 #    here-string test stays out.
 grep -q '^x s_herestring' scripts/unit_probe.sh &&
     bad "unit_probe.sh runs the here-string test again (it hung Save logs, #62)"
-for p in unit_probe.sh wireless_probe.sh; do
+for p in unit_probe.sh; do
     grep -n "scripts/$p" scripts/collect_logs.sh | grep -v '^[0-9]*:[ 	]*#' | grep -v -e '-r "' |
         grep -v 'limited ' | grep -q . &&
         bad "collect_logs.sh runs $p without the time limit (#62)"
 done
-LAST_PROBE=`grep -n 'limited [a-z_]* sh' scripts/collect_logs.sh | tail -1 | cut -d: -f1`
+LAST_PROBE=`grep -n 'limited [a-z_]* [0-9]* sh' scripts/collect_logs.sh | tail -1 | cut -d: -f1`
 LAST_CP=`grep -n '^[ 	]*cp ' scripts/collect_logs.sh | tail -1 | cut -d: -f1`
 if [ -z "$LAST_PROBE" ] || [ -z "$LAST_CP" ] || [ "$LAST_PROBE" -lt "$LAST_CP" ]; then
     bad "collect_logs.sh: the probes must run after the last copy (#62)"
 fi
+
+# 8. 2026-11-24: "dmdt gc" waited on the display manager for good on a Golf
+#    P4521 and Save logs stopped there. dmdt runs only through dmdt_q, under
+#    the time limit when sleep is there.
+grep -n 'bin/apps/dmdt' scripts/collect_logs.sh | grep -v '^[0-9]*:[ \t]*#' | grep -v 'exec \./bin/apps/dmdt' | grep -q . &&
+    bad "collect_logs.sh runs dmdt outside dmdt_q (no time limit)"
+grep -q 'limited dmdt_\$c [0-9]* dmdt_q' scripts/collect_logs.sh ||
+    bad "collect_logs.sh: dmdt queries are not under the time limit"
 
 [ $FAIL = 0 ] && echo "regression guards ok"
 exit $FAIL

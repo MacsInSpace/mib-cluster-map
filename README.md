@@ -118,6 +118,7 @@ step-by-step for porting your own car.
 | [Install guide](docs/Install.md) | Install routes, the menu, settings, logs, safety and recovery, getting your unit added |
 | [CarPlay](docs/CarPlay.md) | The CarPlay map: design, status, testing |
 | [Development](docs/Development.md) | How it works, what was learned, adding a firmware, building |
+| [Native wireless](docs/research/wireless.md) | Why the unit itself won't do wireless Android Auto or CarPlay (2.4 GHz only), and the tests |
 | [Contributing](CONTRIBUTING.md) | Forks, pull requests, using an AI assistant, and porting your own car |
 
 ## Reporting a problem
@@ -157,7 +158,8 @@ addresses.
   player priority setting, car-tested on his Superb and merged back here.
 - **kashavsehra** (Kash): the Audi A3/S3 8V from first request to one of the
   best-running cars (#51): its profile, the manual crop (#85) and the
-  720p/1080p modes with the hardware display path (#125), plus research
+  720p/1080p modes with the hardware display path (#125), Android Auto
+  cover art and playback time on the A3 cockpit (#195), plus research
   and help for other owners across dozens of threads.
 - **uvera**: the Audi A6/A7 C7.5 install fix, the CarPlay steering-wheel
   zoom and the Audi NavActiveIgnore (#91), and the Chinese `K1006_2` (#93).

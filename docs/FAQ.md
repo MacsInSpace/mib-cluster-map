@@ -28,7 +28,7 @@ the real firmware itself and installs only what fits, or nothing.
 | VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | `K3342`, `K3332`, `P3301` (`S2125`: update to `K3342` first) | `K3342`, `K3332` |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | `P4708`, `P4709`, and the arrows on both | `P4709` |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | `P4526`, `P4523` | `P4526` |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU`, `MHI2_US_AU` | A4 B9 / Q5 FY `K3346`, A3/S3 8V `P5089`, `P5153`, `P4203`, A6/A7 C7.5 `K3663`, `P3236`, US A7 `K3341`; Q2 `P3243` installs (map seen, not yet on a route) | A6/A7 C7.5 `K3663`, US `K3341`, `P3327`, `P3237` |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU`, `MHI2_US_AU` | A4 B9 / Q5 FY `K3346`, A3/S3 8V `P5089`, `P5153`, `P4203`, A6/A7 C7.5 `K3663`, `P3236`, US A7 `K3341`; Q2 `P3243` installs (CarPlay map seen with the trial line; 1440×455 window since v1.2.12) | A6/A7 C7.5 `K3663`, US `K3341`, `P3327`, `P3237` |
 | VW Discover Pro, Japan | `MHI2_JP_VW48x_` | Trial on `P0953` | |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) | |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies | |
@@ -45,7 +45,9 @@ The details per make are below.
 
 - **`P4521`** and **`K4525`** (software 1367): map, both road-tested.
   `P4521_1` (Golf Alltrack) tested.
-- **`P4512`**: Golf R; Passat B8 (#47). `P4512_2` music info works (#24),
+- **`P4512`**: Golf R; Passat B8 (#47). A Tiguan on `P4512_1` (MU1161):
+  map, turn info, ETA, HUD arrows, music and cover art, through an Ottocast
+  wireless adapter (discussion #197). `P4512_2` music info works (#24),
   and a Passat B8 on `P4512_2` that showed "loading" runs cleanly since
   v1.2.7 switches the older renderer off (#24).
 - **`P4174`**: Passat R wagon (#49).
@@ -114,7 +116,10 @@ The update menu needs developer mode on Audi (see the
 - **Q5 FY `K3346`** (#96, v1.2.1): an Audi NavActiveIgnore that M.I.B. put
   there is left in place.
 - **A3/S3 8V `AU37x_P5089`** (#51), **`P5153`** (#63) and **`P4203`** (#81,
-  v1.2.4) work. An RS3 is still to be tried.
+  v1.2.4) work, and an RS3 on `P5089` (#192). Since v1.2.12 `P5089` gets
+  NavActiveIgnore (the map stays on a route: #190, #192), 1080p and the
+  hardware decoder by itself. Android Auto cover art and playback time on the
+  cockpit: `CLUSTERMAP_AU37X_COVER=1` (#195, opt-in).
 - **A7 C7.5 `AU57x_K3663`**: Android Auto and CarPlay on the cockpit
   (context 73, set by the installer; its CarPlay library is accepted without
   a trial line since v1.2.1). With the Audi NavActiveIgnore, which the
@@ -256,13 +261,14 @@ pictures a second.
 
 - **Hardware decoder** (`GAL_PLAYER_DECODER=hw`, or **Hardware decoder ON**
   in `ClusterMapOptions`): the same picture at about a third of the
-  processor time. On by default on `P4521`, and on `K4525` from the next
-  release. Elsewhere, run **Hardware decoder check** in `ClusterMapSupport`
+  processor time. On by default on `P4521`, `K4525` and the Audi A3 8V
+  `P5089`. Elsewhere, run **Hardware decoder check** in `ClusterMapSupport`
   first and report what it says.
 - **`CLUSTERMAP_720P=1` / `CLUSTERMAP_1080P=1`**: test settings that ask for
   a 1280×720 or 1920×1080 stream, cropped to the cockpit window. Only worth
   it on the larger 1440×455 Audi cockpits; a 1010×376 cockpit gains nothing
-  from 1080p. The DPI and insets stay the 800×480 ones for now, so set your
+  from 1080p. On the A3 8V `P5089` 1080p is on by default, with its own DPI
+  and insets; elsewhere the DPI and insets stay the 800×480 ones, so set your
   own. The car-tested Audi 1080p example is in the
   [Install guide](Install.md#settings-owners-have-settled-on).
 
@@ -470,7 +476,7 @@ and plugged in again.
 | Android Auto map, installer and uninstaller | Tested on many cars (see *Is my car supported?*) |
 | Software update and green menu routes | Tested on cars (Golf `P4521`, Golf R `P4512`) |
 | Autorun install without the service menu (`Swdlautorun.txt`, on by default) | Tested on a car (Golf `P4521`); Audi untested |
-| Hardware video decoding | On by default on `P4521`, and on `K4525` from the next release; Audi A3 8V 1080p car-tested (#125) |
+| Hardware video decoding | On by default on `P4521`, `K4525` and, with 1080p, the Audi A3 8V `P5089` (#125, #192) |
 | CarPlay map | Working on the cars listed under CarPlay; layout between the dials still being tuned |
 | Long drives, reverse camera, waking from sleep | Road-tested on `K4525`; otherwise little testing |
 

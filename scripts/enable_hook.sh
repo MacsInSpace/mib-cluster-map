@@ -612,6 +612,14 @@ HD720=`sed -n 's/^CLUSTERMAP_720P=\([01]\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 HD1080=`sed -n 's/^CLUSTERMAP_1080P=\([01]\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+# CLUSTERMAP_1080P=auto (the shipped value): 1 on a train whose line in
+# profiles.conf has the "hd1080" word (owners drove it there), 0 elsewhere.
+HD1080_AUTO=
+if [ "`sed -n 's/^CLUSTERMAP_1080P=\([a-z]*\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`" = auto ] &&
+   [ "$HD720" != 1 ] && train_has "$PROFILES" "$TRAIN" hd1080; then
+    HD1080=1
+    HD1080_AUTO=1
+fi
 [ "$HD720" = 1 ] || HD720=0
 [ "$HD1080" = 1 ] || HD1080=0
 if [ "$HD1080" = 1 ] && [ "$HD720" = 1 ]; then
@@ -660,6 +668,9 @@ if [ -f "$PRELOAD_WRITE_DIR/hd_step" ]; then
         echo "HD recovery: the saved smaller frame was cleared; starting at the chosen frame again."
     fi
 fi
+if [ "$HD1080_AUTO" = 1 ] && [ "$FRAME_MODE" = 1080p ]; then
+    echo "CLUSTERMAP_1080P: on, the tested default on $TRAIN (CLUSTERMAP_1080P=0 in gal_dualscreen.conf, or Sharper map OFF in the green menu, turns it off)."
+fi
 if [ "$FRAME_MODE" = 1080p ] || [ "$FRAME_MODE" = 720p ]; then
     echo "Android Auto: ${FRAME_W}x${FRAME_H} with ${MARGIN_W}x${MARGIN_H} margins, leaving the ${MAP_W}x${MAP_H} cockpit window to show 1:1 (test mode)."
 elif [ "$FULL_FRAME" = 1 ]; then
@@ -671,7 +682,9 @@ fi
 # "auto" DPI and insets: the values owners settled on for this make and
 # window. A number in the card's file is kept as it is. Rewritten in place
 # because the hook keeps the first value it reads for a key.
-if [ "${MAP_W}x${MAP_H}" = "$CAR_WINDOW" ]; then
+if [ "$FRAME_MODE" = 1080p ] && unit_make_1080 "$PROFILES" "$TRAIN" "${MAP_W}x${MAP_H}"; then
+    AUTO_FROM="tested on $CAR_MAKE, ${MAP_W}x${MAP_H} with the 1080p frame"
+elif [ "${MAP_W}x${MAP_H}" = "$CAR_WINDOW" ]; then
     AUTO_FROM="tested on $CAR_MAKE, ${MAP_W}x${MAP_H}"
 else
     CAR_DPI=125; CAR_INSETS=40,40,127,127
@@ -688,6 +701,21 @@ if [ "$CONF_DPI" = auto ] || [ "$CONF_INSETS" = auto ]; then
     else
         rm -f "$PRELOAD_WRITE_DIR/gal_dualscreen.conf.new"
         echo "WARNING: could not fill in the auto settings; the hook uses its built-in values." >&2
+    fi
+fi
+# #96: in full frame the insets count from the edge of the old margin band's
+# frame, so a top or bottom inset no larger than that band's margin (114
+# lines on 1440x455) comes out as 0 and changing it does nothing.
+if [ "$FRAME_MODE" = full-frame ] && [ "${BAND_MARGIN_H:-0}" -gt 0 ]; then
+    FF_INSETS=`sed -n 's/^GAL_SECONDARY_INSETS=\([0-9]*,[0-9]*\),.*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | head -1`
+    FF_TOP=${FF_INSETS%%,*}
+    FF_BOTTOM=${FF_INSETS#*,}
+    FF_BAND=`expr $BAND_MARGIN_H / 2 || :`
+    if [ -n "$FF_INSETS" ] && { [ "$FF_TOP" -le "$FF_BAND" ] || [ "$FF_BOTTOM" -le "$FF_BAND" ]; }; then
+        echo "NOTE: CLUSTERMAP_FULL_FRAME is on, and a top or bottom inset ($FF_TOP,$FF_BOTTOM) is $FF_BAND or less."
+        echo "  In full frame those first $FF_BAND lines are taken off before the insets apply, so that"
+        echo "  inset counts as 0 and changing it does nothing. Use a value above $FF_BAND, or"
+        echo "  CLUSTERMAP_FULL_FRAME=0 in gal_dualscreen.conf for the insets as written."
     fi
 fi
 # GAL_PLAYER_DECODER=auto (the shipped value): hw on a train whose line in
@@ -1822,6 +1850,55 @@ elif [ -f "$GK_MARKER" ] && sh "$CARD_ROOT/lsd_jar.sh" loaded $GK_JAR; then
 else
     case "$TRAIN" in
         *_AU57x_*) echo "CarPlay map: cockpit graphics guard not installed, $GK_WHY." ;;
+    esac
+fi
+
+# ---- Java interface: Android Auto cover art on the A3 8V cockpit (#195) ----
+# AAcoverart_hook.jar (kashavsehra, java/androidadio) takes the place of the
+# stock AndroidAuto2ListenerDistributor: it passes every Android Auto event
+# on as before, and also sends the playing track's cover art, title, artist,
+# album and playback time to the cockpit's media tab. AU37x lsd.sh loads
+# lsd.jxe's own class first, so lsd_jar.sh also puts this one jar on the
+# Java launch line (-Xbootclasspath/p:), with lsd.sh checked and kept as
+# lsd.sh.before_AAcoverart_hook.jar; remove puts that line back.
+# Added when the owner asks for it (CLUSTERMAP_AU37X_COVER=1; car-tested on
+# one A3 so far, so off by default), where profiles.conf says "aacover" AND
+# lsd.jxe is the build it was checked against. touch /tmp/aa_debug for a log
+# in /tmp/aacoverart.log.
+AC=`sed -n 's/^CLUSTERMAP_AU37X_COVER=\([a-z0-9]*\)[ 	]*$/\1/p' \
+    "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+AC_JAR=AAcoverart_hook.jar
+AC_MARKER=/mnt/app/eso/hmi/lsd/.aacluster_aacover_added
+AC_WHY=
+if [ "$AC" != 1 ]; then
+    AC_WHY="off (CLUSTERMAP_AU37X_COVER=1 turns it on)"
+elif ! train_has "$PROFILES" "$TRAIN" aacover; then
+    AC_WHY="not made for $TRAIN"
+elif [ "`file_size /ifs/lsd.jxe`" != 60645336 ]; then
+    AC_WHY="this unit's interface (lsd.jxe, `file_size /ifs/lsd.jxe` bytes) is not the 60645336-byte build it was made for"
+elif [ ! -r "$CARD_ROOT/carplay/$AC_JAR" ] || [ ! -r "$LSD_SH" ] || [ ! -r "$CARD_ROOT/lsd_jar.sh" ]; then
+    AC_WHY="its files are not in this package"
+fi
+if [ -z "$AC_WHY" ]; then
+    if sh "$CARD_ROOT/lsd_jar.sh" add $AC_JAR "$CARD_ROOT/carplay/$AC_JAR"; then
+        if mount -uw /mnt/app 2>/dev/null; then
+            : > "$AC_MARKER"
+            mount -ur /mnt/app 2>/dev/null || true
+        fi
+        echo "Android Auto cover art: on; the cockpit's media tab shows the track's cover, title and time (after a reboot)."
+    else
+        echo "WARNING: could not add $AC_JAR; lsd.sh is unchanged." >&2
+    fi
+elif [ -f "$AC_MARKER" ] && sh "$CARD_ROOT/lsd_jar.sh" loaded $AC_JAR; then
+    if sh "$CARD_ROOT/lsd_jar.sh" remove $AC_JAR; then
+        if mount -uw /mnt/app 2>/dev/null; then rm -f "$AC_MARKER"; mount -ur /mnt/app 2>/dev/null || true; fi
+        echo "Android Auto cover art: removed, $AC_WHY."
+    else
+        echo "WARNING: could not remove $AC_JAR; lsd.sh is unchanged." >&2
+    fi
+else
+    case "$TRAIN" in
+        *_AU37x_*) echo "Android Auto cover art: not installed, $AC_WHY." ;;
     esac
 fi
 

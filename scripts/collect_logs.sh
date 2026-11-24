@@ -12,6 +12,29 @@ N=1
 while [ -e "$HERE/run_logs/$N" ]; do N=`expr $N + 1`; done
 OUT=$HERE/run_logs/$N
 mkdir -p $OUT
+# limited NAME SECS COMMAND...: run COMMAND in the background, stop it after
+# SECS seconds, and say so in limits.txt. A query that waits forever on some
+# unit then costs only its own file, never the logs after it. Needs sleep
+# (HAS_SLEEP); callers without it run the command as before or skip it.
+HAS_SLEEP=0
+if command -v sleep >/dev/null 2>&1; then HAS_SLEEP=1; fi
+limited()
+{
+    LN=$1; LS=$2; shift; shift
+    ${1+"$@"} &
+    LP=$!
+    LI=0
+    while kill -0 $LP 2>/dev/null; do
+        if [ $LI -ge $LS ]; then
+            kill -9 $LP 2>/dev/null
+            echo "$LN: stopped after $LS s" >> $OUT/limits.txt
+            break
+        fi
+        sleep 1
+        LI=`expr $LI + 1`
+    done
+    wait $LP 2>/dev/null || :
+}
 cp /tmp/gal_dualscreen.log /tmp/stream-player.log /tmp/gal_kombi_ready /tmp/clustermap_final.txt /tmp/VCAndroidAuto.log $OUT/ 2>/dev/null
 sloginfo > $OUT/sloginfo.txt 2>&1
 pidin ar > $OUT/pidin_ar.txt 2>&1
@@ -30,9 +53,24 @@ grep -n -e 'Xbootclasspath' -e '^BOOTCLASSPATH=' /mnt/app/eso/hmi/lsd/lsd.sh > $
 # write before it exits (as in GEM/collect_for_porting.sh).
 # gd lists every window with its size; 33 is the stock cluster map. gc lists
 # every context with the windows it shows (#99, #105).
+# Each query has 10 s: on a Golf P4521 "dmdt gc" once waited on the display
+# manager for good and Save logs stopped there (2026-11-24). dmdt_q always
+# runs in a subshell (background or brackets), so its exec replaces only that
+# and the time limit stops dmdt itself.
+dmdt_q()
+{
+    cd /eso || exit 1
+    LD_PRELOAD="$HERE/lib/libdmdt_flush.so"; LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib
+    IPL_CONFIG_DIR=/etc/eso/production
+    export LD_PRELOAD LD_LIBRARY_PATH IPL_CONFIG_DIR
+    exec ./bin/apps/dmdt $1
+}
 for c in gs gd gc; do
-    ( cd /eso && LD_PRELOAD="$HERE/lib/libdmdt_flush.so" LD_LIBRARY_PATH=/eso/lib:/lib:/usr/lib \
-      IPL_CONFIG_DIR=/etc/eso/production ./bin/apps/dmdt $c ) > $OUT/dmdt_$c.txt 2>&1
+    if [ $HAS_SLEEP = 1 ]; then
+        limited dmdt_$c 10 dmdt_q $c > $OUT/dmdt_$c.txt 2>&1
+    else
+        ( dmdt_q $c ) > $OUT/dmdt_$c.txt 2>&1
+    fi
 done
 # What this unit is: which commands it lacks, and its gal against the profiles.
 if [ -r "$HERE/scripts/lib_unit.sh" ]; then
@@ -99,7 +137,7 @@ cat $OUT/context_check.txt >> $OUT/dmdt_gs.txt 2>/dev/null
 # CarPlay map: the supervisor, its player, and harman-f's hook state.
 mkdir -p $OUT/carplay
 cp /tmp/carplay_cluster.log /tmp/stream-player-carplay.log /tmp/altscreen111.log /tmp/altscreen111.log.1 \
-   /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status /tmp/clustermap-wheelzoom.log /tmp/clustermap-gfxstate.log $OUT/carplay/ 2>/dev/null
+   /tmp/mibr-carplay111.state /tmp/mibr-carplay111.heartbeat /tmp/mibr-alt111-gen2.status /tmp/clustermap-wheelzoom.log /tmp/clustermap-gfxstate.log /tmp/aacoverart.log $OUT/carplay/ 2>/dev/null
 grep -n -e dio_manager -e libcarplay -e ALTSCREEN111 /mnt/system/etc/eso/production/smartphone_integrator.json > $OUT/carplay/config_lines.txt 2>&1
 grep -n carplay0 /mnt/system/etc/pf*.conf > $OUT/carplay/firewall_lines.txt 2>&1
 # CarPlay cover (#19, #62): the unit's iAP2 stack asks the iPhone for the
@@ -153,40 +191,17 @@ for CORE_OF in dio_manager gal.core; do
         echo "not copied (over 8 MB): $CORE ($CORE_SIZE bytes)" >> $OUT/core_listing.txt
     fi
 done
-# The two probes run last, each limited to PROBE_SECS, so a check that hangs
-# on some unit costs only its own file, never the logs above: v1.2.10's tool
+# The tool probe runs last, under a time limit, so a check that hangs on
+# some unit costs only its own file, never the logs above: v1.2.10's tool
 # probe stopped Save logs before the CarPlay files on a K3342 and a P3236
-# (#62). Without sleep there is no way to time them, so they are left out.
-PROBE_SECS=20
-# limited NAME COMMAND...: run COMMAND in the background, stop it after
-# PROBE_SECS, and say so in limits.txt.
-limited()
-{
-    LN=$1; shift
-    ${1+"$@"} &
-    LP=$!
-    LI=0
-    while kill -0 $LP 2>/dev/null; do
-        if [ $LI -ge $PROBE_SECS ]; then
-            kill -9 $LP 2>/dev/null
-            echo "$LN: stopped after $PROBE_SECS s" >> $OUT/limits.txt
-            break
-        fi
-        sleep 1
-        LI=`expr $LI + 1`
-    done
-    wait $LP 2>/dev/null || :
-}
-if command -v sleep >/dev/null 2>&1; then
+# (#62). The tool probe gets 60 s: a Golf P4521 needs more than 20 for its
+# 161 checks (v1.2.11 stopped it after 68). Without sleep there is no way to
+# time them, so they are left out.
+if [ $HAS_SLEEP = 1 ]; then
     # The same checks the simulator runs (tests/unit_sim/probe_compare.sh).
     if [ -r "$HERE/scripts/unit_probe.sh" ]; then
-        limited tool_probe sh "$HERE/scripts/unit_probe.sh" "$OUT/probe_work" > $OUT/tool_probe.txt 2>&1
+        limited tool_probe 60 sh "$HERE/scripts/unit_probe.sh" "$OUT/probe_work" > $OUT/tool_probe.txt 2>&1
         rm -rf "$OUT/probe_work" 2>/dev/null
-    fi
-    # Wireless groundwork (Android Auto and CarPlay without a cable): what
-    # this unit has for it, read-only, with names and keys hidden.
-    if [ -r "$HERE/scripts/wireless_probe.sh" ]; then
-        limited wireless_probe sh "$HERE/scripts/wireless_probe.sh" "$OUT/wireless" > /dev/null 2>&1
     fi
 else
     echo "probes skipped: no sleep command to time them" >> $OUT/limits.txt
