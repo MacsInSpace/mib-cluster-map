@@ -736,6 +736,20 @@ if [ "$CONF_DECODER" = auto ]; then
         echo "WARNING: could not fill in the decoder setting; the player uses software." >&2
     fi
 fi
+# Say which decoder really runs when it is not the one asked for: on VW, Skoda
+# and SEAT the player decodes 720p and 1080p in software even with hw, unless
+# GAL_PLAYER_HW_HD=1 (hw at 720p blacked out a Skoda's centre screen, #145).
+# An owner reading "hw" in the file took it for hw (#125, #203).
+DEC_NOW=`sed -n 's/^GAL_PLAYER_DECODER=\([^ 	]*\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | head -1`
+DEC_HWHD=`sed -n 's/^GAL_PLAYER_HW_HD=\([01]\)[ 	]*$/\1/p' "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+if [ "$DEC_NOW" = hw ] && [ "$DEC_HWHD" != 1 ] && { [ "$HD720" = 1 ] || [ "$HD1080" = 1 ]; }; then
+    case "$TRAIN" in
+        *_VWG*|*_SKG*|*_SEG*)
+            if [ "$HD1080" = 1 ]; then DEC_HD=1080p; else DEC_HD=720p; fi
+            echo "Decoder: $DEC_HD is decoded in SOFTWARE on this car, although GAL_PLAYER_DECODER=hw. The unit's decoder is used for the standard 800x480 picture only (CLUSTERMAP_720P=0 and CLUSTERMAP_1080P=0 for that)."
+            ;;
+    esac
+fi
 # GAL_PLAYER_PRIORITY_CAP=auto (the shipped value): 12 on a train with the
 # "prioritycap" word, 0 (off) everywhere else. An owner's number is kept. If
 # this fails the line stays auto, which the player reads as off.
@@ -842,6 +856,12 @@ elif [ "$AIRPLAY_ALLOWED" -ne 1 ]; then
         CARPLAY_WHY="this unit has no $AIRPLAY_LIB"
     elif [ -n "$AIRPLAY_TRIAL" ]; then
         CARPLAY_WHY="this unit's CarPlay library is a different build ($AIRPLAY_NOW bytes), and CLUSTERMAP_CARPLAY_TRIAL says $AIRPLAY_TRIAL"
+    elif [ "$AIRPLAY_NOW" = 857727 ]; then
+        # Not "needs a port": the same build runs the map on a US A6/A7 (P3237,
+        # #176); an owner reading "needs a port" waited instead (#157).
+        CARPLAY_WHY="this unit's CarPlay library ($AIRPLAY_NOW bytes) is not car-tested on $TRAIN yet. It runs the CarPlay map on a US Audi A6/A7 (P3237): to try it, add CLUSTERMAP_CARPLAY_TRIAL=857727 to gal_dualscreen.conf and install again (remove the line to undo)"
+    elif [ "$AIRPLAY_NOW" = 857735 ]; then
+        CARPLAY_WHY="this unit's CarPlay library ($AIRPLAY_NOW bytes) is not car-tested on $TRAIN yet. It runs the CarPlay map on VW K3342 and Audi A6/A7 K3341/P3327, but left an Audi A4 K3346's CarPlay black (#14): CLUSTERMAP_CARPLAY_TRIAL=857735 tries it, as a test you can undo by removing the line"
     else
         CARPLAY_WHY="this unit's CarPlay library is a different build ($AIRPLAY_NOW bytes), which needs a port"
     fi
@@ -918,6 +938,9 @@ CP_W_MM=`expr 200 \* $CP_SCALE / 100`
 CP_H_MM=`expr $CP_W_MM \* $CP_H / $CP_W`
 if [ "$CARPLAY_OK" -eq 1 ] && [ "$CP_FRAME" -gt 100 ]; then
     echo "CarPlay map: frame ${CP_W}x${CP_H} (${CP_FRAME} %), shown in the ${MAP_W}x${MAP_H} window"
+    # A larger frame costs decoding time: 160 on a SEAT 1010x376 window fell
+    # behind and the map jumped every few seconds (discussion #193).
+    echo "  (CLUSTERMAP_CARPLAY_FRAME_SCALE costs decoding time; if the map stutters or jumps, use CLUSTERMAP_CARPLAY_SCALE instead: the same smaller look, no extra decoding.)"
 elif [ "$CARPLAY_OK" -eq 1 ] && [ "$CP_SCALE" -ne 100 ]; then
     echo "CarPlay map: display declared as ${CP_W_MM}x${CP_H_MM} mm (${CP_SCALE} %) for the ${MAP_W}x${MAP_H} window"
 fi
@@ -1727,34 +1750,56 @@ fi
 # stock NavAsiaModelListener (tests/navasiazoom_check.sh) that logs each
 # roller step's id and sends only the roller's (model 82137 in that lsd.jxe,
 # from a car's log) to CarPlay.
-#   CLUSTERMAP_CARPLAY_WHEEL_ZOOM=auto (default) | reverse | 0
+#   CLUSTERMAP_CARPLAY_WHEEL_ZOOM=auto (default) | 1 | reverse | 0
 #   CLUSTERMAP_CARPLAY_WHEEL_ZOOM_ID=<number> (navasiazoom only; default 82137)
+# WHEELZOOM_TRY_SIZES: lsd.jxe builds the wheelzoom jar passed
+# tests/wheelzoom_check.sh against but no car has run yet. There it goes on
+# only when the owner asks (1 or reverse), never with auto: K3341's
+# (44051746, GavinPlusPlus #156, 2026-11-25).
+WHEELZOOM_TRY_SIZES=44051746
 WHEELZOOM_REVERSE=$PRELOAD_WRITE_DIR/wheel_zoom_reverse
 WHEELZOOM_ID_FILE=$PRELOAD_WRITE_DIR/wheel_zoom_id
 WZ=`sed -n 's/^CLUSTERMAP_CARPLAY_WHEEL_ZOOM=\([a-z0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
+WZ_ASKED=0
 case "$WZ" in
-    ''|auto|1) WZ=auto ;;
-    reverse|0) ;;
-    *) echo "CarPlay map: CLUSTERMAP_CARPLAY_WHEEL_ZOOM=$WZ not understood (auto, reverse or 0); using auto"
+    ''|auto) WZ=auto ;;
+    1|on) WZ=auto WZ_ASKED=1 ;;
+    reverse) WZ_ASKED=1 ;;
+    0) ;;
+    *) echo "CarPlay map: CLUSTERMAP_CARPLAY_WHEEL_ZOOM=$WZ not understood (auto, 1, reverse or 0); using auto"
        WZ=auto ;;
 esac
 WZ_ID=`sed -n 's/^CLUSTERMAP_CARPLAY_WHEEL_ZOOM_ID=\([0-9]*\)[ 	]*$/\1/p' \
     "$PRELOAD_WRITE_DIR/gal_dualscreen.conf" 2>/dev/null | tail -1`
 WZ_LSD=`file_size /ifs/lsd.jxe`
 WZ_NAME=
+WZ_TRY_NOTE=
 if train_has "$PROFILES" "$TRAIN" wheelzoom; then
     WZ_NAME=wheelzoom WHEELZOOM_JAR=ClusterMapWheelZoom.jar WHEELZOOM_LSD_SIZE=44688282
     WZ_ID=   # the roller id is for navasiazoom only
 elif train_has "$PROFILES" "$TRAIN" navasiazoom; then
     WZ_NAME=navasiazoom WHEELZOOM_JAR=ClusterMapNavAsiaZoom.jar WHEELZOOM_LSD_SIZE=43229093
     WZ_ID=${WZ_ID:-82137}
+else
+    for WZ_TRY in $WHEELZOOM_TRY_SIZES; do
+        if [ "$WZ_LSD" = "$WZ_TRY" ]; then
+            if [ "$WZ_ASKED" = 1 ]; then
+                WZ_NAME=wheelzoom WHEELZOOM_JAR=ClusterMapWheelZoom.jar WHEELZOOM_LSD_SIZE=$WZ_TRY
+                WZ_ID=
+            else
+                WZ_TRY_NOTE="checked against this unit's interface but not yet car-tested; CLUSTERMAP_CARPLAY_WHEEL_ZOOM=1 (or reverse) in gal_dualscreen.conf to try it"
+            fi
+        fi
+    done
 fi
 WZ_WHY=
 if [ "$WZ" = 0 ]; then
     WZ_WHY="turned off (CLUSTERMAP_CARPLAY_WHEEL_ZOOM=0)"
 elif [ "$CARPLAY_OK" -ne 1 ]; then
     WZ_WHY="the CarPlay map is not installed"
+elif [ -z "$WZ_NAME" ] && [ -n "$WZ_TRY_NOTE" ]; then
+    WZ_WHY=$WZ_TRY_NOTE
 elif [ -z "$WZ_NAME" ]; then
     WZ_WHY="not made for $TRAIN"
 elif [ "$WZ_LSD" != "$WHEELZOOM_LSD_SIZE" ]; then

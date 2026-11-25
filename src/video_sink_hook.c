@@ -2624,6 +2624,7 @@ void _ZN10Controller18sendVersionRequestEv(void *receiver)
  * video channel streaming frames cannot flood the log.
  */
 static void input_inject_poll(void *router);
+static void view_switch_poll(void);
 static void cluster_input_message(void *router, unsigned char channel, const void *buffer);
 static void hex_preview(const unsigned char *p, unsigned n, char *out, size_t out_len);
 
@@ -2633,6 +2634,7 @@ void _ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE(
     unsigned long count;
 
     input_inject_poll(router);
+    if (gal_hook_views_enabled()) view_switch_poll();
 
     (void)resolve_symbol("_ZN13MessageRouter12routeMessageEhRK10shared_ptrI8IoBufferE",
                          (void **)&g_route_message);
@@ -3314,4 +3316,73 @@ int _ZN13MessageRouter20handleChannelOpenReqEhRK18ChannelOpenRequest(
                   rc == -4 ? "no_endpoint_or_bad_service_id" :
                   rc == -254 ? "endpoint_refused" : "other");
     return rc;
+}
+
+/* ---------------- Insets per cockpit view (#183, opt-in) ---------------- */
+
+/*
+ * A new UiConfig for the cluster's video channel: message 0x8009 carrying
+ * the UiConfig fields on their own (tag 0x0a instead of the 0x5a it has
+ * inside the video config). Car-tested by kashavsehra on an A3 8V (#183):
+ * the phone redraws with the new safe area while it streams. Sent under the
+ * same guard as the frame acks, so not into a session that is gone (#184).
+ */
+int gal_video_send_ui_config(unsigned top, unsigned bottom, unsigned left,
+                             unsigned right, unsigned ui_theme)
+{
+    unsigned char pkt[128];
+    unsigned char out[130];
+    size_t len, i;
+    void *router;
+
+    (void)resolve_symbol("_ZN13MessageRouter13queueOutgoingEhPvj", (void **)&g_queue_outgoing);
+    if (g_queue_outgoing == NULL || g_secondary_sink == NULL) return -1;
+    len = gal_build_insets_payload(pkt, sizeof pkt, top, bottom, left, right, ui_theme);
+    if (len == 0u || len + 2u > sizeof out) {
+        gal_hook_logf("event=views.send result=fail reason=bad_payload");
+        return -1;
+    }
+    pkt[0] = 0x0a;
+    out[0] = 0x80;
+    out[1] = 0x09;
+    for (i = 0u; i < len; ++i) out[i + 2u] = pkt[i];
+    fc_write_lock();
+    router = (void *)(uintptr_t)load_u32(g_secondary_sink, 0x08u);
+    if (router == NULL || !ack_session_alive(g_secondary_sink)) {
+        fc_write_unlock();
+        gal_hook_logf("event=views.send result=fail reason=no_session");
+        return -1;
+    }
+    g_queue_outgoing(router, (unsigned char)g_secondary_service_id, out, (unsigned)(len + 2u));
+    fc_write_unlock();
+    return 0;
+}
+
+/*
+ * Reads /tmp/gal_view at most every 200 ms, only with the views on
+ * (gal_hook_views_enabled; the caller checks first, so a car without them
+ * never touches the file). The file is removed once read.
+ */
+static void view_switch_poll(void)
+{
+    static unsigned long last_ms;
+    struct timespec ts;
+    unsigned long now_ms;
+    char buf[64];
+    size_t n;
+    FILE *f;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    now_ms = (unsigned long)ts.tv_sec * 1000ul + (unsigned long)ts.tv_nsec / 1000000ul;
+    if (last_ms != 0ul && now_ms - last_ms < 200ul) return;
+    last_ms = now_ms;
+    if (access("/tmp/gal_view", F_OK) != 0) return;
+    f = fopen("/tmp/gal_view", "r");
+    if (f == NULL) return;
+    if (fgets(buf, sizeof buf, f) == NULL) buf[0] = 0;
+    fclose(f);
+    unlink("/tmp/gal_view");
+    n = strlen(buf);
+    while (n > 0u && (buf[n - 1u] == '\n' || buf[n - 1u] == '\r' || buf[n - 1u] == ' ')) buf[--n] = 0;
+    (void)gal_hook_view_command(buf);
 }

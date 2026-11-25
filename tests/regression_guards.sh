@@ -51,8 +51,8 @@ done
 for t in `grep '^train ' config/profiles.conf | grep ' hd1080' | awk '{print $2}'`; do
     grep -qx "$t" tests/hwdecode.allow || bad "$t has hd1080 without a car-tested hwdecode"
 done
-[ "`grep '^train ' config/profiles.conf | grep -c ' hd1080'`" = 1 ] ||
-    bad "a train gained or lost the hd1080 word: it needs car tests (P5089 only so far)"
+[ "`grep '^train ' config/profiles.conf | grep ' hd1080' | awk '{print $2}' | sort | tr '\n' ' '`" = "MHI2_ER_AU37x_P5089 MHI2_ER_AU37x_P5153 " ] ||
+    bad "a train gained or lost the hd1080 word: it needs car tests (P5089 #125, P5153 #155 so far)"
 for k in CLUSTERMAP_720P CLUSTERMAP_ADD_NAVIGNORE GAL_FIX_STREAM_TIMING GAL_PLAYER_STATS; do
     v=`sed -n "s/^$k=\(.*\)$/\1/p" config/gal_dualscreen.conf | tail -1`
     [ -z "$v" ] || [ "$v" = 0 ] || bad "config/gal_dualscreen.conf ships $k=$v; it has to ship 0"
@@ -136,6 +136,18 @@ grep -n 'bin/apps/dmdt' scripts/collect_logs.sh | grep -v '^[0-9]*:[ \t]*#' | gr
     bad "collect_logs.sh runs dmdt outside dmdt_q (no time limit)"
 grep -q 'limited dmdt_\$c [0-9]* dmdt_q' scripts/collect_logs.sh ||
     bad "collect_logs.sh: dmdt queries are not under the time limit"
+
+# 9. 2026-11-26: the splash put GL_UNPACK_ALIGNMENT back to 4, and CarPlay
+#    pictures whose rows are not a multiple of 4 bytes (1212 or 1010 wide)
+#    were read sheared, their colour off the map (#201). The player's planes
+#    are tightly packed: the alignment must only ever be 1.
+grep -n 'GL_UNPACK_ALIGNMENT' player/*.cc player/*.h | grep -v 'GL_UNPACK_ALIGNMENT, 1)' | grep -q . &&
+    bad "player sets GL_UNPACK_ALIGNMENT to something other than 1 (#201)"
+
+# 10. 2026-11-26: insets per cockpit view (#183) are opt-in. Shipped active,
+#     the A3's view insets would replace every car's.
+grep -q '^GAL_SECONDARY_\(LARGE_INSETS\|SPORT_INSETS\|DEFAULT_VIEW\)=' config/gal_dualscreen.conf &&
+    bad "config/gal_dualscreen.conf ships an active per-view insets line (opt-in, #183)"
 
 [ $FAIL = 0 ] && echo "regression guards ok"
 exit $FAIL

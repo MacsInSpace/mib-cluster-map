@@ -168,6 +168,28 @@ static int g_focus_wait_kombi;
 static unsigned g_max_unacked = 8u;   /* GAL_SECONDARY_MAX_UNACKED; 4 with GAL_ACK_EVERY_FRAME */
 static int g_ack_every_frame;         /* GAL_ACK_EVERY_FRAME=1 */
 
+/*
+ * Insets per cockpit view (kashavsehra, #183; opt-in). The cockpit can show
+ * the map in differently shaped spaces (an A3 8V: Classic, Large, Sport), and
+ * one set of insets cannot keep the card and car clear of the dials in all of
+ * them. GAL_SECONDARY_LARGE_INSETS and/or GAL_SECONDARY_SPORT_INSETS switch
+ * this on; Classic is GAL_SECONDARY_INSETS. A view is chosen by writing its
+ * name ("classic", "large", "sport") to /tmp/gal_view, or four raw numbers
+ * to try insets live; the hook sends the phone a new UiConfig. Each view's
+ * insets get the same full-frame or HD translation as GAL_SECONDARY_INSETS.
+ * Without those keys nothing here runs: no file check, insets unchanged.
+ */
+enum { VIEW_CLASSIC = 0, VIEW_LARGE, VIEW_SPORT, VIEW_COUNT };
+static const char *const g_view_names[VIEW_COUNT] = { "classic", "large", "sport" };
+static int g_views_on;
+static int g_view_set[VIEW_COUNT];
+static unsigned g_view_raw[VIEW_COUNT][4];
+static unsigned g_view_ins[VIEW_COUNT][4];  /* as sent: translated */
+static int g_view_default = VIEW_CLASSIC;
+/* How GAL_SECONDARY_INSETS was translated at init, for the view insets. */
+static enum { INSETS_AS_IS = 0, INSETS_FULL_FRAME, INSETS_HD } g_insets_xform;
+static int view_translate(unsigned t, unsigned b, unsigned l, unsigned r, unsigned out[4]);
+
 int hook_fix_enabled(hook_fix fix)
 {
     return (unsigned)fix < (unsigned)HOOK_FIX_COUNT ? g_fix_on[fix] : 0;
@@ -347,6 +369,26 @@ static void load_environment(void)
             g_config.insets_bottom = b;
             g_config.insets_left = l;
             g_config.insets_right = r;
+        }
+    }
+    {
+        static const char *const keys[VIEW_COUNT] = {
+            NULL, "GAL_SECONDARY_LARGE_INSETS", "GAL_SECONDARY_SPORT_INSETS" };
+        unsigned i, t, b, l, r;
+        for (i = 1u; i < VIEW_COUNT; ++i) {
+            value = getenv(keys[i]);
+            if (value != NULL && sscanf(value, "%u,%u,%u,%u", &t, &b, &l, &r) == 4) {
+                g_view_raw[i][0] = t; g_view_raw[i][1] = b;
+                g_view_raw[i][2] = l; g_view_raw[i][3] = r;
+                g_view_set[i] = 1;
+                g_views_on = 1;
+            }
+        }
+        value = getenv("GAL_SECONDARY_DEFAULT_VIEW");
+        if (g_views_on && value != NULL) {
+            for (i = 0u; i < VIEW_COUNT; ++i)
+                if (strcmp(value, g_view_names[i]) == 0 && (i == VIEW_CLASSIC || g_view_set[i]))
+                    g_view_default = (int)i;
         }
     }
     value = getenv("GAL_SECONDARY_INSETS_TOP");
@@ -649,6 +691,7 @@ int gal_hook_init(const gal_secondary_config *config)
         g_config.insets_bottom = (band_bottom * par + 5000u) / 10000u;
         g_config.insets_left = (left * par + 5000u) / 10000u;
         g_config.insets_right = (right * par + 5000u) / 10000u;
+        g_insets_xform = INSETS_FULL_FRAME;
         gal_hook_logf("event=config.full_frame result=scaled pixel_aspect_e4=%u band_margin=%u dpi=%u->%u insets=%u,%u,%u,%u->%u,%u,%u,%u",
                       par, 2u * band_margin_half, dpi, g_config.dpi, top, bottom, left, right,
                       g_config.insets_top, g_config.insets_bottom,
@@ -712,6 +755,7 @@ int gal_hook_init(const gal_secondary_config *config)
                           top, bottom, left, right);
             return -1;
         }
+        g_insets_xform = INSETS_HD;
         if (g_config.width != 1920u)
             g_config.dpi = (dpi * factor + 5000u) / 10000u;
         gal_hook_logf("event=config.hd_frame result=translated frame=%ux%u visible=%ux%u dpi_factor_e4=%u dpi=%u->%u viewport_insets=%u,%u,%u,%u crop_offsets=%u,%u,%u,%u stream_insets=%u,%u,%u,%u",
@@ -753,6 +797,36 @@ int gal_hook_init(const gal_secondary_config *config)
         (void)vc_stream_out_open();
     }
 
+    if (g_views_on) {
+        unsigned i;
+        g_view_ins[VIEW_CLASSIC][0] = g_config.insets_top;
+        g_view_ins[VIEW_CLASSIC][1] = g_config.insets_bottom;
+        g_view_ins[VIEW_CLASSIC][2] = g_config.insets_left;
+        g_view_ins[VIEW_CLASSIC][3] = g_config.insets_right;
+        g_view_set[VIEW_CLASSIC] = 1;
+        for (i = 1u; i < VIEW_COUNT; ++i) {
+            if (g_view_set[i] &&
+                !view_translate(g_view_raw[i][0], g_view_raw[i][1], g_view_raw[i][2], g_view_raw[i][3],
+                                g_view_ins[i])) {
+                gal_hook_logf("event=views.invalid view=%s insets=%u,%u,%u,%u reason=out_of_range",
+                              g_view_names[i], g_view_raw[i][0], g_view_raw[i][1],
+                              g_view_raw[i][2], g_view_raw[i][3]);
+                g_view_set[i] = 0;
+                if (g_view_default == (int)i) g_view_default = VIEW_CLASSIC;
+            }
+        }
+        if (g_view_default != VIEW_CLASSIC) {
+            g_config.insets_top = g_view_ins[g_view_default][0];
+            g_config.insets_bottom = g_view_ins[g_view_default][1];
+            g_config.insets_left = g_view_ins[g_view_default][2];
+            g_config.insets_right = g_view_ins[g_view_default][3];
+        }
+        gal_hook_logf("event=views result=on default=%s classic=%u,%u,%u,%u large=%s%u,%u,%u,%u sport=%s%u,%u,%u,%u",
+                      g_view_names[g_view_default],
+                      g_view_ins[0][0], g_view_ins[0][1], g_view_ins[0][2], g_view_ins[0][3],
+                      g_view_set[1] ? "" : "off:", g_view_ins[1][0], g_view_ins[1][1], g_view_ins[1][2], g_view_ins[1][3],
+                      g_view_set[2] ? "" : "off:", g_view_ins[2][0], g_view_ins[2][1], g_view_ins[2][2], g_view_ins[2][3]);
+    }
     g_initialized = 1;
     gal_hook_logf(
         "event=init build=%s enabled=%d debug=%d second_sink=%d inject_meta=%d aap_minor=%u cluster_input=%d width=%u height=%u fps=%u dpi=%u insets=%u,%u,%u,%u ui_theme=%u viewing_distance=%u pixel_aspect_e4=%u qnx_displayable=%u vc_display=%u context=%u aap_display=%u service=%s",
@@ -822,6 +896,61 @@ const char *gal_hook_output_mode_name(void)
 }
 int gal_hook_is_debug(void) { return g_debug; }
 const gal_secondary_config *gal_hook_config(void) { return &g_config; }
+
+int gal_hook_views_enabled(void) { return g_views_on; }
+
+/* Raw insets -> as sent, the way GAL_SECONDARY_INSETS was translated. */
+static int view_translate(unsigned t, unsigned b, unsigned l, unsigned r, unsigned out[4])
+{
+    if (t > 0x3fffu || b > 0x3fffu || l > 0x3fffu || r > 0x3fffu) return 0;
+    if (g_insets_xform == INSETS_FULL_FRAME) {
+        unsigned par = g_config.pixel_aspect_ratio_e4;
+        unsigned half = (480u - 2u * ((2400000u + par / 2u) / par)) / 2u;
+        out[0] = ((t > half ? t - half : 0u) * par + 5000u) / 10000u;
+        out[1] = ((b > half ? b - half : 0u) * par + 5000u) / 10000u;
+        out[2] = (l * par + 5000u) / 10000u;
+        out[3] = (r * par + 5000u) / 10000u;
+        return 1;
+    }
+    if (g_insets_xform == INSETS_HD)
+        return gal_hd_frame_translate_insets(g_config.width, g_config.height,
+                                             g_config.margin_width, g_config.margin_height,
+                                             t, b, l, r, &out[0], &out[1], &out[2], &out[3]);
+    out[0] = t; out[1] = b; out[2] = l; out[3] = r;
+    return 1;
+}
+
+static int view_send(const unsigned ins[4], const char *what)
+{
+    int rc;
+    g_config.insets_top = ins[0];
+    g_config.insets_bottom = ins[1];
+    g_config.insets_left = ins[2];
+    g_config.insets_right = ins[3];
+    rc = gal_video_send_ui_config(ins[0], ins[1], ins[2], ins[3], g_config.ui_theme);
+    gal_hook_logf("event=views.switch to=%s insets=%u,%u,%u,%u result=%s",
+                  what, ins[0], ins[1], ins[2], ins[3], rc == 0 ? "sent" : "not_sent");
+    return rc;
+}
+
+/* One line from /tmp/gal_view: a view's name, or top,bottom,left,right. */
+int gal_hook_view_command(const char *line)
+{
+    unsigned i, t, b, l, r, ins[4];
+    if (!g_views_on || line == NULL) return -1;
+    for (i = 0u; i < VIEW_COUNT; ++i)
+        if (strcmp(line, g_view_names[i]) == 0) {
+            if (!g_view_set[i]) {
+                gal_hook_logf("event=views.switch to=%s result=not_configured", g_view_names[i]);
+                return -1;
+            }
+            return view_send(g_view_ins[i], g_view_names[i]);
+        }
+    if (sscanf(line, "%u,%u,%u,%u", &t, &b, &l, &r) == 4 && view_translate(t, b, l, r, ins))
+        return view_send(ins, "live");
+    gal_hook_logf("event=views.command result=not_understood");
+    return -1;
+}
 
 static pid_t g_main_pid = 0;
 

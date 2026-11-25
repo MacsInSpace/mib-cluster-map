@@ -97,6 +97,16 @@ int gal_hook_focus_mirror_enabled(void);
 int gal_hook_main_input_id_enabled(void);
 const char *gal_hook_output_mode_name(void);
 const gal_secondary_config *gal_hook_config(void);
+/* Insets per cockpit view (#183, opt-in): on when GAL_SECONDARY_LARGE_INSETS
+ * or GAL_SECONDARY_SPORT_INSETS is set. gal_hook_view_command takes one line
+ * of /tmp/gal_view ("classic", "large", "sport" or top,bottom,left,right). */
+int gal_hook_views_enabled(void);
+int gal_hook_view_command(const char *line);
+/* video_sink_hook.c: send the phone a new UiConfig on the cluster's video
+ * channel (0 sent, -1 not: no session, bad payload). */
+int gal_video_send_ui_config(unsigned top, unsigned bottom, unsigned left,
+                             unsigned right, unsigned ui_theme)
+    __attribute__((visibility("hidden")));
 /*
  * Isolated fixes from the 2026-09-15 Unix-socket car test. Each defaults ON;
  * setting its key to 0 in the environment or gal_dualscreen.conf runs the

@@ -252,6 +252,7 @@ on `auto` follows it without editing anything.
 |---|---|---|---|
 | SEAT 1010×376 (`P4708`, `P4709`), *auto* | 125 | `105,127,127,127` | SEAT owners, #4 and #19 (140 until beta11; owners found it too large) |
 | SEAT, for Waze | 110 | `105,127,127,127` | DaniFR3, #4 |
+| SEAT Leon Cupra, large-dials layout (small window between the dials) | 93 | `140,127,250,250` | PerryFabregas, #211 (theme must stay 0; the arrival card no longer fits) |
 | VW 12.3 in Passat B8 (`K4525`) | 145 | `56,73,127,127` | d4nt387, #8 |
 | VW 12.3 in Tiguan (`K4525`) | 145 | `56,120,127,127` | totocastellano-cmd, #27 |
 | VW Tiguan / Tiguan Allspace (`P4521`), 1010×376 cockpit, full frame, *auto* for VW 1010×376 since v1.2.7 | 115 | `102,52,127,127` | brzeskibartosz, #95 (turn card showing; ETA card not yet) |

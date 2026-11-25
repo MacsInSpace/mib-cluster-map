@@ -46,7 +46,9 @@ static GLuint splash_texture(int w, int h, const unsigned char* px) {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, px);
-    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+    /* Back to 1, as InitGL set it: the picture's planes are tightly packed,
+     * and with 4 any row that is not a multiple of 4 bytes is read sheared
+     * (CarPlay 1212 or 1010 wide lost its colour from v1.2.11, #201). */
     glActiveTexture(GL_TEXTURE0);
     return t;
 }

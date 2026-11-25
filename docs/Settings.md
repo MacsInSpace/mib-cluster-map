@@ -136,8 +136,10 @@ otherwise 125. A number here is kept as it is. Not used by CarPlay.
 
 Four numbers, **top, bottom, left, right**: how far from each edge the phone
 keeps its buttons, cards and the car. Change it when the arrival time, the
-turn card or the car hides behind a dial or warning light. To move the car
-down, raise the second number in steps of 10.
+turn card or the car hides behind a dial or warning light. The phone keeps
+the car near the middle of the space left over, so to move the car **down**,
+raise the first number or lower the second, in steps of 10 (#96). Raising
+the second number moves it up.
 
 `auto` is SEAT `105,127,127,127`, Skoda `40,127,127,127`, VW `52,82,127,127`,
 and `40,40,127,127` otherwise. On 800×480 at most three of the four can be
@@ -148,6 +150,23 @@ With **Sharper map** on a 1440×455 Audi, a top or bottom inset of 114 or less
 comes out as 0 (#96): use a larger value, or `CLUSTERMAP_FULL_FRAME=0`. The
 installer says so when it happens. Without its own CarPlay insets, CarPlay
 uses these too.
+
+</details>
+
+<details>
+<summary><code>GAL_SECONDARY_LARGE_INSETS</code>, <code>_SPORT_INSETS</code>, <code>_DEFAULT_VIEW</code>: insets per cockpit view (shipped: off)</summary>
+
+Some cockpits show the map in differently shaped spaces: an A3 8V has
+Classic, Large and Sport views, and a SEAT has standard and large dials
+(#211). One set of insets can't keep the card and car clear of the dials in
+all of them. Set `GAL_SECONDARY_LARGE_INSETS` and/or
+`GAL_SECONDARY_SPORT_INSETS` (four numbers, as `GAL_SECONDARY_INSETS`, which
+becomes the Classic view), and `GAL_SECONDARY_DEFAULT_VIEW` for the view at
+start. Then green menu > `ClusterMapSupport` > **7**, **8** or **9** tells
+the cluster map which view is showing, and the phone redraws with that
+view's insets straight away. By kashavsehra (#183), car-tested on his A3.
+The cockpit's own view button isn't followed yet: that part is being worked
+on per car.
 
 </details>
 
@@ -247,6 +266,8 @@ On VW, Skoda and SEAT the unit's decoder is used for the 800×480 picture
 only; 720p and 1080p are decoded in software. At 720p it blacked out a
 Skoda's centre screen each time Android Auto came back to it (#145). `1` uses
 it for them anyway (not recommended). Audi's direct path is not affected.
+`update_result.txt` says when this applies ("decoded in SOFTWARE on this
+car").
 
 </details>
 
@@ -466,6 +487,10 @@ A6/A7 C7.5 `K3663` and the Chinese `K1006_2`: the roller zooms the CarPlay
 map on the cockpit, as it zooms the car's own map. `reverse` if it zooms
 the wrong way round, `0` to leave the roller to the car's map. Zooming in
 not working on some cars is being looked at (#171).
+
+**US A6/A7 `K3341`:** checked against that interface build, but not car-tested
+yet, so it goes on only when you ask: `1` (or `reverse`). `update_result.txt`
+says so.
 
 </details>
 

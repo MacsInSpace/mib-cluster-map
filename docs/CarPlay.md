@@ -198,6 +198,15 @@ design.
   `lsd_jar.sh` adds the jar as a line of its own before lsd.jxe's, as M.I.B.
   adds its jars there.
 
+The US A6/A7 C7.5 (`K3341`, `lsd.jxe` 44051746 bytes, GavinPlusPlus #156)
+passes `tests/wheelzoom_check.sh` with the same jar: all 8 stock methods of
+the replaced class, every reference, and the 6 methods it calls by name
+(`Context.getZoomList`, `getRequestedZoomListIndex`, `getMVRequestControl`,
+`CtxShown.setZoomIndexOnMap`, `setMagnificationDisplay`,
+`MVRequestControlMapInKombi.setZoomLevel`). Not car-tested there yet, so the
+installer adds it only with `CLUSTERMAP_CARPLAY_WHEEL_ZOOM=1` (or `reverse`),
+never with `auto` (`WHEELZOOM_TRY_SIZES` in enable_hook.sh).
+
 The Chinese A6/A7 C7.5 (`MHI2_CN_AU57x_K1006_2`, `lsd.jxe` 43229093 bytes)
 runs another navigation (`de/audi/tghu/navasia`) with no `CtxShown`, so
 that jar has nothing to replace there. `ClusterMapNavAsiaZoom.jar`

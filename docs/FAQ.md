@@ -28,7 +28,7 @@ the real firmware itself and installs only what fits, or nothing.
 | VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | `K3342`, `K3332`, `P3301` (`S2125`: update to `K3342` first) | `K3342`, `K3332` |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | `P4708`, `P4709`, and the arrows on both | `P4709` |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | `P4526`, `P4523` | `P4526` |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU`, `MHI2_US_AU` | A4 B9 / Q5 FY `K3346`, A3/S3 8V `P5089`, `P5153`, `P4203`, A6/A7 C7.5 `K3663`, `P3236`, US A7 `K3341`; Q2 `P3243` installs (CarPlay map seen with the trial line; 1440×455 window since v1.2.12) | A6/A7 C7.5 `K3663`, US `K3341`, `P3327`, `P3237` |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU`, `MHI2_US_AU` | A4 B9 / Q5 FY `K3346`, A3/S3 8V `P5089`, `P5153`, `P4203`, A6/A7 C7.5 `K3663`, `P3236`, `P3634`, US A7 `K3341`; Q2 `P3243` installs (CarPlay map seen with the trial line; 1440×455 window since v1.2.12) | A6/A7 C7.5 `K3663`, US `K3341`, `P3327`, `P3237` |
 | VW Discover Pro, Japan | `MHI2_JP_VW48x_` | Trial on `P0953` | |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) | |
 | MIB2 Standard (Composition, Discover Media) | `MST2_` | No. A different unit; nothing here applies | |
@@ -70,9 +70,9 @@ The details per make are below.
   road-tested by owners (#39, #28; beta18 confirmed in #64 and #65). A
   Tiguan on `K3342` that showed "loading" works since v1.2.7 switches the
   older renderer off (#105).
-  - Wired CarPlay works (#62, #111; without a trial line since v1.2.6), and
-    #118 reports everything working. CarPlay through an Otto Pico wireless
-    adapter works too (#111).
+  - Wired CarPlay works (#62, #111, #209; without a trial line since v1.2.6),
+    and #118 reports everything working. CarPlay through an Ottocast Mini
+    Pico wireless adapter works too (#58, #111), and another in #209.
   - Turn and music info are not available on `K3342`: its interface differs
     from the one those jars were built for.
   - Set `CLUSTERMAP_ADD_NAVIGNORE=1` to keep the map during an Android Auto
@@ -118,7 +118,8 @@ The update menu needs developer mode on Audi (see the
 - **A3/S3 8V `AU37x_P5089`** (#51), **`P5153`** (#63) and **`P4203`** (#81,
   v1.2.4) work, and an RS3 on `P5089` (#192). Since v1.2.12 `P5089` gets
   NavActiveIgnore (the map stays on a route: #190, #192), 1080p and the
-  hardware decoder by itself. Android Auto cover art and playback time on the
+  hardware decoder by itself, and since v1.2.13 `P5153` too (1080p
+  car-tested there, #155; NavActiveIgnore, #110). Android Auto cover art and playback time on the
   cockpit: `CLUSTERMAP_AU37X_COVER=1` (#195, opt-in).
 - **A7 C7.5 `AU57x_K3663`**: Android Auto and CarPlay on the cockpit
   (context 73, set by the installer; its CarPlay library is accepted without
@@ -143,8 +144,9 @@ The update menu needs developer mode on Audi (see the
   installer adds (#127). CarPlay not tried yet.
 - **US A6/A7 C7.5 `AU57x_P3237`**: the CarPlay map works, with the iPhone's
   route hidden from the car as on `P3327` (#176). Android Auto not tried yet.
-- **A6 C7 `AU57x_P3634`**: not supported, but its owner updated the unit to
-  `K3663_1` and everything works there (#142); the same may suit `P3236`.
+- **A6 C7.5 `AU57x_P3634`**: supported since v1.2.13 (the map on the cockpit
+  with the trial line on #158; the same program on #204). Another owner
+  updated the unit to `K3663_1` instead, and everything works there (#142).
 
 </details>
 
@@ -196,8 +198,8 @@ Sometimes that is the shortest way:
   `MHI2_ER_VWG11_K3342_1_AIO_MU1427`), check the train and MU in the green
   menu afterwards, then install. If you already had NavActiveIgnore from
   M.I.B., use the stock `gal.json` (#28).
-- **Audi A6 C7 `P3634`**: an owner updated to `K3663_1`, which is supported,
-  and everything worked (#142). The same may suit `P3236`.
+- **Audi A6 C7.5 `P3634`**: supported as it is since v1.2.13; one owner
+  updated to `K3663_1` instead, and everything worked (#142).
 
 Updating firmware is at your own risk; this project does not host or link
 firmware.
@@ -354,8 +356,14 @@ a SmartBox-D824 the centre screen stayed black (#101). What fixed it there:
 in Android Auto's developer settings on the phone, allow only the 800x480
 video resolution. Otherwise use a cable, or switch the cockpit map off (green
 menu, `ClusterMapOptions` > **Cluster map OFF**) to have Android Auto as
-before. AAWireless (including TWO), a Motorola MA1 and, for CarPlay, an Otto
-Pico are reported working.
+before. AAWireless (including TWO) and a Motorola MA1 are reported working.
+
+**A wireless CarPlay adapter that stops working after the install** (#196,
+#207): add `CLUSTERMAP_CARPLAY=0` to `gal_dualscreen.conf` and install
+again. CarPlay then stays stock, so the adapter works, and the Android Auto
+map stays; only the CarPlay map on the cockpit goes. Reported working with
+the CarPlay map: Ottocast (Otto) Mini Pico (#58, #111), Carlinkit 5.0
+(#176) and the adapter in #209. Reported not working: TrolinkTek 4 (#207).
 
 </details>
 

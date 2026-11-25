@@ -128,3 +128,15 @@ script
 script
     value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/opt_stats_off.sh"
     label   "6. Performance figures in the log OFF (reconnect phone)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/view_classic.sh"
+    label   "7. Map insets for the Classic view (only with view insets set)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/view_large.sh"
+    label   "8. Map insets for the Large view (only with view insets set)"
+
+script
+    value   sys 1 0x0100 "/fs/sda0/ClusterMap/GEM/view_sport.sh"
+    label   "9. Map insets for the Sport view (only with view insets set)"
