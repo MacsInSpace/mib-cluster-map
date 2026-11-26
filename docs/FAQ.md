@@ -34,7 +34,7 @@ the real firmware itself and installs only what fits, or nothing.
 | VW Discover Pro 8 in (MIB2 High) | `MHI2_ER_VWG11_` | `K3342`, `K3332`, `P3301` (`S2125`: update to `K3342` first) | `K3342`, `K3332` |
 | SEAT with the Harman unit | `MHI2_ER_SEG11_` | `P4708`, `P4709`, and the arrows on both | `P4709` |
 | Skoda with the Harman unit | `MHI2_ER_SKG13_` | `P4526`, `P4523` | `P4526` |
-| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU`, `MHI2_US_AU` | A4 B9 / Q5 FY `K3346`, A3/S3 8V `P5089`, `P5153`, `P4203`, A6/A7 C7.5 `K3663`, `P3236`, `P3634`, US A7 `K3341`; Q2 `P3243` installs (CarPlay map seen with the trial line; 1440×455 window since v1.2.12) | A6/A7 C7.5 `K3663`, US `K3341`, `P3327`, `P3237` |
+| Audi MIB2 High, Harman/Tegra | `MHI2_ER_AU`, `MHI2_US_AU` | A4 B9 / Q5 FY `K3346` (and `K3344`, its older name), A3/S3 8V `P5089`, `P5153`, `P4203`, A6/A7 C7.5 `K3663`, `P3236`, `P3634`, US A7 `K3341`; Q2 `P3243` installs (CarPlay map seen with the trial line; 1440×455 window since v1.2.12) | A6/A7 C7.5 `K3663`, US `K3341`, `P3327`, `P3237` |
 | Audi A6L/A7 C7.5, China | `MHI2_CN_AU57x_` | | `K1006_2` (with the steering-wheel zoom) |
 | VW Discover Pro, Japan | `MHI2_JP_VW48x_` | Trial on `P0953` | |
 | Audi MIB2 High, Qualcomm | `MHI2Q_` | Not this project: see [kamgurgul/mib2q-carplay](https://github.com/kamgurgul/mib2q-carplay) | |
