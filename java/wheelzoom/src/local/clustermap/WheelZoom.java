@@ -100,6 +100,11 @@ public final class WheelZoom {
         }
     }
 
+    /* True while roller steps go to CarPlay (the same test forward() makes). */
+    public static boolean onCockpit() {
+        return carplayOnCockpit();
+    }
+
     private static boolean carplayOnCockpit() {
         if (new File(OFF).exists() || !new File(SUPERVISOR).exists()) {
             return false;

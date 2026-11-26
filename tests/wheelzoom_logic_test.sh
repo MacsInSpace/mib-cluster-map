@@ -59,8 +59,44 @@ public class Run {
             + "setMagnificationDisplay(3) kombi:setZoomIndexOnMap(3) "
             + "setMagnificationDisplay(1) kombi:setZoomIndexOnMap(1) ";
         if (!log.toString().equals(want)) { System.out.println("FAIL  expected: " + want); System.exit(1); }
+        System.out.println("ok    stock zoom path unchanged");
+
+        // Room for the roller (#171): the cockpit's magnification sits at its
+        // maximum, so the stock GUIInterface would drop every "out" step.
+        // While CarPlay has the cockpit the timer must centre it, and put it
+        // back once CarPlay has left. a[2]/a[3]: the state and supervisor
+        // files WheelZoom reads (the test points it at temporary copies).
+        Field rf = timer.getDeclaredField("roomTimer"); rf.setAccessible(true);
+        Object room = rf.get(t);
+        if (room == null) { System.out.println("FAIL  no room timer on the cockpit map"); System.exit(1); }
+        Method fire = timer.getMethod("fireTimer", stock.loadClass("de.audi.atip.timer.Timer"));
+        Class<?> gi = stock.loadClass("de.audi.tghu.navi.app.map.GUIInterface");
+        gi.getField("value").setInt(null, 4);
+        java.io.File state = new java.io.File(a[2]), pid = new java.io.File(a[3]);
+        log.setLength(0);
+        fire.invoke(t, room);                                   // CarPlay not up: nothing
+        java.nio.file.Files.write(pid.toPath(), "1\n".getBytes());
+        java.nio.file.Files.write(state.toPath(), "streaming\n".getBytes());
+        fire.invoke(t, room);                                   // at the end: centre
+        fire.invoke(t, room);                                   // centred: nothing
+        timer.getMethod("restart", int.class).invoke(t, 3);     // goes to CarPlay, stock map untouched
+        state.delete();
+        fire.invoke(t, room);                                   // CarPlay gone: restore
+        fire.invoke(t, room);                                   // nothing more
+        pid.delete();
+        System.out.println("calls: " + log);
+        String room1 = "setKombiMagnification(2) setKombiMagnification(4) ";
+        if (!log.toString().equals(room1)) { System.out.println("FAIL  expected: " + room1); System.exit(1); }
+        System.out.println("ok    roller range centred while CarPlay has the cockpit, restored after");
         System.out.println("WHEELZOOM_LOGIC_OK");
     }
 }
 JAVA
-java "$T/Run.java" "$T/fakes" "$JAR"
+# The jar reads these fixed paths (as on the unit); the test writes and
+# removes them, so it must not run where they already exist.
+STATE=/tmp/mibr-carplay111.state PID=/tmp/carplay_cluster.pid
+for f in "$STATE" "$PID"; do
+    [ ! -e "$f" ] || { echo "FAIL  $f exists here; the test needs it absent"; exit 1; }
+done
+trap 'rm -rf "$T"; rm -f "$STATE" "$PID"' EXIT
+java "$T/Run.java" "$T/fakes" "$JAR" "$STATE" "$PID"

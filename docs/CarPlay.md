@@ -194,6 +194,19 @@ design.
   zoom underneath. Anything else, and the stock map zooms as before.
 - The hook keeps a count and sends one `changeMapZoomLevel` per step,
   100 ms apart. Positive steps (the stock list's larger scales) zoom out.
+- **Room for the roller (#171, #128).** The stock `GUIInterface` passes a
+  roller step on only as far as the cockpit map's magnification (the
+  `RangeModel` of control `-240844800`) can still move: at its maximum it
+  drops "out" steps, at its minimum "in" steps, before the timer is called.
+  The stock map doesn't zoom while CarPlay has the cockpit, so that value
+  stayed where the Audi map was, and when that was an end of its zoom list
+  one direction never reached CarPlay (zoom out dead on one A6, zoom in on
+  another). Since v1.2.14 the timer checks once a second, only on the
+  cockpit map and only while the steps go to CarPlay: a value at an end is
+  set to the middle of its range (`GUIInterface.setKombiMagnification`,
+  which sets the value only: no zoom, no scale shown), and the saved value
+  goes back once CarPlay has left. Each move is a `zoom room:` line in
+  `/tmp/clustermap-wheelzoom.log`.
 - lsd.sh on this unit starts J9 with `-Xbootclasspath:$BOOTCLASSPATH`, so
   `lsd_jar.sh` adds the jar as a line of its own before lsd.jxe's, as M.I.B.
   adds its jars there.

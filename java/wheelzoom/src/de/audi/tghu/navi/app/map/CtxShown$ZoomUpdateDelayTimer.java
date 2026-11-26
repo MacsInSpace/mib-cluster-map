@@ -43,7 +43,27 @@ public final class CtxShown$ZoomUpdateDelayTimer implements TimerListener {
     private final Object ctx;
     private final boolean kombi;
     private Method getZoomList, getRequestedZoomListIndex, setMagnificationDisplay,
-        setZoomIndexOnMap, getMVRequestControl, setZoomLevel;
+        setZoomIndexOnMap, getMVRequestControl, setZoomLevel, getGuiInterface,
+        getKombiMagnificationValue, getKombiMagnificationMinimum,
+        getKombiMagnificationMaximum, setKombiMagnification;
+
+    /*
+     * Room for the roller (#171, #128). The stock GUIInterface passes a
+     * cockpit roller step on only as far as the cockpit map's magnification
+     * (the RangeModel of control -240844800) can still move: at its maximum
+     * "out" steps are dropped, at its minimum "in" steps, before this class
+     * is called. While CarPlay has the cockpit the stock map doesn't zoom, so
+     * that value stays where the Audi map was, and if that was an end of its
+     * zoom list one direction never reached CarPlay. So, only on the cockpit
+     * map and only while the steps go to CarPlay, a check every second puts
+     * the value in the middle of its range when it sits at an end, and puts
+     * the saved value back once CarPlay has left. setKombiMagnification only
+     * sets that value: the stock map doesn't zoom and no scale is shown.
+     */
+    private Timer roomTimer;
+    private boolean roomMoved;
+    private int roomSaved;
+    private Object gui;
 
     public CtxShown$ZoomUpdateDelayTimer(CtxShown ctxShown) {
         this.ctx = ctxShown;
@@ -56,6 +76,17 @@ public final class CtxShown$ZoomUpdateDelayTimer implements TimerListener {
         // here for the stock "ldc2_w 150L". The stock class never starts this
         // timer, so any delay above 0 behaves the same.
         this.mTimer = new Timer("ZoomUpdateDelayTimer", 150L, true, this);
+        if (this.kombi) {
+            // Never let this stop the navigation loading: without it the
+            // roller works as before, only one direction may be blocked.
+            try {
+                this.roomTimer = new Timer("ClusterMapZoomRoom", 1000L, false, this);
+                this.roomTimer.start();
+            } catch (Throwable t) {
+                this.roomTimer = null;
+                WheelZoom.note("zoom room timer not started: ", String.valueOf(t));
+            }
+        }
     }
 
     /* n: signed roller steps, added to the index into the map's zoom list. */
@@ -93,6 +124,10 @@ public final class CtxShown$ZoomUpdateDelayTimer implements TimerListener {
     }
 
     public void fireTimer(Timer timer) {
+        if (timer != null && timer == this.roomTimer) {
+            keepRoom();
+            return;
+        }
         this.mZoomUpdateTemporarilyDisabled = false;
         if (this.mDelayedZoomIndex != requestedIndex()) {
             call(this.ctx, "setZoomIndexOnMap", ONE_INT, intArg(this.mDelayedZoomIndex));
@@ -113,6 +148,77 @@ public final class CtxShown$ZoomUpdateDelayTimer implements TimerListener {
     /* Called by CtxShown as the compiler named it for the original inner class. */
     public static void access$000(CtxShown$ZoomUpdateDelayTimer timer) {
         timer.cancel();
+    }
+
+    /* See roomTimer. Any failure leaves things as they are. */
+    private void keepRoom() {
+        try {
+            boolean on = WheelZoom.onCockpit();
+            if (!on && !this.roomMoved) {
+                return;
+            }
+            Object g = guiInterface();
+            if (g == null) {
+                return;
+            }
+            if (!on) {
+                this.roomMoved = false;
+                call(g, "setKombiMagnification", ONE_INT, intArg(this.roomSaved));
+                WheelZoom.note("zoom room: restored ", String.valueOf(this.roomSaved));
+                return;
+            }
+            int value = intOf(call(g, "getKombiMagnificationValue", NONE, NO_ARGS));
+            int min = intOf(call(g, "getKombiMagnificationMinimum", NONE, NO_ARGS));
+            int max = intOf(call(g, "getKombiMagnificationMaximum", NONE, NO_ARGS));
+            if (value == Integer.MIN_VALUE || min == Integer.MIN_VALUE || max == Integer.MIN_VALUE
+                    || max - min < 2 || (value > min && value < max)) {
+                return;
+            }
+            if (!this.roomMoved) {
+                this.roomMoved = true;
+                this.roomSaved = value;
+            }
+            int mid = min + (max - min) / 2;
+            call(g, "setKombiMagnification", ONE_INT, intArg(mid));
+            WheelZoom.note("zoom room: ", new StringBuffer().append(value).append(" -> ").append(mid)
+                .append(" (").append(min).append("..").append(max).append(')').toString());
+        } catch (Throwable t) {
+            WheelZoom.note("zoom room failed: ", String.valueOf(t));
+        }
+    }
+
+    /* naviMap is a protected field of the stock Context, reached through
+     * reflection like the methods, then Map.getGuiInterface(). */
+    private Object guiInterface() {
+        if (this.gui != null) {
+            return this.gui;
+        }
+        Object map = null;
+        for (Class c = this.ctx.getClass(); c != null && map == null; c = c.getSuperclass()) {
+            try {
+                java.lang.reflect.Field f = c.getDeclaredField("naviMap");
+                f.setAccessible(true);
+                map = f.get(this.ctx);
+                if (map == null) {
+                    return null; // not set yet: try again on the next tick
+                }
+            } catch (NoSuchFieldException e) {
+                map = null;
+            } catch (Throwable t) {
+                WheelZoom.note("stock field failed: naviMap ", String.valueOf(t));
+                return null;
+            }
+        }
+        if (map == null) {
+            WheelZoom.note("stock field not found: ", "naviMap");
+            return null;
+        }
+        this.gui = call(map, "getGuiInterface", NONE, NO_ARGS);
+        return this.gui;
+    }
+
+    private static int intOf(Object r) {
+        return r instanceof Integer ? ((Integer) r).intValue() : Integer.MIN_VALUE;
     }
 
     private int requestedIndex() {
@@ -162,6 +268,11 @@ public final class CtxShown$ZoomUpdateDelayTimer implements TimerListener {
         if (name.equals("setZoomIndexOnMap")) return this.setZoomIndexOnMap;
         if (name.equals("getMVRequestControl")) return this.getMVRequestControl;
         if (name.equals("setZoomLevel")) return this.setZoomLevel;
+        if (name.equals("getGuiInterface")) return this.getGuiInterface;
+        if (name.equals("getKombiMagnificationValue")) return this.getKombiMagnificationValue;
+        if (name.equals("getKombiMagnificationMinimum")) return this.getKombiMagnificationMinimum;
+        if (name.equals("getKombiMagnificationMaximum")) return this.getKombiMagnificationMaximum;
+        if (name.equals("setKombiMagnification")) return this.setKombiMagnification;
         return null;
     }
 
@@ -172,5 +283,10 @@ public final class CtxShown$ZoomUpdateDelayTimer implements TimerListener {
         else if (name.equals("setZoomIndexOnMap")) this.setZoomIndexOnMap = m;
         else if (name.equals("getMVRequestControl")) this.getMVRequestControl = m;
         else if (name.equals("setZoomLevel")) this.setZoomLevel = m;
+        else if (name.equals("getGuiInterface")) this.getGuiInterface = m;
+        else if (name.equals("getKombiMagnificationValue")) this.getKombiMagnificationValue = m;
+        else if (name.equals("getKombiMagnificationMinimum")) this.getKombiMagnificationMinimum = m;
+        else if (name.equals("getKombiMagnificationMaximum")) this.getKombiMagnificationMaximum = m;
+        else if (name.equals("setKombiMagnification")) this.setKombiMagnification = m;
     }
 }

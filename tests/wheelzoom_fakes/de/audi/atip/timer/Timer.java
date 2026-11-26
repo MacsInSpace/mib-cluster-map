@@ -8,6 +8,10 @@ public class Timer {
         }
     }
 
+    /* As the stock Timer: queues it; the test fires it by hand. */
+    public void start() {
+    }
+
     public boolean cancel() {
         return true;
     }

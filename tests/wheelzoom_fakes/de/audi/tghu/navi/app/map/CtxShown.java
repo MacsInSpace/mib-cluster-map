@@ -2,7 +2,7 @@ package de.audi.tghu.navi.app.map;
 
 /* Stand-in with the stock access: the class and these methods package-private
  * or protected, as in lsd.jxe. */
-class CtxShown {
+class CtxShown extends Context {
     int requested;
     final MVRequestControl control = new MVRequestControl();
 
