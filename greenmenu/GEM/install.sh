@@ -12,6 +12,31 @@ ENGDEFS=/mnt/app/eso/hmi/engdefs
 if [ -f $ENGDEFS/aa-cluster-map.esd ] && [ -f $ENGDEFS/cluster-map.esd ]; then
     mount -uw /mnt/app 2>/dev/null && rm -f $ENGDEFS/aa-cluster-map.esd && echo "Removed the old AAClusterMap menu screen."; mount -ur /mnt/app 2>/dev/null
 fi
+# The screen itself comes with the SD update (Custom/GreenMenu). An install
+# from this menu kept the old one, so v1.2.13's view entries (Support 7-9)
+# were missing (#183). Put this package's screen in place, pointed at this
+# card as menu_follow_card does, when it differs from the unit's.
+MENU_NEW="$PKG/GEM/cluster-map.esd"
+MENU_TMP=/tmp/clustermap-menu.esd
+case "$VOLUME" in
+    /fs/*)
+        if [ -f $ENGDEFS/cluster-map.esd ] && [ -r "$MENU_NEW" ] &&
+           sed "s|\"/[^\"]*/ClusterMap/GEM/|\"$VOLUME/ClusterMap/GEM/|" "$MENU_NEW" > $MENU_TMP 2>/dev/null &&
+           [ -s $MENU_TMP ]; then
+            MENU_A=`wc -c < $MENU_TMP | sed 's/ //g'`
+            MENU_B=`wc -c < $ENGDEFS/cluster-map.esd | sed 's/ //g'`
+            if [ "$MENU_A" != "$MENU_B" ] && mount -uw /mnt/app 2>/dev/null; then
+                if cp $MENU_TMP $ENGDEFS/cluster-map.esd.new 2>/dev/null &&
+                   mv $ENGDEFS/cluster-map.esd.new $ENGDEFS/cluster-map.esd 2>/dev/null; then
+                    echo "Green menu: its screen is now this version's (after the reboot)."
+                else
+                    rm -f $ENGDEFS/cluster-map.esd.new 2>/dev/null
+                fi
+                mount -ur /mnt/app 2>/dev/null
+            fi
+        fi
+        rm -f $MENU_TMP 2>/dev/null ;;
+esac
 echo "Head unit: $FAMILY"
 echo "Firmware train: $TRAIN"
 # Before anything changes: a unit without a command the scripts need stops
