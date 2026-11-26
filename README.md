@@ -122,6 +122,7 @@ step-by-step for porting your own car.
 | Page | For |
 |---|---|
 | [FAQ](docs/FAQ.md) | Supported cars, updating, common problems, what it can and cannot do |
+| [Features](docs/Features.md) | Every feature asked for: available, on the to-do list, not possible, not planned |
 | [Install guide](docs/Install.md) | Install routes, the menu, settings, logs, safety and recovery, getting your unit added |
 | [Settings](docs/Settings.md) | Every setting, why it exists, and when to change it |
 | [CarPlay](docs/CarPlay.md) | The CarPlay map: design, status, testing |
