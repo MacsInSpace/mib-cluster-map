@@ -30,11 +30,12 @@ Car support is a separate question: see
 | <a id="music-vw"></a>Track info on the cockpit's media page | VW, SEAT, Skoda, VW `K3342` | `CLUSTERMAP_MUSIC_INFO=1` | #18, #62 |
 | <a id="music-a3"></a>Android Auto cover art and track info | Audi A3 8V `P5089` | `CLUSTERMAP_AU37X_COVER=1` | #195 |
 | <a id="turn-info"></a>Android Auto turn arrow, distance and road name in the dials (and on a factory HUD) | VW, SEAT, Skoda | `CLUSTERMAP_TURN_INFO=1` | #119, discussion #197 |
+| <a id="waze-roundabout"></a>Waze roundabouts drawn from the exit number (no U-turn) | VW, SEAT, Skoda with turn info | Since v1.2.14, by itself | #216 |
 | <a id="arrows-only"></a>Turn arrows only, without the map | Trains where the arrows jar fits | Green menu: switch to turn-by-turn arrows | #3 |
 | <a id="sharper-map"></a>Sharper map (whole frame, 720p, 1080p) | Larger cockpits | `CLUSTERMAP_FULL_FRAME`, `CLUSTERMAP_720P`, `CLUSTERMAP_1080P` | [FAQ](FAQ.md#hd-decoder) |
 | <a id="hw-decoder"></a>Hardware video decoder | On by itself on `P4521`, `K4525`, A3 8V; others after the check | Green menu `ClusterMapOptions` | #125 |
 | <a id="carplay-scale"></a>Smaller CarPlay text, more map | CarPlay cars | `CLUSTERMAP_CARPLAY_SCALE=130` | #146, discussion #193 |
-| <a id="carplay-zoom"></a>Steering-wheel zoom of the CarPlay map | Audi A6/A7 C7.5 `K3663`, `K1006_2`; trial on `K3341` | On by itself; `CLUSTERMAP_CARPLAY_WHEEL_ZOOM=1` on `K3341` | #156, #171 |
+| <a id="carplay-zoom"></a>Steering-wheel zoom of the CarPlay map | Audi A6/A7 C7.5 `K3663`, `K1006_2`; trial on `K3341` | On by itself; `CLUSTERMAP_CARPLAY_WHEEL_ZOOM=1` on `K3341`. Both directions again since v1.2.14 | #156, #171, #128 |
 | <a id="view-insets"></a>Different insets per cockpit view | Cars with several views (A3 8V, SEAT large dials) | `GAL_SECONDARY_LARGE_INSETS`, `_SPORT_INSETS`, green menu `ClusterMapSupport` 7-9 | #183, #211 |
 | <a id="primary-dpi"></a>Centre-screen size for Android Auto | All | `GAL_PRIMARY_DPI` | #71 |
 
@@ -57,7 +58,6 @@ Asked recently; the answer is in the issue when there is one.
 | Request | Issues |
 |---|---|
 | <a id="look-aa-audi-hud"></a>Android Auto turn arrows on the Audi A6/A7 factory HUD and cluster | #215 |
-| <a id="look-waze-roundabout"></a>Waze roundabouts shown as a U-turn on the VW HUD | #216 |
 | <a id="look-roundabout-no-map"></a>Wrong roundabout arrows on a cockpit without map view (Google Maps) | discussion #221 |
 | <a id="look-svm"></a>"Fix SVM" (clear the software-version fault) in the green menu | #214 |
 | <a id="look-roller-presets"></a>Steering-wheel roller to step through map presets | #205 |

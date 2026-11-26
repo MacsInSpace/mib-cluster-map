@@ -1,8 +1,8 @@
 # Frequently asked questions
 
-Click a question to open it. Not answered here? Ask in
-[Discussions > Q&A](https://github.com/MacsInSpace/mib-cluster-map/discussions/categories/q-a), or open an
-[issue](https://github.com/MacsInSpace/mib-cluster-map/issues) with your logs if something is broken.
+Click a question to open it. Not answered here? Open an
+[issue](https://github.com/MacsInSpace/mib-cluster-map/issues) with your car, firmware train and
+`update_result.txt`, and a Save logs zip if something is broken.
 Write in your own language if that is easier ([Language note](#language-note)).
 
 Asking for a feature? [Features](Features.md) lists what is done, what is on
@@ -216,7 +216,7 @@ the phone's map goes into that window.
 Not sure? Run the update with `COLLECT.txt` (see
 [Install](Install.md#route-1-software-update)): it changes nothing, and the
 files it collects in `ClusterMap/` show whether the cockpit has a map window.
-Attach them to a question in Discussions and we'll look.
+Attach them to a new issue and we'll look.
 
 </details>
 
@@ -666,6 +666,12 @@ gone blank when a route starts there (#44 is the exception).
   project (#45, #44).
 - **CarPlay arrows on the cockpit or the head-up display:** on the to-do
   list (#179); Android Auto arrows on the Audi head-up display too (#215).
+- **Roundabouts with Waze:** Waze sends the exit number but no exit angle,
+  and the arrow was a U-turn at every roundabout (#216). Since v1.2.14 the
+  arrow is drawn from the exit number: the exits are spread round the
+  roundabout and the arrow takes the one Waze says, so counting the exits on
+  the arrow gives Waze's number. The real roundabout's shape may differ.
+  Google Maps sends the angle, so its arrows are exact.
 
 </details>
 

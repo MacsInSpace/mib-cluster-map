@@ -6,6 +6,3 @@ contact_links:
   - name: Asking for a feature? Check Features first
     url: https://github.com/MacsInSpace/mib-cluster-map/blob/main/docs/Features.md
     about: What is available, on the to-do list, not possible (the phone or car doesn't provide it) or not planned.
-  - name: Ask a question
-    url: https://github.com/MacsInSpace/mib-cluster-map/discussions/categories/q-a
-    about: How-to questions go to Discussions > Q&A. Issues are for problems, with update_result.txt and Save logs attached.

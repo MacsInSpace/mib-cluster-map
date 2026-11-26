@@ -101,7 +101,7 @@ original state**, then reboot (or see the [FAQ](docs/FAQ.md#installing-and-updat
 The [FAQ](docs/FAQ.md) answers the ones that come up most: which cars work,
 updating, where settings are, the map going when a route starts, sending
 logs, what the cockpit can and cannot show, CarPlay sizes. Write in any
-language. Other questions: [Discussions > Q&A](https://github.com/MacsInSpace/mib-cluster-map/discussions/categories/q-a).
+language. Other questions: open an [issue](https://github.com/MacsInSpace/mib-cluster-map/issues) with your car, firmware train and `update_result.txt`.
 
 ## Where the project stands
 
